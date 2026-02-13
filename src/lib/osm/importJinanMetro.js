@@ -5,6 +5,7 @@ import jinanBoundaryGeoJson from '../../data/jinan-boundary.json'
 import { normalizeHexColor, pickLineColor } from '../colors'
 import { haversineDistanceMeters, projectLngLat } from '../geo'
 import { createId } from '../ids'
+import { normalizeLineNamesForLoop } from '../lineNaming'
 import { JINAN_RELATION_ID } from '../projectModel'
 import { postOverpassQuery } from './overpassClient'
 
@@ -129,23 +130,6 @@ function readStationName(node) {
   return { nameZh, nameEn }
 }
 
-function stripLoopTerminusSuffix(name, isZh = true) {
-  const raw = String(name || '').trim()
-  if (!raw) return raw
-  const loopHint = isZh ? /环/u : /(loop|circle)/i
-  if (!loopHint.test(raw)) return raw
-  if (isZh) {
-    return raw
-      .replace(/([0-9A-Za-z\u4e00-\u9fa5]+环线)\s*[-—–~～]\s*.+$/u, '$1')
-      .replace(/([0-9A-Za-z\u4e00-\u9fa5]+环)\s*[-—–~～]\s*.+$/u, '$1')
-      .trim()
-  }
-  return raw
-    .replace(/((?:line|route)\s*\d*\s*(?:loop|circle))\s*[-—–~～]\s*.+$/i, '$1')
-    .replace(/(.+\b(?:loop|circle)\b)\s*[-—–~～]\s*.+$/i, '$1')
-    .trim()
-}
-
 function isLoopRelation(tags = {}) {
   const roundtrip = String(tags.roundtrip || '').toLowerCase()
   const circular = String(tags.circular || '').toLowerCase()
@@ -166,11 +150,16 @@ function createLineFromRelation(relation, colorIndex, status) {
   const nameZhRaw = tags['name:zh'] || tags.name || `线路 ${tags.ref || relation.id}`
   const nameEnRaw =
     tags['name:en'] || tags.int_name || tags['name:zh'] || tags.name || `Line ${tags.ref || relation.id}`
+  const normalizedNames = normalizeLineNamesForLoop({
+    nameZh: nameZhRaw,
+    nameEn: nameEnRaw,
+    isLoop,
+  })
   return {
     id: createId('line'),
     key: toLineKey(relation),
-    nameZh: isLoop ? stripLoopTerminusSuffix(nameZhRaw, true) : nameZhRaw,
-    nameEn: isLoop ? stripLoopTerminusSuffix(nameEnRaw, false) : nameEnRaw,
+    nameZh: normalizedNames.nameZh || nameZhRaw,
+    nameEn: normalizedNames.nameEn || nameEnRaw,
     color: normalizeHexColor(tags.colour, pickLineColor(colorIndex)),
     status,
     style: 'solid',

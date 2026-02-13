@@ -4,6 +4,7 @@ import { haversineDistanceMeters, projectLngLat } from '../lib/geo'
 import { optimizeLayoutInWorker } from '../lib/layout/workerClient'
 import { normalizeHexColor, pickLineColor } from '../lib/colors'
 import { createId } from '../lib/ids'
+import { normalizeLineNamesForLoop } from '../lib/lineNaming'
 import { importJinanMetroFromOsm } from '../lib/osm/importJinanMetro'
 import { createEmptyProject, normalizeProject } from '../lib/projectModel'
 import {
@@ -72,21 +73,13 @@ function dedupeStationIds(ids, stationIdSet) {
   return result
 }
 
-function stripLoopTerminusSuffix(name, isZh = true) {
-  const raw = String(name || '').trim()
-  if (!raw) return raw
-  const loopHint = isZh ? /环/u : /(loop|circle)/i
-  if (!loopHint.test(raw)) return raw
-  if (isZh) {
-    return raw
-      .replace(/([0-9A-Za-z\u4e00-\u9fa5]+环线)\s*[-—–~～]\s*.+$/u, '$1')
-      .replace(/([0-9A-Za-z\u4e00-\u9fa5]+环)\s*[-—–~～]\s*.+$/u, '$1')
-      .trim()
+function applyRenameTemplate(template, sequenceNumber) {
+  const normalized = String(template || '').trim()
+  if (!normalized) return ''
+  if (normalized.includes('{n}')) {
+    return normalized.replaceAll('{n}', String(sequenceNumber))
   }
-  return raw
-    .replace(/((?:line|route)\s*\d*\s*(?:loop|circle))\s*[-—–~～]\s*.+$/i, '$1')
-    .replace(/(.+\b(?:loop|circle)\b)\s*[-—–~～]\s*.+$/i, '$1')
-    .trim()
+  return `${normalized}${sequenceNumber}`
 }
 
 export const useProjectStore = defineStore('project', {
@@ -189,6 +182,9 @@ export const useProjectStore = defineStore('project', {
       const stationIdSet = new Set(this.project.stations.map((station) => station.id))
       const sanitized = dedupeStationIds(stationIds, stationIdSet)
       this.selectedStationIds = sanitized
+      if (sanitized.length) {
+        this.selectedEdgeId = null
+      }
       if (options.keepPrimary && this.selectedStationId && sanitized.includes(this.selectedStationId)) {
         return
       }
@@ -211,19 +207,28 @@ export const useProjectStore = defineStore('project', {
       this.setSelectedStations(merged, { keepPrimary: true })
     },
 
+    selectAllStations() {
+      if (!this.project) return
+      this.setSelectedStations(this.project.stations.map((station) => station.id))
+      this.statusText = `已全选 ${this.selectedStationIds.length} 个站点`
+    },
+
     addLine({ nameZh, nameEn, color, status = 'open', style = 'solid', isLoop = false }) {
       if (!this.project) return null
       const lineIndex = this.project.lines.length
       const safeIsLoop = Boolean(isLoop)
       const normalizedStatus = ['open', 'construction', 'proposed'].includes(status) ? status : 'open'
       const normalizedStyle = ['solid', 'dashed', 'dotted'].includes(style) ? style : 'solid'
-      const normalizedNameZh = (nameZh?.trim() || `手工线路 ${lineIndex + 1}`)
-      const normalizedNameEn = (nameEn?.trim() || `Manual Line ${lineIndex + 1}`)
+      const normalizedNames = normalizeLineNamesForLoop({
+        nameZh: nameZh?.trim() || `手工线路 ${lineIndex + 1}`,
+        nameEn: nameEn?.trim() || `Manual Line ${lineIndex + 1}`,
+        isLoop: safeIsLoop,
+      })
       const line = {
         id: createId('line'),
         key: `manual_${Date.now()}_${lineIndex}`,
-        nameZh: safeIsLoop ? stripLoopTerminusSuffix(normalizedNameZh, true) : normalizedNameZh,
-        nameEn: safeIsLoop ? stripLoopTerminusSuffix(normalizedNameEn, false) : normalizedNameEn,
+        nameZh: normalizedNames.nameZh,
+        nameEn: normalizedNames.nameEn,
         color: normalizeHexColor(color, pickLineColor(lineIndex)),
         status: normalizedStatus,
         style: normalizedStyle,
@@ -290,6 +295,34 @@ export const useProjectStore = defineStore('project', {
       this.touchProject(`更新站名: ${station.nameZh}`)
     },
 
+    renameSelectedStationsByTemplate({ zhTemplate, enTemplate, startIndex = 1 } = {}) {
+      if (!this.project || !this.selectedStationIds.length) return
+      const selectedSet = new Set(this.selectedStationIds)
+      const selectedStations = this.project.stations.filter((station) => selectedSet.has(station.id))
+      if (!selectedStations.length) return
+
+      const normalizedStart = Number(startIndex)
+      const sequenceStart = Number.isFinite(normalizedStart) ? Math.max(1, Math.floor(normalizedStart)) : 1
+      const hasZhTemplate = Boolean(String(zhTemplate || '').trim())
+      const hasEnTemplate = Boolean(String(enTemplate || '').trim())
+      if (!hasZhTemplate && !hasEnTemplate) return
+
+      selectedStations.forEach((station, index) => {
+        const n = sequenceStart + index
+        if (hasZhTemplate) {
+          const nextZh = applyRenameTemplate(zhTemplate, n)
+          if (nextZh) {
+            station.nameZh = nextZh
+          }
+        }
+        if (hasEnTemplate) {
+          station.nameEn = applyRenameTemplate(enTemplate, n)
+        }
+      })
+
+      this.touchProject(`批量重命名 ${selectedStations.length} 个站点`)
+    },
+
     updateLine(lineId, patch = {}) {
       if (!this.project) return
       const line = this.project.lines.find((item) => item.id === lineId)
@@ -310,11 +343,14 @@ export const useProjectStore = defineStore('project', {
       }
       if (patch.isLoop != null) {
         next.isLoop = Boolean(patch.isLoop)
-        if (next.isLoop) {
-          next.nameZh = stripLoopTerminusSuffix(next.nameZh, true)
-          next.nameEn = stripLoopTerminusSuffix(next.nameEn, false)
-        }
       }
+      const normalizedNames = normalizeLineNamesForLoop({
+        nameZh: next.nameZh,
+        nameEn: next.nameEn,
+        isLoop: next.isLoop,
+      })
+      next.nameZh = normalizedNames.nameZh || next.nameZh
+      next.nameEn = normalizedNames.nameEn
 
       Object.assign(line, next)
       this.recomputeStationLineMembership()
@@ -344,6 +380,44 @@ export const useProjectStore = defineStore('project', {
       this.touchProject('已删除选中站点')
     },
 
+    selectEdge(edgeId, options = {}) {
+      if (!this.project) return
+      const target = this.project.edges.find((edge) => edge.id === edgeId)
+      if (!target) return
+      this.selectedEdgeId = target.id
+      if (!options.keepStationSelection) {
+        this.selectedStationId = null
+        this.selectedStationIds = []
+      }
+      this.pendingEdgeStartStationId = null
+    },
+
+    deleteSelectedEdge() {
+      if (!this.project || !this.selectedEdgeId) return
+      const deletingEdgeId = this.selectedEdgeId
+      const deletingEdge = this.project.edges.find((edge) => edge.id === deletingEdgeId)
+      if (!deletingEdge) {
+        this.selectedEdgeId = null
+        return
+      }
+
+      this.project.edges = this.project.edges.filter((edge) => edge.id !== deletingEdgeId)
+      for (const line of this.project.lines) {
+        line.edgeIds = (line.edgeIds || []).filter((edgeId) => edgeId !== deletingEdgeId)
+      }
+      this.project.lines = this.project.lines.filter((line) => line.edgeIds.length > 0)
+      if (!this.project.lines.length) {
+        this.addLine({})
+      }
+      if (!this.project.lines.some((line) => line.id === this.activeLineId)) {
+        this.activeLineId = this.project.lines[0]?.id || null
+      }
+
+      this.selectedEdgeId = null
+      this.recomputeStationLineMembership()
+      this.touchProject(`删除线段: ${deletingEdge.fromStationId} -> ${deletingEdge.toStationId}`)
+    },
+
     deleteLine(lineId) {
       if (!this.project) return
       const line = this.project.lines.find((item) => item.id === lineId)
@@ -369,6 +443,12 @@ export const useProjectStore = defineStore('project', {
       }
       if (!this.project.lines.some((item) => item.id === this.activeLineId)) {
         this.activeLineId = this.project.lines[0]?.id || null
+      }
+      if (this.selectedEdgeId) {
+        const stillExists = this.project.edges.some((edge) => edge.id === this.selectedEdgeId)
+        if (!stillExists) {
+          this.selectedEdgeId = null
+        }
       }
       this.recomputeStationLineMembership()
       this.touchProject(`删除线路: ${line.nameZh}`)
@@ -444,6 +524,7 @@ export const useProjectStore = defineStore('project', {
       } else {
         this.setSelectedStations([stationId])
       }
+      this.selectedEdgeId = null
       if (this.mode === 'add-edge') {
         if (!this.pendingEdgeStartStationId) {
           this.pendingEdgeStartStationId = stationId
@@ -465,6 +546,9 @@ export const useProjectStore = defineStore('project', {
       const stationLineSet = new Map(this.project.stations.map((station) => [station.id, new Set()]))
       const lineById = new Map(this.project.lines.map((line) => [line.id, line]))
       const edgeById = new Map(this.project.edges.map((edge) => [edge.id, edge]))
+      if (this.selectedEdgeId && !edgeById.has(this.selectedEdgeId)) {
+        this.selectedEdgeId = null
+      }
 
       for (const line of this.project.lines) {
         for (const edgeId of line.edgeIds) {
@@ -494,7 +578,7 @@ export const useProjectStore = defineStore('project', {
           includeProposed: this.includeProposed,
         })
 
-      this.project = normalizeProject({
+        this.project = normalizeProject({
           ...this.project,
           name: `${this.project.name || '工程'} (OSM导入)`,
           region: imported.region,

@@ -42,18 +42,17 @@ onBeforeUnmount(() => {
 }
 
 .workspace {
-  padding: 12px;
   display: grid;
-  gap: 12px;
-  grid-template-rows: repeat(2, minmax(calc(100vh - 24px), calc(100vh - 24px)));
+  gap: 0;
+  grid-template-rows: repeat(2, minmax(100vh, 100vh));
   overflow-y: auto;
   overscroll-behavior: contain;
-  scroll-snap-type: y proximity;
+  scroll-snap-type: y mandatory;
 }
 
 .workspace > * {
-  min-height: calc(100vh - 24px);
-  height: calc(100vh - 24px);
+  min-height: 100vh;
+  height: 100vh;
   scroll-snap-align: start;
 }
 
@@ -66,14 +65,12 @@ onBeforeUnmount(() => {
   }
 
   .workspace {
-    grid-template-rows: repeat(2, minmax(86vh, 86vh));
-    padding: 10px;
-    gap: 10px;
+    grid-template-rows: repeat(2, minmax(100vh, 100vh));
   }
 
   .workspace > * {
-    min-height: 86vh;
-    height: 86vh;
+    min-height: 100vh;
+    height: 100vh;
   }
 }
 </style>

@@ -7,6 +7,14 @@ const store = useProjectStore()
 const mapContainer = ref(null)
 let map = null
 let dragState = null
+let suppressNextMapClick = false
+
+const LAYER_EDGES = 'railmap-edges'
+const LAYER_EDGES_HIT = 'railmap-edges-hit'
+const LAYER_EDGES_SELECTED = 'railmap-edges-selected'
+const LAYER_STATIONS = 'railmap-stations-layer'
+const SOURCE_STATIONS = 'railmap-stations'
+const SOURCE_EDGES = 'railmap-edges'
 const selectionBox = reactive({
   active: false,
   append: false,
@@ -18,6 +26,7 @@ const selectionBox = reactive({
 
 const stationCount = computed(() => store.project?.stations.length || 0)
 const edgeCount = computed(() => store.project?.edges.length || 0)
+const selectedEdgeLabel = computed(() => (store.selectedEdgeId ? '1' : '0'))
 const selectionBoxStyle = computed(() => {
   const left = Math.min(selectionBox.startX, selectionBox.endX)
   const top = Math.min(selectionBox.startY, selectionBox.endY)
@@ -30,6 +39,13 @@ const selectionBoxStyle = computed(() => {
     height: `${height}px`,
   }
 })
+
+function isTextInputTarget(target) {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  const tag = target.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select'
+}
 
 function buildMapStyle() {
   return {
@@ -53,13 +69,30 @@ function buildMapStyle() {
 }
 
 function ensureMapLayers() {
-  if (!map || !map.getSource('railmap-stations')) return
+  if (!map || !map.getSource(SOURCE_STATIONS)) return
 
-  if (!map.getLayer('railmap-edges')) {
+  if (!map.getLayer(LAYER_EDGES_HIT)) {
     map.addLayer({
-      id: 'railmap-edges',
+      id: LAYER_EDGES_HIT,
       type: 'line',
-      source: 'railmap-edges',
+      source: SOURCE_EDGES,
+      paint: {
+        'line-color': '#000000',
+        'line-width': 14,
+        'line-opacity': 0.001,
+      },
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+    })
+  }
+
+  if (!map.getLayer(LAYER_EDGES)) {
+    map.addLayer({
+      id: LAYER_EDGES,
+      type: 'line',
+      source: SOURCE_EDGES,
       paint: {
         'line-color': ['coalesce', ['get', 'color'], '#2563EB'],
         'line-width': 5,
@@ -80,11 +113,31 @@ function ensureMapLayers() {
     })
   }
 
-  if (!map.getLayer('railmap-stations-layer')) {
+  if (!map.getLayer(LAYER_EDGES_SELECTED)) {
     map.addLayer({
-      id: 'railmap-stations-layer',
+      id: LAYER_EDGES_SELECTED,
+      type: 'line',
+      source: SOURCE_EDGES,
+      filter: ['==', ['get', 'id'], ''],
+      paint: {
+        'line-color': '#F8FAFC',
+        'line-width': 8.5,
+        'line-opacity': 0.96,
+      },
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+    })
+  }
+
+  updateSelectedEdgeFilter()
+
+  if (!map.getLayer(LAYER_STATIONS)) {
+    map.addLayer({
+      id: LAYER_STATIONS,
       type: 'circle',
-      source: 'railmap-stations',
+      source: SOURCE_STATIONS,
       paint: {
         'circle-radius': [
           'case',
@@ -112,7 +165,7 @@ function ensureMapLayers() {
     map.addLayer({
       id: 'railmap-stations-label',
       type: 'symbol',
-      source: 'railmap-stations',
+      source: SOURCE_STATIONS,
       layout: {
         'text-field': ['get', 'nameZh'],
         'text-font': ['Noto Sans CJK SC Regular', 'Noto Sans Regular'],
@@ -132,15 +185,15 @@ function ensureMapLayers() {
 function ensureSources() {
   if (!map) return
 
-  if (!map.getSource('railmap-stations')) {
-    map.addSource('railmap-stations', {
+  if (!map.getSource(SOURCE_STATIONS)) {
+    map.addSource(SOURCE_STATIONS, {
       type: 'geojson',
       data: buildStationsGeoJson(),
     })
   }
 
-  if (!map.getSource('railmap-edges')) {
-    map.addSource('railmap-edges', {
+  if (!map.getSource(SOURCE_EDGES)) {
+    map.addSource(SOURCE_EDGES, {
       type: 'geojson',
       data: buildEdgesGeoJson(),
     })
@@ -167,6 +220,11 @@ function ensureSources() {
       },
     })
   }
+}
+
+function updateSelectedEdgeFilter() {
+  if (!map || !map.getLayer(LAYER_EDGES_SELECTED)) return
+  map.setFilter(LAYER_EDGES_SELECTED, ['==', ['get', 'id'], store.selectedEdgeId || '__none__'])
 }
 
 function buildBoundaryGeoJson() {
@@ -248,14 +306,15 @@ function buildEdgesGeoJson() {
 
 function updateMapData() {
   if (!map) return
-  const stationSource = map.getSource('railmap-stations')
-  const edgeSource = map.getSource('railmap-edges')
+  const stationSource = map.getSource(SOURCE_STATIONS)
+  const edgeSource = map.getSource(SOURCE_EDGES)
   if (stationSource) {
     stationSource.setData(buildStationsGeoJson())
   }
   if (edgeSource) {
     edgeSource.setData(buildEdgesGeoJson())
   }
+  updateSelectedEdgeFilter()
 }
 
 function handleWindowResize() {
@@ -275,10 +334,25 @@ function handleStationClick(event) {
   })
 }
 
+function handleEdgeClick(event) {
+  if (store.mode !== 'select') return
+  const edgeId = event.features?.[0]?.properties?.id
+  if (!edgeId) return
+  const mouseEvent = event.originalEvent
+  const keepStationSelection = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
+  store.selectEdge(edgeId, { keepStationSelection })
+}
+
 function handleMapClick(event) {
   if (!map) return
-  const hitStations = map.queryRenderedFeatures(event.point, { layers: ['railmap-stations-layer'] })
+  if (suppressNextMapClick) {
+    suppressNextMapClick = false
+    return
+  }
+  const hitStations = map.queryRenderedFeatures(event.point, { layers: [LAYER_STATIONS] })
+  const hitEdges = map.queryRenderedFeatures(event.point, { layers: [LAYER_EDGES_HIT] })
   if (hitStations.length) return
+  if (hitEdges.length) return
   if (store.mode === 'add-station') {
     store.addStationAt([event.lngLat.lng, event.lngLat.lat])
     return
@@ -345,6 +419,7 @@ function stopStationDrag() {
     } else if (!selectionBox.append) {
       store.clearSelection()
     }
+    suppressNextMapClick = true
 
     selectionBox.active = false
     map.getCanvas().style.cursor = ''
@@ -365,8 +440,10 @@ function startBoxSelection(event) {
   const modifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
   if (!modifier) return
 
-  const hitStations = map.queryRenderedFeatures(event.point, { layers: ['railmap-stations-layer'] })
+  const hitStations = map.queryRenderedFeatures(event.point, { layers: [LAYER_STATIONS] })
+  const hitEdges = map.queryRenderedFeatures(event.point, { layers: [LAYER_EDGES_HIT] })
   if (hitStations.length) return
+  if (hitEdges.length) return
 
   selectionBox.active = true
   selectionBox.append = modifier
@@ -376,6 +453,43 @@ function startBoxSelection(event) {
   selectionBox.endY = event.point.y
   map.getCanvas().style.cursor = 'crosshair'
   map.dragPan.disable()
+}
+
+function onInteractiveFeatureEnter() {
+  if (!map || selectionBox.active || dragState) return
+  map.getCanvas().style.cursor = 'pointer'
+}
+
+function onInteractiveFeatureLeave() {
+  if (!map || selectionBox.active || dragState) return
+  map.getCanvas().style.cursor = ''
+}
+
+function handleWindowKeyDown(event) {
+  if (isTextInputTarget(event.target)) return
+
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+    event.preventDefault()
+    store.selectAllStations()
+    return
+  }
+
+  if (event.key === 'Escape') {
+    store.clearSelection()
+    return
+  }
+
+  if (event.key !== 'Delete' && event.key !== 'Backspace') return
+
+  if (store.selectedStationIds.length) {
+    event.preventDefault()
+    store.deleteSelectedStations()
+    return
+  }
+  if (store.selectedEdgeId) {
+    event.preventDefault()
+    store.deleteSelectedEdge()
+  }
 }
 
 onMounted(() => {
@@ -395,8 +509,13 @@ onMounted(() => {
     updateMapData()
     map.resize()
 
-    map.on('click', 'railmap-stations-layer', handleStationClick)
-    map.on('mousedown', 'railmap-stations-layer', startStationDrag)
+    map.on('click', LAYER_STATIONS, handleStationClick)
+    map.on('mousedown', LAYER_STATIONS, startStationDrag)
+    map.on('click', LAYER_EDGES_HIT, handleEdgeClick)
+    map.on('mouseenter', LAYER_STATIONS, onInteractiveFeatureEnter)
+    map.on('mouseleave', LAYER_STATIONS, onInteractiveFeatureLeave)
+    map.on('mouseenter', LAYER_EDGES_HIT, onInteractiveFeatureEnter)
+    map.on('mouseleave', LAYER_EDGES_HIT, onInteractiveFeatureLeave)
   })
 
   map.on('click', handleMapClick)
@@ -405,10 +524,12 @@ onMounted(() => {
   map.on('mouseup', stopStationDrag)
   map.on('mouseleave', stopStationDrag)
   window.addEventListener('resize', handleWindowResize)
+  window.addEventListener('keydown', handleWindowKeyDown)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleWindowResize)
+  window.removeEventListener('keydown', handleWindowKeyDown)
   if (map) {
     map.remove()
   }
@@ -419,6 +540,7 @@ watch(
     project: store.project,
     selectedStationId: store.selectedStationId,
     selectedStationIds: store.selectedStationIds,
+    selectedEdgeId: store.selectedEdgeId,
     boundary: store.regionBoundary,
   }),
   () => {
@@ -438,13 +560,15 @@ watch(
       <div class="map-editor__stats">
         <span>站点: {{ stationCount }}</span>
         <span>线段: {{ edgeCount }}</span>
-        <span>已选: {{ store.selectedStationIds.length }}</span>
+        <span>已选站: {{ store.selectedStationIds.length }}</span>
+        <span>已选边: {{ selectedEdgeLabel }}</span>
         <span>模式: {{ store.mode }}</span>
       </div>
     </header>
     <div class="map-editor__container">
       <div ref="mapContainer" class="map-editor__map"></div>
       <div v-if="selectionBox.active" class="map-editor__selection-box" :style="selectionBoxStyle"></div>
+      <p class="map-editor__hint">Shift/Ctrl/⌘ + 拖拽框选 | Delete 删除选中 | Ctrl/Cmd+A 全选站点</p>
     </div>
   </section>
 </template>
@@ -497,5 +621,19 @@ watch(
   background: rgba(14, 165, 233, 0.14);
   pointer-events: none;
   z-index: 10;
+}
+
+.map-editor__hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  margin: 0;
+  padding: 5px 8px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  border-radius: 6px;
+  font-size: 11px;
+  z-index: 11;
+  pointer-events: none;
 }
 </style>

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { getDisplayLineName } from '../lib/lineNaming'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
@@ -17,6 +18,11 @@ const stationForm = reactive({
   nameZh: '',
   nameEn: '',
 })
+const stationBatchForm = reactive({
+  zhTemplate: '',
+  enTemplate: '',
+  startIndex: 1,
+})
 const lineForm = reactive({
   nameZh: '',
   nameEn: '',
@@ -26,6 +32,8 @@ const lineForm = reactive({
   isLoop: false,
 })
 
+const selectedStationCount = computed(() => store.selectedStationIds.length)
+
 const selectedStation = computed(() => {
   if (!store.project || !store.selectedStationId) return null
   return store.project.stations.find((station) => station.id === store.selectedStationId) || null
@@ -33,6 +41,25 @@ const selectedStation = computed(() => {
 const activeLine = computed(() => {
   if (!store.project || !store.activeLineId) return null
   return store.project.lines.find((line) => line.id === store.activeLineId) || null
+})
+const selectedEdge = computed(() => {
+  if (!store.project || !store.selectedEdgeId) return null
+  return store.project.edges.find((edge) => edge.id === store.selectedEdgeId) || null
+})
+const selectedEdgeStations = computed(() => {
+  if (!selectedEdge.value || !store.project) {
+    return { from: null, to: null }
+  }
+  const stationMap = new Map(store.project.stations.map((station) => [station.id, station]))
+  return {
+    from: stationMap.get(selectedEdge.value.fromStationId) || null,
+    to: stationMap.get(selectedEdge.value.toStationId) || null,
+  }
+})
+const selectedEdgeLines = computed(() => {
+  if (!selectedEdge.value || !store.project) return []
+  const lineMap = new Map(store.project.lines.map((line) => [line.id, line]))
+  return (selectedEdge.value.sharedByLineIds || []).map((lineId) => lineMap.get(lineId)).filter(Boolean)
 })
 
 async function refreshProjectOptions() {
@@ -94,6 +121,14 @@ function applyStationRename() {
   })
 }
 
+function applyBatchStationRename() {
+  store.renameSelectedStationsByTemplate({
+    zhTemplate: stationBatchForm.zhTemplate,
+    enTemplate: stationBatchForm.enTemplate,
+    startIndex: stationBatchForm.startIndex,
+  })
+}
+
 function applyLineChanges() {
   if (!activeLine.value) return
   store.updateLine(activeLine.value.id, {
@@ -110,14 +145,21 @@ function deleteSelectedStations() {
   store.deleteSelectedStations()
 }
 
+function selectAllStations() {
+  store.selectAllStations()
+}
+
+function deleteSelectedEdge() {
+  store.deleteSelectedEdge()
+}
+
 function deleteActiveLine() {
   if (!activeLine.value) return
   store.deleteLine(activeLine.value.id)
 }
 
 function displayLineName(line) {
-  if (!line?.isLoop) return line?.nameZh || ''
-  return String(line?.nameZh || '').replace(/\s*[-—–~～]\s*.+$/u, '').trim()
+  return getDisplayLineName(line, 'zh') || line?.nameZh || ''
 }
 
 watch(
@@ -206,9 +248,13 @@ onMounted(async () => {
           拉线
         </button>
       </div>
-      <p class="toolbar__hint">提示: Shift/Ctrl/⌘ + 拖拽可框选，多站可批量拖动与删除</p>
+      <p class="toolbar__hint">提示: Shift/Ctrl/⌘ + 拖拽空白区域可框选；Delete 删除，Ctrl/Cmd+A 全选，Esc 清空。</p>
       <div class="toolbar__row">
-        <span class="toolbar__meta">已选站点: {{ store.selectedStationIds.length }}</span>
+        <span class="toolbar__meta">已选站点: {{ selectedStationCount }}</span>
+        <span class="toolbar__meta">已选线段: {{ selectedEdge ? 1 : 0 }}</span>
+      </div>
+      <div class="toolbar__row">
+        <button class="toolbar__btn" @click="selectAllStations">全选站点</button>
         <button class="toolbar__btn" @click="store.clearSelection()">清空选择</button>
       </div>
       <button
@@ -222,12 +268,27 @@ onMounted(async () => {
 
     <section class="toolbar__section">
       <h3>车站编辑</h3>
-      <template v-if="selectedStation">
+      <template v-if="selectedStation && selectedStationCount === 1">
         <p class="toolbar__hint">当前站点 ID: {{ selectedStation.id }}</p>
         <input v-model="stationForm.nameZh" class="toolbar__input" placeholder="车站中文名" />
         <input v-model="stationForm.nameEn" class="toolbar__input" placeholder="Station English Name" />
         <div class="toolbar__row">
           <button class="toolbar__btn toolbar__btn--primary" @click="applyStationRename">保存站名</button>
+          <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedStations">删除选中站点</button>
+        </div>
+      </template>
+      <template v-else-if="selectedStationCount > 1">
+        <p class="toolbar__hint">已选 {{ selectedStationCount }} 个站点，可用模板批量重命名（`{n}` 为序号）。</p>
+        <input v-model="stationBatchForm.zhTemplate" class="toolbar__input" placeholder="中文模板，例如：站点 {n}" />
+        <input
+          v-model="stationBatchForm.enTemplate"
+          class="toolbar__input"
+          placeholder="English template, e.g. Station {n}"
+        />
+        <label class="toolbar__label">起始序号</label>
+        <input v-model.number="stationBatchForm.startIndex" type="number" min="1" class="toolbar__input" />
+        <div class="toolbar__row">
+          <button class="toolbar__btn toolbar__btn--primary" @click="applyBatchStationRename">批量重命名</button>
           <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedStations">删除选中站点</button>
         </div>
       </template>
@@ -295,6 +356,30 @@ onMounted(async () => {
           <button class="toolbar__btn toolbar__btn--danger" @click="deleteActiveLine">删除线路</button>
         </div>
       </template>
+    </section>
+
+    <section class="toolbar__section">
+      <h3>线段编辑</h3>
+      <template v-if="selectedEdge">
+        <p class="toolbar__hint">线段 ID: {{ selectedEdge.id }}</p>
+        <p class="toolbar__hint">
+          连接:
+          {{ selectedEdgeStations.from?.nameZh || selectedEdge.fromStationId }}
+          ↔
+          {{ selectedEdgeStations.to?.nameZh || selectedEdge.toStationId }}
+        </p>
+        <p class="toolbar__hint">所属线路:</p>
+        <ul class="toolbar__line-tags">
+          <li v-for="line in selectedEdgeLines" :key="line.id" :title="line.nameZh">
+            <span class="toolbar__line-swatch" :style="{ backgroundColor: line.color }"></span>
+            <span>{{ displayLineName(line) }}</span>
+          </li>
+        </ul>
+        <div class="toolbar__row">
+          <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedEdge">删除当前线段</button>
+        </div>
+      </template>
+      <p v-else class="toolbar__hint">在真实地图中点击线段可选中并删除。</p>
     </section>
 
     <section class="toolbar__section">
@@ -467,6 +552,23 @@ onMounted(async () => {
   gap: 8px;
   max-height: 180px;
   overflow: auto;
+}
+
+.toolbar__line-tags {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toolbar__line-tags li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+  font-size: 12px;
 }
 
 .toolbar__line-item,

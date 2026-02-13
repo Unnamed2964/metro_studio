@@ -1,5 +1,6 @@
 import { pickLineColor } from './colors'
 import { createId } from './ids'
+import { normalizeLineNamesForLoop } from './lineNaming'
 
 export const PROJECT_SCHEMA_VERSION = '1.0.0'
 export const JINAN_REGION_ID = 'jinan_admin'
@@ -158,17 +159,25 @@ export function normalizeProject(raw) {
     lengthMeters: Number(edge.lengthMeters || 0),
   }))
 
-  merged.lines = merged.lines.map((line, index) => ({
-    id: line.id || createId('line'),
-    key: line.key || line.ref || `line_${index + 1}`,
-    nameZh: line.nameZh || line.name || `线路 ${index + 1}`,
-    nameEn: line.nameEn || line.nameZh || line.name || '',
-    color: line.color || pickLineColor(index),
-    status: line.status || 'open',
-    style: line.style || 'solid',
-    isLoop: Boolean(line.isLoop),
-    edgeIds: Array.isArray(line.edgeIds) ? line.edgeIds : [],
-  }))
+  merged.lines = merged.lines.map((line, index) => {
+    const isLoop = Boolean(line.isLoop)
+    const normalizedNames = normalizeLineNamesForLoop({
+      nameZh: line.nameZh || line.name || `线路 ${index + 1}`,
+      nameEn: line.nameEn || line.nameZh || line.name || '',
+      isLoop,
+    })
+    return {
+      id: line.id || createId('line'),
+      key: line.key || line.ref || `line_${index + 1}`,
+      nameZh: normalizedNames.nameZh || `线路 ${index + 1}`,
+      nameEn: normalizedNames.nameEn,
+      color: line.color || pickLineColor(index),
+      status: line.status || 'open',
+      style: line.style || 'solid',
+      isLoop,
+      edgeIds: Array.isArray(line.edgeIds) ? line.edgeIds : [],
+    }
+  })
 
   return merged
 }

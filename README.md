@@ -9,6 +9,9 @@
 - 真实地图编辑器与官方风示意图视图均为单屏画布（上下两屏滚动）
 - 站点重命名、线路属性编辑（颜色/状态/线型/环线）
 - 地图多选（Shift/Ctrl/⌘ 框选）与批量拖动/删除
+- 批量站名模板重命名（`{n}` 序号占位）
+- 线段选中高亮与删除
+- 编辑快捷键（`Delete`、`Ctrl/Cmd+A`、`Esc`）
 - 工程本地持久化（IndexedDB）
 - 工程文件保存/加载（`.railmap.json`）
 - 导出示意图 `SVG` 和高分辨率 `PNG`
@@ -33,10 +36,11 @@ npm run build
   - 使用 Overpass API 查询济南市 (`relation 3486449`) 区域内 `subway/light_rail` 路由关系。
   - 在建判定: `route=construction` 或 `state=construction` 或 `construction=subway|light_rail`。
   - 规划判定: `state=proposed` 或 `proposed=subway|light_rail`。
-  - 环线识别：`roundtrip/circular/route/name` 信号综合判断，环线名自动去除“起终点”后缀显示。
+  - 环线识别：`roundtrip/circular/route/name` 信号综合判断，环线名自动去除“起终点”后缀显示（覆盖破折号、括号等常见写法）。
 - 编辑交互:
-  - 地图支持单选/多选、框选、批量拖动。
-  - 工具栏支持站点重命名与线路全属性编辑（颜色、状态、线型、环线标记）。
+  - 地图支持站点单选/多选、框选、批量拖动，支持线段点击选中与高亮。
+  - 工具栏支持站点单点重命名、批量模板重命名、线路全属性编辑（颜色、状态、线型、环线标记）与线段删除。
+  - 快捷键：`Delete/Backspace` 删除当前选中对象，`Ctrl/Cmd+A` 全选站点，`Esc` 清空选择。
 - 边界过滤:
   - 使用内置济南行政边界 GeoJSON（来源于 OSM/Nominatim 的 `R3486449`）做点位过滤。
 - 自动排版:
