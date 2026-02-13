@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
@@ -8,8 +8,32 @@ const newProjectName = ref('济南地铁图工程')
 const newLineZh = ref('')
 const newLineEn = ref('')
 const newLineColor = ref('#005BBB')
+const newLineStatus = ref('open')
+const newLineStyle = ref('solid')
+const newLineIsLoop = ref(false)
 const fileInputRef = ref(null)
 const projectOptions = ref([])
+const stationForm = reactive({
+  nameZh: '',
+  nameEn: '',
+})
+const lineForm = reactive({
+  nameZh: '',
+  nameEn: '',
+  color: '#005BBB',
+  status: 'open',
+  style: 'solid',
+  isLoop: false,
+})
+
+const selectedStation = computed(() => {
+  if (!store.project || !store.selectedStationId) return null
+  return store.project.stations.find((station) => station.id === store.selectedStationId) || null
+})
+const activeLine = computed(() => {
+  if (!store.project || !store.activeLineId) return null
+  return store.project.lines.find((line) => line.id === store.activeLineId) || null
+})
 
 async function refreshProjectOptions() {
   projectOptions.value = await store.listProjects()
@@ -30,9 +54,15 @@ function addLine() {
     nameZh: newLineZh.value,
     nameEn: newLineEn.value,
     color: newLineColor.value,
+    status: newLineStatus.value,
+    style: newLineStyle.value,
+    isLoop: newLineIsLoop.value,
   })
   newLineZh.value = ''
   newLineEn.value = ''
+  newLineStatus.value = 'open'
+  newLineStyle.value = 'solid'
+  newLineIsLoop.value = false
 }
 
 function chooseProjectFile() {
@@ -55,6 +85,62 @@ async function onFileSelected(event) {
 async function onLoadProject(projectId) {
   await store.loadProjectById(projectId)
 }
+
+function applyStationRename() {
+  if (!selectedStation.value) return
+  store.updateStationName(selectedStation.value.id, {
+    nameZh: stationForm.nameZh,
+    nameEn: stationForm.nameEn,
+  })
+}
+
+function applyLineChanges() {
+  if (!activeLine.value) return
+  store.updateLine(activeLine.value.id, {
+    nameZh: lineForm.nameZh,
+    nameEn: lineForm.nameEn,
+    color: lineForm.color,
+    status: lineForm.status,
+    style: lineForm.style,
+    isLoop: lineForm.isLoop,
+  })
+}
+
+function deleteSelectedStations() {
+  store.deleteSelectedStations()
+}
+
+function deleteActiveLine() {
+  if (!activeLine.value) return
+  store.deleteLine(activeLine.value.id)
+}
+
+function displayLineName(line) {
+  if (!line?.isLoop) return line?.nameZh || ''
+  return String(line?.nameZh || '').replace(/\s*[-—–~～]\s*.+$/u, '').trim()
+}
+
+watch(
+  selectedStation,
+  (station) => {
+    stationForm.nameZh = station?.nameZh || ''
+    stationForm.nameEn = station?.nameEn || ''
+  },
+  { immediate: true },
+)
+
+watch(
+  activeLine,
+  (line) => {
+    lineForm.nameZh = line?.nameZh || ''
+    lineForm.nameEn = line?.nameEn || ''
+    lineForm.color = line?.color || '#005BBB'
+    lineForm.status = line?.status || 'open'
+    lineForm.style = line?.style || 'solid'
+    lineForm.isLoop = Boolean(line?.isLoop)
+  },
+  { immediate: true },
+)
 
 onMounted(async () => {
   await refreshProjectOptions()
@@ -120,6 +206,11 @@ onMounted(async () => {
           拉线
         </button>
       </div>
+      <p class="toolbar__hint">提示: Shift/Ctrl/⌘ + 拖拽可框选，多站可批量拖动与删除</p>
+      <div class="toolbar__row">
+        <span class="toolbar__meta">已选站点: {{ store.selectedStationIds.length }}</span>
+        <button class="toolbar__btn" @click="store.clearSelection()">清空选择</button>
+      </div>
       <button
         class="toolbar__btn toolbar__btn--primary"
         :disabled="store.isLayoutRunning || !store.project?.stations?.length"
@@ -130,10 +221,40 @@ onMounted(async () => {
     </section>
 
     <section class="toolbar__section">
+      <h3>车站编辑</h3>
+      <template v-if="selectedStation">
+        <p class="toolbar__hint">当前站点 ID: {{ selectedStation.id }}</p>
+        <input v-model="stationForm.nameZh" class="toolbar__input" placeholder="车站中文名" />
+        <input v-model="stationForm.nameEn" class="toolbar__input" placeholder="Station English Name" />
+        <div class="toolbar__row">
+          <button class="toolbar__btn toolbar__btn--primary" @click="applyStationRename">保存站名</button>
+          <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedStations">删除选中站点</button>
+        </div>
+      </template>
+      <p v-else class="toolbar__hint">请先在地图中选择站点</p>
+    </section>
+
+    <section class="toolbar__section">
       <h3>线路</h3>
       <input v-model="newLineZh" class="toolbar__input" placeholder="中文线路名" />
       <input v-model="newLineEn" class="toolbar__input" placeholder="English line name" />
       <input v-model="newLineColor" type="color" class="toolbar__color" />
+      <div class="toolbar__row">
+        <select v-model="newLineStatus" class="toolbar__select">
+          <option value="open">运营</option>
+          <option value="construction">在建</option>
+          <option value="proposed">规划</option>
+        </select>
+        <select v-model="newLineStyle" class="toolbar__select">
+          <option value="solid">实线</option>
+          <option value="dashed">虚线</option>
+          <option value="dotted">点线</option>
+        </select>
+      </div>
+      <label class="toolbar__checkbox">
+        <input v-model="newLineIsLoop" type="checkbox" />
+        环线（不显示从哪到哪）
+      </label>
       <button class="toolbar__btn" @click="addLine">新增线路</button>
       <ul class="toolbar__line-list">
         <li v-for="line in store.project?.lines || []" :key="line.id">
@@ -143,10 +264,37 @@ onMounted(async () => {
             @click="store.setActiveLine(line.id)"
           >
             <span class="toolbar__line-swatch" :style="{ backgroundColor: line.color }"></span>
-            <span>{{ line.nameZh }}</span>
+            <span>{{ displayLineName(line) }}</span>
           </button>
         </li>
       </ul>
+      <template v-if="activeLine">
+        <div class="toolbar__divider"></div>
+        <p class="toolbar__hint">当前线路: {{ displayLineName(activeLine) }}</p>
+        <input v-model="lineForm.nameZh" class="toolbar__input" placeholder="中文线路名" />
+        <input v-model="lineForm.nameEn" class="toolbar__input" placeholder="English line name" />
+        <input v-model="lineForm.color" type="color" class="toolbar__color" />
+        <div class="toolbar__row">
+          <select v-model="lineForm.status" class="toolbar__select">
+            <option value="open">运营</option>
+            <option value="construction">在建</option>
+            <option value="proposed">规划</option>
+          </select>
+          <select v-model="lineForm.style" class="toolbar__select">
+            <option value="solid">实线</option>
+            <option value="dashed">虚线</option>
+            <option value="dotted">点线</option>
+          </select>
+        </div>
+        <label class="toolbar__checkbox">
+          <input v-model="lineForm.isLoop" type="checkbox" />
+          环线（不显示从哪到哪）
+        </label>
+        <div class="toolbar__row">
+          <button class="toolbar__btn toolbar__btn--primary" @click="applyLineChanges">保存线路</button>
+          <button class="toolbar__btn toolbar__btn--danger" @click="deleteActiveLine">删除线路</button>
+        </div>
+      </template>
     </section>
 
     <section class="toolbar__section">
@@ -208,6 +356,19 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
+.toolbar__hint {
+  margin: 0 0 8px;
+  color: #93c5fd;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.toolbar__meta {
+  font-size: 12px;
+  color: #cbd5e1;
+  align-self: center;
+}
+
 .toolbar__section h3 {
   margin: 0 0 10px;
   font-size: 14px;
@@ -255,6 +416,11 @@ onMounted(async () => {
   border-color: #2563eb;
 }
 
+.toolbar__btn--danger {
+  background: #7f1d1d;
+  border-color: #991b1b;
+}
+
 .toolbar__btn.active {
   background: #14532d;
   border-color: #22c55e;
@@ -274,6 +440,21 @@ onMounted(async () => {
   border-radius: 8px;
   border: 1px solid #334155;
   margin-bottom: 8px;
+}
+
+.toolbar__select {
+  width: 100%;
+  background: #111827;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.toolbar__divider {
+  height: 1px;
+  margin: 10px 0;
+  background: #334155;
 }
 
 .toolbar__line-list,

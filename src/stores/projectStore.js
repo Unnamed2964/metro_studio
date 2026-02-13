@@ -61,12 +61,41 @@ function estimateDisplayPositionFromLngLat(stations, lngLat) {
   return [minX + xSpan * lngRatio, minY + ySpan * latRatio]
 }
 
+function dedupeStationIds(ids, stationIdSet) {
+  const result = []
+  const seen = new Set()
+  for (const id of ids || []) {
+    if (!stationIdSet.has(id) || seen.has(id)) continue
+    seen.add(id)
+    result.push(id)
+  }
+  return result
+}
+
+function stripLoopTerminusSuffix(name, isZh = true) {
+  const raw = String(name || '').trim()
+  if (!raw) return raw
+  const loopHint = isZh ? /环/u : /(loop|circle)/i
+  if (!loopHint.test(raw)) return raw
+  if (isZh) {
+    return raw
+      .replace(/([0-9A-Za-z\u4e00-\u9fa5]+环线)\s*[-—–~～]\s*.+$/u, '$1')
+      .replace(/([0-9A-Za-z\u4e00-\u9fa5]+环)\s*[-—–~～]\s*.+$/u, '$1')
+      .trim()
+  }
+  return raw
+    .replace(/((?:line|route)\s*\d*\s*(?:loop|circle))\s*[-—–~～]\s*.+$/i, '$1')
+    .replace(/(.+\b(?:loop|circle)\b)\s*[-—–~～]\s*.+$/i, '$1')
+    .trim()
+}
+
 export const useProjectStore = defineStore('project', {
   state: () => ({
     project: null,
     regionBoundary: null,
     mode: 'select',
     selectedStationId: null,
+    selectedStationIds: [],
     selectedEdgeId: null,
     pendingEdgeStartStationId: null,
     activeLineId: null,
@@ -99,6 +128,11 @@ export const useProjectStore = defineStore('project', {
       }
       return map
     },
+    selectedStations(state) {
+      if (!state.project) return []
+      const selectedSet = new Set(state.selectedStationIds || [])
+      return state.project.stations.filter((station) => selectedSet.has(station.id))
+    },
   },
   actions: {
     async initialize() {
@@ -109,6 +143,10 @@ export const useProjectStore = defineStore('project', {
       this.includeConstruction = Boolean(this.project.importConfig?.includeConstruction)
       this.includeProposed = Boolean(this.project.importConfig?.includeProposed)
       this.activeLineId = this.project.lines[0]?.id || null
+      this.selectedStationId = null
+      this.selectedStationIds = []
+      this.selectedEdgeId = null
+      this.pendingEdgeStartStationId = null
       this.isInitialized = true
       this.statusText = latest ? `已加载最近工程: ${latest.name}` : '已创建新工程'
       if (!latest) {
@@ -126,6 +164,7 @@ export const useProjectStore = defineStore('project', {
       this.mode = 'select'
       this.selectedEdgeId = null
       this.selectedStationId = null
+      this.selectedStationIds = []
       this.pendingEdgeStartStationId = null
       this.regionBoundary = null
       this.includeConstruction = false
@@ -145,16 +184,50 @@ export const useProjectStore = defineStore('project', {
       this.activeLineId = lineId
     },
 
-    addLine({ nameZh, nameEn, color }) {
+    setSelectedStations(stationIds, options = {}) {
+      if (!this.project) return
+      const stationIdSet = new Set(this.project.stations.map((station) => station.id))
+      const sanitized = dedupeStationIds(stationIds, stationIdSet)
+      this.selectedStationIds = sanitized
+      if (options.keepPrimary && this.selectedStationId && sanitized.includes(this.selectedStationId)) {
+        return
+      }
+      this.selectedStationId = sanitized.length ? sanitized[sanitized.length - 1] : null
+    },
+
+    clearSelection() {
+      this.selectedStationId = null
+      this.selectedStationIds = []
+      this.selectedEdgeId = null
+    },
+
+    selectStations(stationIds, options = {}) {
+      const replace = options.replace !== false
+      if (replace) {
+        this.setSelectedStations(stationIds)
+        return
+      }
+      const merged = [...this.selectedStationIds, ...(stationIds || [])]
+      this.setSelectedStations(merged, { keepPrimary: true })
+    },
+
+    addLine({ nameZh, nameEn, color, status = 'open', style = 'solid', isLoop = false }) {
       if (!this.project) return null
       const lineIndex = this.project.lines.length
+      const safeIsLoop = Boolean(isLoop)
+      const normalizedStatus = ['open', 'construction', 'proposed'].includes(status) ? status : 'open'
+      const normalizedStyle = ['solid', 'dashed', 'dotted'].includes(style) ? style : 'solid'
+      const normalizedNameZh = (nameZh?.trim() || `手工线路 ${lineIndex + 1}`)
+      const normalizedNameEn = (nameEn?.trim() || `Manual Line ${lineIndex + 1}`)
       const line = {
         id: createId('line'),
         key: `manual_${Date.now()}_${lineIndex}`,
-        nameZh: nameZh?.trim() || `手工线路 ${lineIndex + 1}`,
-        nameEn: nameEn?.trim() || `Manual Line ${lineIndex + 1}`,
+        nameZh: safeIsLoop ? stripLoopTerminusSuffix(normalizedNameZh, true) : normalizedNameZh,
+        nameEn: safeIsLoop ? stripLoopTerminusSuffix(normalizedNameEn, false) : normalizedNameEn,
         color: normalizeHexColor(color, pickLineColor(lineIndex)),
-        status: 'open',
+        status: normalizedStatus,
+        style: normalizedStyle,
+        isLoop: safeIsLoop,
         edgeIds: [],
       }
       this.project.lines.push(line)
@@ -178,7 +251,7 @@ export const useProjectStore = defineStore('project', {
         lineIds: [],
       }
       this.project.stations.push(station)
-      this.selectedStationId = station.id
+      this.setSelectedStations([station.id])
       this.touchProject(`新增站点: ${station.nameZh}`)
       return station
     },
@@ -192,13 +265,113 @@ export const useProjectStore = defineStore('project', {
       this.touchProject('')
     },
 
+    moveStationsByDelta(stationIds, deltaLngLat) {
+      if (!this.project || !Array.isArray(deltaLngLat) || deltaLngLat.length !== 2) return
+      const stationIdSet = new Set(this.project.stations.map((station) => station.id))
+      const movingIds = dedupeStationIds(stationIds, stationIdSet)
+      if (!movingIds.length) return
+      const [dx, dy] = deltaLngLat
+      const movingSet = new Set(movingIds)
+      for (const station of this.project.stations) {
+        if (!movingSet.has(station.id)) continue
+        const nextLngLat = [station.lngLat[0] + dx, station.lngLat[1] + dy]
+        station.lngLat = nextLngLat
+        station.displayPos = estimateDisplayPositionFromLngLat(this.project.stations, nextLngLat)
+      }
+      this.touchProject('')
+    },
+
     updateStationName(stationId, { nameZh, nameEn }) {
       if (!this.project) return
       const station = this.project.stations.find((item) => item.id === stationId)
       if (!station) return
-      station.nameZh = nameZh
-      station.nameEn = nameEn
+      station.nameZh = String(nameZh || '').trim() || station.nameZh
+      station.nameEn = String(nameEn || '').trim()
       this.touchProject(`更新站名: ${station.nameZh}`)
+    },
+
+    updateLine(lineId, patch = {}) {
+      if (!this.project) return
+      const line = this.project.lines.find((item) => item.id === lineId)
+      if (!line) return
+
+      const next = { ...line }
+      if (patch.nameZh != null) next.nameZh = String(patch.nameZh).trim() || next.nameZh
+      if (patch.nameEn != null) next.nameEn = String(patch.nameEn).trim()
+      if (patch.color != null) {
+        const colorIndex = this.project.lines.findIndex((item) => item.id === lineId)
+        next.color = normalizeHexColor(patch.color, pickLineColor(Math.max(0, colorIndex)))
+      }
+      if (patch.status != null && ['open', 'construction', 'proposed'].includes(patch.status)) {
+        next.status = patch.status
+      }
+      if (patch.style != null && ['solid', 'dashed', 'dotted'].includes(patch.style)) {
+        next.style = patch.style
+      }
+      if (patch.isLoop != null) {
+        next.isLoop = Boolean(patch.isLoop)
+        if (next.isLoop) {
+          next.nameZh = stripLoopTerminusSuffix(next.nameZh, true)
+          next.nameEn = stripLoopTerminusSuffix(next.nameEn, false)
+        }
+      }
+
+      Object.assign(line, next)
+      this.recomputeStationLineMembership()
+      this.touchProject(`更新线路: ${line.nameZh}`)
+    },
+
+    deleteSelectedStations() {
+      if (!this.project || !this.selectedStationIds.length) return
+      const removing = new Set(this.selectedStationIds)
+      this.project.stations = this.project.stations.filter((station) => !removing.has(station.id))
+      this.project.edges = this.project.edges.filter(
+        (edge) => !removing.has(edge.fromStationId) && !removing.has(edge.toStationId),
+      )
+      const edgeIdSet = new Set(this.project.edges.map((edge) => edge.id))
+      for (const line of this.project.lines) {
+        line.edgeIds = (line.edgeIds || []).filter((edgeId) => edgeIdSet.has(edgeId))
+      }
+      this.project.lines = this.project.lines.filter((line) => line.edgeIds.length > 0)
+      if (!this.project.lines.length) {
+        this.addLine({})
+      }
+      if (!this.project.lines.some((line) => line.id === this.activeLineId)) {
+        this.activeLineId = this.project.lines[0]?.id || null
+      }
+      this.recomputeStationLineMembership()
+      this.clearSelection()
+      this.touchProject('已删除选中站点')
+    },
+
+    deleteLine(lineId) {
+      if (!this.project) return
+      const line = this.project.lines.find((item) => item.id === lineId)
+      if (!line) return
+
+      const lineSet = new Set([lineId])
+      this.project.lines = this.project.lines.filter((item) => item.id !== lineId)
+
+      const nextEdges = []
+      for (const edge of this.project.edges) {
+        const shared = (edge.sharedByLineIds || []).filter((id) => !lineSet.has(id))
+        if (!shared.length) continue
+        nextEdges.push({ ...edge, sharedByLineIds: shared })
+      }
+      this.project.edges = nextEdges
+      const edgeIdSet = new Set(nextEdges.map((edge) => edge.id))
+      for (const item of this.project.lines) {
+        item.edgeIds = (item.edgeIds || []).filter((edgeId) => edgeIdSet.has(edgeId))
+      }
+      this.project.lines = this.project.lines.filter((item) => item.edgeIds.length > 0 || item.id === this.activeLineId)
+      if (!this.project.lines.length) {
+        this.addLine({})
+      }
+      if (!this.project.lines.some((item) => item.id === this.activeLineId)) {
+        this.activeLineId = this.project.lines[0]?.id || null
+      }
+      this.recomputeStationLineMembership()
+      this.touchProject(`删除线路: ${line.nameZh}`)
     },
 
     findOrCreateActiveLine() {
@@ -257,8 +430,20 @@ export const useProjectStore = defineStore('project', {
       return edge
     },
 
-    selectStation(stationId) {
-      this.selectedStationId = stationId
+    selectStation(stationId, options = {}) {
+      const multi = Boolean(options.multi || options.toggle)
+      const toggle = Boolean(options.toggle)
+      if (multi) {
+        const selected = new Set(this.selectedStationIds || [])
+        if (toggle && selected.has(stationId)) {
+          selected.delete(stationId)
+        } else {
+          selected.add(stationId)
+        }
+        this.setSelectedStations([...selected], { keepPrimary: !toggle })
+      } else {
+        this.setSelectedStations([stationId])
+      }
       if (this.mode === 'add-edge') {
         if (!this.pendingEdgeStartStationId) {
           this.pendingEdgeStartStationId = stationId
@@ -309,7 +494,7 @@ export const useProjectStore = defineStore('project', {
           includeProposed: this.includeProposed,
         })
 
-        this.project = normalizeProject({
+      this.project = normalizeProject({
           ...this.project,
           name: `${this.project.name || '工程'} (OSM导入)`,
           region: imported.region,
@@ -328,6 +513,10 @@ export const useProjectStore = defineStore('project', {
         })
         this.regionBoundary = imported.boundary
         this.activeLineId = this.project.lines[0]?.id || null
+        this.selectedStationId = null
+        this.selectedStationIds = []
+        this.selectedEdgeId = null
+        this.pendingEdgeStartStationId = null
         this.recomputeStationLineMembership()
         this.statusText = `导入完成: ${this.project.lines.length} 条线 / ${this.project.stations.length} 站`
         await this.persistNow()
@@ -382,6 +571,10 @@ export const useProjectStore = defineStore('project', {
       this.includeConstruction = Boolean(parsed.importConfig?.includeConstruction)
       this.includeProposed = Boolean(parsed.importConfig?.includeProposed)
       this.activeLineId = this.project.lines[0]?.id || null
+      this.selectedStationId = null
+      this.selectedStationIds = []
+      this.selectedEdgeId = null
+      this.pendingEdgeStartStationId = null
       this.recomputeStationLineMembership()
       this.statusText = `已加载工程文件: ${parsed.name}`
       await this.persistNow()
@@ -435,6 +628,10 @@ export const useProjectStore = defineStore('project', {
       this.includeConstruction = Boolean(project.importConfig?.includeConstruction)
       this.includeProposed = Boolean(project.importConfig?.includeProposed)
       this.activeLineId = project.lines[0]?.id || null
+      this.selectedStationId = null
+      this.selectedStationIds = []
+      this.selectedEdgeId = null
+      this.pendingEdgeStartStationId = null
       this.recomputeStationLineMembership()
       this.statusText = `已加载工程: ${project.name}`
       await setLatestProject(project.id)

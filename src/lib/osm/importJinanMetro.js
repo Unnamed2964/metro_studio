@@ -129,15 +129,52 @@ function readStationName(node) {
   return { nameZh, nameEn }
 }
 
+function stripLoopTerminusSuffix(name, isZh = true) {
+  const raw = String(name || '').trim()
+  if (!raw) return raw
+  const loopHint = isZh ? /环/u : /(loop|circle)/i
+  if (!loopHint.test(raw)) return raw
+  if (isZh) {
+    return raw
+      .replace(/([0-9A-Za-z\u4e00-\u9fa5]+环线)\s*[-—–~～]\s*.+$/u, '$1')
+      .replace(/([0-9A-Za-z\u4e00-\u9fa5]+环)\s*[-—–~～]\s*.+$/u, '$1')
+      .trim()
+  }
+  return raw
+    .replace(/((?:line|route)\s*\d*\s*(?:loop|circle))\s*[-—–~～]\s*.+$/i, '$1')
+    .replace(/(.+\b(?:loop|circle)\b)\s*[-—–~～]\s*.+$/i, '$1')
+    .trim()
+}
+
+function isLoopRelation(tags = {}) {
+  const roundtrip = String(tags.roundtrip || '').toLowerCase()
+  const circular = String(tags.circular || '').toLowerCase()
+  const route = String(tags.route || '').toLowerCase()
+  const nameZh = String(tags['name:zh'] || tags.name || '')
+  const nameEn = String(tags['name:en'] || tags.int_name || '')
+
+  if (roundtrip === 'yes' || circular === 'yes') return true
+  if (route === 'loop') return true
+  if (/环/u.test(nameZh)) return true
+  if (/(loop|circle)/i.test(nameEn)) return true
+  return false
+}
+
 function createLineFromRelation(relation, colorIndex, status) {
   const tags = relation.tags || {}
+  const isLoop = isLoopRelation(tags)
+  const nameZhRaw = tags['name:zh'] || tags.name || `线路 ${tags.ref || relation.id}`
+  const nameEnRaw =
+    tags['name:en'] || tags.int_name || tags['name:zh'] || tags.name || `Line ${tags.ref || relation.id}`
   return {
     id: createId('line'),
     key: toLineKey(relation),
-    nameZh: tags['name:zh'] || tags.name || `线路 ${tags.ref || relation.id}`,
-    nameEn: tags['name:en'] || tags.int_name || tags['name:zh'] || tags.name || `Line ${tags.ref || relation.id}`,
+    nameZh: isLoop ? stripLoopTerminusSuffix(nameZhRaw, true) : nameZhRaw,
+    nameEn: isLoop ? stripLoopTerminusSuffix(nameEnRaw, false) : nameEnRaw,
     color: normalizeHexColor(tags.colour, pickLineColor(colorIndex)),
     status,
+    style: 'solid',
+    isLoop,
     edgeIds: [],
   }
 }
@@ -769,4 +806,3 @@ export async function importJinanMetroFromOsm(options, signal) {
     },
   }
 }
-

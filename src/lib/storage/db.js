@@ -102,6 +102,8 @@ function toSerializableProject(project) {
       nameEn: String(line.nameEn || ''),
       color: String(line.color || ''),
       status: String(line.status || 'open'),
+      style: String(line.style || 'solid'),
+      isLoop: Boolean(line.isLoop),
       edgeIds: toStringArray(line.edgeIds),
     })),
     snapshots: (normalized.snapshots || []).map((snapshot) => ({

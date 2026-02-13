@@ -1,15 +1,35 @@
 <script setup>
 import maplibregl from 'maplibre-gl'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
 const mapContainer = ref(null)
 let map = null
-let draggingStationId = null
+let dragState = null
+const selectionBox = reactive({
+  active: false,
+  append: false,
+  startX: 0,
+  startY: 0,
+  endX: 0,
+  endY: 0,
+})
 
 const stationCount = computed(() => store.project?.stations.length || 0)
 const edgeCount = computed(() => store.project?.edges.length || 0)
+const selectionBoxStyle = computed(() => {
+  const left = Math.min(selectionBox.startX, selectionBox.endX)
+  const top = Math.min(selectionBox.startY, selectionBox.endY)
+  const width = Math.abs(selectionBox.endX - selectionBox.startX)
+  const height = Math.abs(selectionBox.endY - selectionBox.startY)
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${width}px`,
+    height: `${height}px`,
+  }
+})
 
 function buildMapStyle() {
   return {
@@ -44,6 +64,18 @@ function ensureMapLayers() {
         'line-color': ['coalesce', ['get', 'color'], '#2563EB'],
         'line-width': 5,
         'line-opacity': 0.88,
+        'line-dasharray': [
+          'case',
+          ['==', ['get', 'lineStyle'], 'dashed'],
+          ['literal', [2.2, 1.5]],
+          ['==', ['get', 'lineStyle'], 'dotted'],
+          ['literal', [0.2, 1.7]],
+          ['literal', [1, 0]],
+        ],
+      },
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
       },
     })
   }
@@ -158,6 +190,7 @@ function buildBoundaryGeoJson() {
 
 function buildStationsGeoJson() {
   const stations = store.project?.stations || []
+  const selectedStationSet = new Set(store.selectedStationIds || [])
   return {
     type: 'FeatureCollection',
     features: stations.map((station) => ({
@@ -172,7 +205,7 @@ function buildStationsGeoJson() {
         isInterchange: station.isInterchange,
         underConstruction: station.underConstruction,
         proposed: station.proposed,
-        isSelected: station.id === store.selectedStationId,
+        isSelected: selectedStationSet.has(station.id),
       },
     })),
   }
@@ -204,6 +237,7 @@ function buildEdgesGeoJson() {
           properties: {
             id: edge.id,
             color: line?.color || '#2563EB',
+            lineStyle: line?.style || 'solid',
             sharedCount: edge.sharedByLineIds.length,
           },
         }
@@ -227,7 +261,12 @@ function updateMapData() {
 function handleStationClick(event) {
   const stationId = event.features?.[0]?.properties?.id
   if (!stationId) return
-  store.selectStation(stationId)
+  const mouseEvent = event.originalEvent
+  const isMultiModifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
+  store.selectStation(stationId, {
+    multi: isMultiModifier && store.mode === 'select',
+    toggle: isMultiModifier && store.mode === 'select',
+  })
 }
 
 function handleMapClick(event) {
@@ -236,6 +275,14 @@ function handleMapClick(event) {
   if (hitStations.length) return
   if (store.mode === 'add-station') {
     store.addStationAt([event.lngLat.lng, event.lngLat.lat])
+    return
+  }
+  if (store.mode === 'select') {
+    const mouseEvent = event.originalEvent
+    const keepSelection = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
+    if (!keepSelection) {
+      store.clearSelection()
+    }
   }
 }
 
@@ -243,21 +290,86 @@ function startStationDrag(event) {
   if (store.mode !== 'select') return
   const stationId = event.features?.[0]?.properties?.id
   if (!stationId) return
-  draggingStationId = stationId
+  const mouseEvent = event.originalEvent
+  if (mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey) {
+    store.selectStation(stationId, { multi: true, toggle: true })
+    return
+  }
+
+  if (!store.selectedStationIds.includes(stationId)) {
+    store.selectStation(stationId)
+  }
+  const stationIds = store.selectedStationIds.includes(stationId) ? [...store.selectedStationIds] : [stationId]
+  dragState = {
+    stationIds,
+    lastLngLat: [event.lngLat.lng, event.lngLat.lat],
+  }
   map.getCanvas().style.cursor = 'grabbing'
   map.dragPan.disable()
 }
 
 function onMouseMove(event) {
-  if (!draggingStationId) return
-  store.updateStationPosition(draggingStationId, [event.lngLat.lng, event.lngLat.lat])
+  if (selectionBox.active) {
+    selectionBox.endX = event.point.x
+    selectionBox.endY = event.point.y
+  }
+
+  if (!dragState) return
+  const delta = [event.lngLat.lng - dragState.lastLngLat[0], event.lngLat.lat - dragState.lastLngLat[1]]
+  dragState.lastLngLat = [event.lngLat.lng, event.lngLat.lat]
+  store.moveStationsByDelta(dragState.stationIds, delta)
 }
 
 function stopStationDrag() {
-  if (!draggingStationId) return
-  draggingStationId = null
+  if (selectionBox.active) {
+    const minX = Math.min(selectionBox.startX, selectionBox.endX)
+    const maxX = Math.max(selectionBox.startX, selectionBox.endX)
+    const minY = Math.min(selectionBox.startY, selectionBox.endY)
+    const maxY = Math.max(selectionBox.startY, selectionBox.endY)
+
+    const picked = (store.project?.stations || [])
+      .filter((station) => {
+        const pt = map.project(station.lngLat)
+        return pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY
+      })
+      .map((station) => station.id)
+
+    if (picked.length) {
+      store.selectStations(picked, { replace: !selectionBox.append })
+    } else if (!selectionBox.append) {
+      store.clearSelection()
+    }
+
+    selectionBox.active = false
+    map.getCanvas().style.cursor = ''
+    map.dragPan.enable()
+  }
+
+  if (!dragState) return
+  dragState = null
   map.getCanvas().style.cursor = ''
   map.dragPan.enable()
+}
+
+function startBoxSelection(event) {
+  if (store.mode !== 'select') return
+  if (selectionBox.active) return
+  const mouseEvent = event.originalEvent
+  if (mouseEvent?.button !== 0) return
+  const modifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
+  if (!modifier) return
+
+  const hitStations = map.queryRenderedFeatures(event.point, { layers: ['railmap-stations-layer'] })
+  if (hitStations.length) return
+
+  selectionBox.active = true
+  selectionBox.append = modifier
+  selectionBox.startX = event.point.x
+  selectionBox.startY = event.point.y
+  selectionBox.endX = event.point.x
+  selectionBox.endY = event.point.y
+  map.getCanvas().style.cursor = 'crosshair'
+  map.dragPan.disable()
 }
 
 onMounted(() => {
@@ -281,6 +393,7 @@ onMounted(() => {
   })
 
   map.on('click', handleMapClick)
+  map.on('mousedown', startBoxSelection)
   map.on('mousemove', onMouseMove)
   map.on('mouseup', stopStationDrag)
   map.on('mouseleave', stopStationDrag)
@@ -296,6 +409,7 @@ watch(
   () => ({
     project: store.project,
     selectedStationId: store.selectedStationId,
+    selectedStationIds: store.selectedStationIds,
     boundary: store.regionBoundary,
   }),
   () => {
@@ -315,10 +429,14 @@ watch(
       <div class="map-editor__stats">
         <span>站点: {{ stationCount }}</span>
         <span>线段: {{ edgeCount }}</span>
+        <span>已选: {{ store.selectedStationIds.length }}</span>
         <span>模式: {{ store.mode }}</span>
       </div>
     </header>
-    <div ref="mapContainer" class="map-editor__container"></div>
+    <div class="map-editor__container">
+      <div ref="mapContainer" class="map-editor__map"></div>
+      <div v-if="selectionBox.active" class="map-editor__selection-box" :style="selectionBoxStyle"></div>
+    </div>
   </section>
 </template>
 
@@ -356,5 +474,19 @@ watch(
 .map-editor__container {
   flex: 1;
   min-height: 360px;
+  position: relative;
+}
+
+.map-editor__map {
+  position: absolute;
+  inset: 0;
+}
+
+.map-editor__selection-box {
+  position: absolute;
+  border: 1px solid #0ea5e9;
+  background: rgba(14, 165, 233, 0.14);
+  pointer-events: none;
+  z-index: 10;
 }
 </style>

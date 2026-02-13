@@ -16,7 +16,7 @@ const DEFAULT_CONFIG = {
   hardCrossingPasses: 2,
   junctionSpreadWeight: 0.24,
   crossingRepelWeight: 20,
-  geoSeedScale: 6,
+  geoSeedScale: 5,
   corridorStraightenMinEdges: 4,
   corridorStraightenTortuosityMax: 1.16,
   corridorStraightenDeviationMax: 9.5,
@@ -51,7 +51,7 @@ const DEFAULT_CONFIG = {
   incidentEdgeLabelIgnoreRadius: 10,
   labelRelaxIterations: 26,
   labelRelaxStep: 0.34,
-  labelRelaxMaxOffset: 34,
+  labelRelaxMaxOffset: 52,
   labelPairPadding: 3.5,
   labelAnchorTether: 0.11,
   labelRelaxMaxMovePerIter: 5.2,
@@ -1467,16 +1467,18 @@ function relaxStationLabelLayout(
 
         const pushX = overlapX + pairPadding
         const pushY = overlapY + pairPadding
-        if (pushY <= pushX) {
-          const dir = centers[i].y <= centers[j].y ? -1 : 1
-          const magnitude = pushY * 0.55
-          deltas[i][1] += dir * magnitude
-          deltas[j][1] -= dir * magnitude
-        } else {
+        const prefersHorizontalSeparation =
+          Math.abs(centers[i].x - centers[j].x) >= Math.abs(centers[i].y - centers[j].y)
+        if (prefersHorizontalSeparation) {
           const dir = centers[i].x <= centers[j].x ? -1 : 1
           const magnitude = pushX * 0.4
           deltas[i][0] += dir * magnitude
           deltas[j][0] -= dir * magnitude
+        } else {
+          const dir = centers[i].y <= centers[j].y ? -1 : 1
+          const magnitude = pushY * 0.55
+          deltas[i][1] += dir * magnitude
+          deltas[j][1] -= dir * magnitude
         }
       }
     }
@@ -1745,7 +1747,37 @@ function computeScoreBreakdown(positions, original, edgeRecords, lineChains, sta
 function estimateLabelWidth(station) {
   const nameZh = station.nameZh || ''
   const nameEn = station.nameEn || ''
-  return Math.max(nameZh.length * 8.3, nameEn.length * 5.3) + 10
+  const zhWidth = estimateMixedTextWidth(nameZh, 11.6, 7)
+  const enWidth = estimateMixedTextWidth(nameEn, 6.2, 5.6)
+  return Math.max(zhWidth, enWidth) + 14
+}
+
+function estimateMixedTextWidth(text, cjkWidth, latinWidth) {
+  let width = 0
+  for (const char of String(text || '')) {
+    if (isCjkChar(char)) {
+      width += cjkWidth
+    } else if (char === ' ') {
+      width += latinWidth * 0.55
+    } else {
+      width += latinWidth
+    }
+  }
+  return width
+}
+
+function isCjkChar(char) {
+  const code = char?.codePointAt?.(0)
+  if (!Number.isFinite(code)) return false
+  return (
+    (code >= 0x4e00 && code <= 0x9fff) ||
+    (code >= 0x3400 && code <= 0x4dbf) ||
+    (code >= 0x20000 && code <= 0x2a6df) ||
+    (code >= 0x2a700 && code <= 0x2b73f) ||
+    (code >= 0x2b740 && code <= 0x2b81f) ||
+    (code >= 0x2b820 && code <= 0x2ceaf) ||
+    (code >= 0xf900 && code <= 0xfaff)
+  )
 }
 
 function buildLabelTemplates(station, config, degree = 0) {

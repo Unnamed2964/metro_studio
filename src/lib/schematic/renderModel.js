@@ -6,6 +6,12 @@ const STATUS_STYLE = {
   proposed: { opacity: 0.58, width: 6.8 },
 }
 
+const LINE_STYLE_VISUAL = {
+  solid: { dasharray: '', lineCap: 'round' },
+  dashed: { dasharray: '14 9', lineCap: 'round' },
+  dotted: { dasharray: '1 8', lineCap: 'round' },
+}
+
 export function buildSchematicRenderModel(project, options = {}) {
   const stations = project?.stations || []
   const edges = project?.edges || []
@@ -57,6 +63,7 @@ export function buildSchematicRenderModel(project, options = {}) {
     sharedLineIds.forEach((lineId, index) => {
       const line = lineById.get(lineId)
       const statusStyle = STATUS_STYLE[line.status] || STATUS_STYLE.open
+      const lineStyle = LINE_STYLE_VISUAL[line.style] || LINE_STYLE_VISUAL.solid
       const offset = (index - (sharedLineIds.length - 1) / 2) * laneGap
       const shifted = basePolyline.map(([x, y]) => [x + nx * offset, y + ny * offset])
       edgePaths.push({
@@ -66,6 +73,8 @@ export function buildSchematicRenderModel(project, options = {}) {
         color: line.color || '#2563EB',
         width: statusStyle.width,
         opacity: statusStyle.opacity,
+        dasharray: lineStyle.dasharray,
+        lineCap: lineStyle.lineCap,
         pathD: polylineToRoundedPath(shifted, cornerRadius),
         status: line.status || 'open',
       })

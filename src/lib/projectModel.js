@@ -36,6 +36,8 @@ export const JINAN_RELATION_ID = 3486449
  * @property {string} nameEn
  * @property {string} color
  * @property {('open'|'construction'|'proposed')} status
+ * @property {('solid'|'dashed'|'dotted')} style
+ * @property {boolean} isLoop
  * @property {string[]} edgeIds
  */
 
@@ -80,6 +82,8 @@ export function createEmptyProject(name = '新建工程') {
         nameEn: 'Manual Line 1',
         color: pickLineColor(0),
         status: 'open',
+        style: 'solid',
+        isLoop: false,
         edgeIds: [],
       },
     ],
@@ -161,6 +165,8 @@ export function normalizeProject(raw) {
     nameEn: line.nameEn || line.nameZh || line.name || '',
     color: line.color || pickLineColor(index),
     status: line.status || 'open',
+    style: line.style || 'solid',
+    isLoop: Boolean(line.isLoop),
     edgeIds: Array.isArray(line.edgeIds) ? line.edgeIds : [],
   }))
 
