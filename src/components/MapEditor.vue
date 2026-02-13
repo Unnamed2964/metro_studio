@@ -258,6 +258,12 @@ function updateMapData() {
   }
 }
 
+function handleWindowResize() {
+  if (map) {
+    map.resize()
+  }
+}
+
 function handleStationClick(event) {
   const stationId = event.features?.[0]?.properties?.id
   if (!stationId) return
@@ -387,6 +393,7 @@ onMounted(() => {
     ensureSources()
     ensureMapLayers()
     updateMapData()
+    map.resize()
 
     map.on('click', 'railmap-stations-layer', handleStationClick)
     map.on('mousedown', 'railmap-stations-layer', startStationDrag)
@@ -397,9 +404,11 @@ onMounted(() => {
   map.on('mousemove', onMouseMove)
   map.on('mouseup', stopStationDrag)
   map.on('mouseleave', stopStationDrag)
+  window.addEventListener('resize', handleWindowResize)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleWindowResize)
   if (map) {
     map.remove()
   }
@@ -448,7 +457,7 @@ watch(
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 420px;
+  min-height: 0;
 }
 
 .map-editor__header {
@@ -473,7 +482,7 @@ watch(
 
 .map-editor__container {
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
   position: relative;
 }
 

@@ -35,25 +35,45 @@ onBeforeUnmount(() => {
 <style scoped>
 .app {
   min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: 360px 1fr;
   background: linear-gradient(145deg, #e2e8f0, #f8fafc);
 }
 
 .workspace {
-  padding: 14px;
+  padding: 12px;
   display: grid;
-  gap: 14px;
-  grid-template-rows: minmax(420px, 52vh) minmax(340px, 1fr);
+  gap: 12px;
+  grid-template-rows: repeat(2, minmax(calc(100vh - 24px), calc(100vh - 24px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y proximity;
+}
+
+.workspace > * {
+  min-height: calc(100vh - 24px);
+  height: calc(100vh - 24px);
+  scroll-snap-align: start;
 }
 
 @media (max-width: 1060px) {
   .app {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: auto;
+    min-height: 100vh;
   }
 
   .workspace {
-    grid-template-rows: minmax(360px, 48vh) minmax(300px, 1fr);
+    grid-template-rows: repeat(2, minmax(86vh, 86vh));
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .workspace > * {
+    min-height: 86vh;
+    height: 86vh;
   }
 }
 </style>

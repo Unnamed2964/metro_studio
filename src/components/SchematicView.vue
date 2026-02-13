@@ -153,8 +153,9 @@ onBeforeUnmount(() => {
               fill="none"
               stroke="#f8fafc"
               :stroke-width="edge.width + 5.4"
-              stroke-linecap="round"
+              :stroke-linecap="edge.lineCap || 'round'"
               stroke-linejoin="round"
+              :stroke-dasharray="edge.dasharray || null"
               :opacity="Math.min(1, edge.opacity + 0.06)"
             />
           </g>
@@ -167,8 +168,9 @@ onBeforeUnmount(() => {
               fill="none"
               :stroke="edge.color"
               :stroke-width="edge.width"
-              stroke-linecap="round"
+              :stroke-linecap="edge.lineCap || 'round'"
               stroke-linejoin="round"
+              :stroke-dasharray="edge.dasharray || null"
               :opacity="edge.opacity"
             />
           </g>

@@ -5,7 +5,7 @@
 - `colors.js`：线路颜色选择与颜色规范化。
 - `geo.js`：地理/几何计算（投影、距离、相交、包围盒、八向折线路径生成，含近似直线合并避免阶梯化）。
 - `ids.js`：全局 ID 生成。
-- `projectModel.js`：工程数据模型与标准化。
+- `projectModel.js`：工程数据模型与标准化（含线路状态、线型、环线标记）。
 - `export/`：导出逻辑（SVG/PNG）。
 - `layout/`：布局 Worker 调用端。
 - `schematic/`：示意图渲染模型（预览与导出共享）。

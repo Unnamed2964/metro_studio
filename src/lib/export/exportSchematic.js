@@ -18,7 +18,9 @@ export function buildSchematicSvg(project, options = {}) {
   const edgeHaloElements = model.edgePaths
     .map(
       (edge) =>
-        `<path d="${edge.pathD}" fill="none" stroke="#f8fafc" stroke-width="${edge.width + 5.4}" stroke-linecap="round" stroke-linejoin="round" opacity="${Math.min(
+        `<path d="${edge.pathD}" fill="none" stroke="#f8fafc" stroke-width="${edge.width + 5.4}" stroke-linecap="${
+          edge.lineCap || 'round'
+        }" stroke-linejoin="round"${edge.dasharray ? ` stroke-dasharray="${edge.dasharray}"` : ''} opacity="${Math.min(
           1,
           edge.opacity + 0.06,
         )}" />`,
@@ -28,7 +30,11 @@ export function buildSchematicSvg(project, options = {}) {
   const edgeCoreElements = model.edgePaths
     .map(
       (edge) =>
-        `<path d="${edge.pathD}" fill="none" stroke="${escapeXml(edge.color)}" stroke-width="${edge.width}" stroke-linecap="round" stroke-linejoin="round" opacity="${edge.opacity}" />`,
+        `<path d="${edge.pathD}" fill="none" stroke="${escapeXml(edge.color)}" stroke-width="${edge.width}" stroke-linecap="${
+          edge.lineCap || 'round'
+        }" stroke-linejoin="round"${edge.dasharray ? ` stroke-dasharray="${edge.dasharray}"` : ''} opacity="${
+          edge.opacity
+        }" />`,
     )
     .join('\n')
 
