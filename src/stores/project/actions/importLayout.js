@@ -48,6 +48,13 @@ const importLayoutActions = {
       this.selectedEdgeId = null
       this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
+      this.isStationEnglishRetranslating = false
+      this.stationEnglishRetranslateProgress = {
+        done: 0,
+        total: 0,
+        percent: 0,
+        message: '',
+      }
       this.recomputeStationLineMembership()
       this.statusText = `导入完成（已新建工程）: ${this.project.lines.length} 条线 / ${this.project.stations.length} 站`
       await this.persistNow()

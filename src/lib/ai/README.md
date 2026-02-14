@@ -1,12 +1,26 @@
 # lib/ai 目录说明
 
-该目录封装本机 AI 能力调用。
+该目录封装 AI 能力调用。
 
 - `stationNaming.js`
-  - 调用本机 Ollama（优先开发代理 `/api/ollama`，回退 `127.0.0.1/localhost:11434`）
-  - 向模型提交结构化命名约束与周边 OSM 语义上下文
-  - 强制解析并校验 5 个候选（`nameZh/nameEn/basis/reason`）
+  - 调用 BLTCY 兼容 Chat Completions（默认模型 `claude-haiku-4-5-20251001`）
+  - 从环境变量读取 `BLTCY_API_KEY`（同时兼容 `VITE_BLTCY_API_KEY`）
+  - 向模型提交结构化命名约束与证据列表（`evidenceId`）
+  - 中文候选站名统一去除末尾“站/车站/地铁站”
+  - 英文候选站名禁止以 `Station/Metro Station/Subway Station` 结尾
+  - 公共机构（医院/学校/政府机构等）要求英文意译其通名，禁止整词音译
+  - 证据列表包含 `intersections`（道路交叉口）并在强交叉口场景启用硬约束：禁止单一道路证据命名
+  - 强制解析并校验候选（`evidenceId/nameZh/nameEn/basis/reason`）
+  - 代码端执行证据白名单校验：候选 `nameZh` 去后缀后必须落在 `evidenceId` 对应要素上
   - 模型响应不完整时使用周边要素做规则回退，仍不足则报错
+- `stationEnTranslator.js`
+  - 分批重译全图英文站名，输出进度回调（`done/total/percent`）
+  - 使用 `response_format(json_schema)` 降低批量翻译格式漂移
+  - 翻译输入前先去除中文名末尾“站/车站/地铁站”
+  - 翻译结果统一清洗英文后缀，禁止 `Station/Metro Station/Subway Station`
+  - 公共机构名称按英文语义意译（如 `妇幼保健院 -> Maternal and Child Health Hospital`）
+- `openrouterClient.js`
+  - 统一 Chat Completions 请求（默认 `https://api.bltcy.ai/v1/chat/completions`，超时/取消/鉴权/错误处理）
 
 约束：
 

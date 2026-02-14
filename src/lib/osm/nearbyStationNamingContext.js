@@ -77,6 +77,7 @@ const LANDUSE_IMPORTANCE = {
 }
 
 const CATEGORY_LIMITS = {
+  intersections: 10,
   roads: 18,
   areas: 14,
   facilities: 20,
@@ -119,8 +120,6 @@ function buildNearbyContextQuery([lng, lat], radiusMeters) {
 
   return `[out:json][timeout:35];
 (
-  way(around:${radius},${safeLat},${safeLng})["highway"~"motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|pedestrian|road"]["name"];
-
   node(around:${radius},${safeLat},${safeLng})["place"]["name"];
   way(around:${radius},${safeLat},${safeLng})["place"]["name"];
   relation(around:${radius},${safeLat},${safeLng})["place"]["name"];
@@ -147,6 +146,18 @@ function buildNearbyContextQuery([lng, lat], radiusMeters) {
   way(around:${radius},${safeLat},${safeLng})["building"]["name"];
 );
 out center tags qt;`
+}
+
+function buildNearbyRoadGeometryQuery([lng, lat], radiusMeters) {
+  const radius = clamp(Math.round(toFiniteNumber(radiusMeters, DEFAULT_RADIUS_METERS)), MIN_RADIUS_METERS, MAX_RADIUS_METERS)
+  const safeLng = toFiniteNumber(lng).toFixed(6)
+  const safeLat = toFiniteNumber(lat).toFixed(6)
+
+  return `[out:json][timeout:35];
+(
+  way(around:${radius},${safeLat},${safeLng})["highway"~"motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|pedestrian|road"]["name"];
+);
+out tags geom qt;`
 }
 
 function resolveElementLngLat(element) {
@@ -238,7 +249,10 @@ function resolveBuildingType(tags) {
 
 function toScoredRecord({ entryType, nameZh, nameEn, distanceMeters, importance, type, element }) {
   const distanceScore = clamp(1 - distanceMeters / (MAX_RADIUS_METERS * 1.2), 0, 1)
-  const score = importance * 0.72 + distanceScore * 0.28
+  const score =
+    entryType === 'road'
+      ? importance * 0.82 + distanceScore * 0.18
+      : importance * 0.72 + distanceScore * 0.28
   return {
     entryType,
     nameZh,
@@ -249,7 +263,153 @@ function toScoredRecord({ entryType, nameZh, nameEn, distanceMeters, importance,
     score,
     osmType: String(element?.type || ''),
     osmId: element?.id,
+    geometry: Array.isArray(element?.geometry) ? element.geometry : null,
   }
+}
+
+function projectApproxMeters(lngLat, centerLngLat) {
+  const [lng, lat] = lngLat
+  const [centerLng, centerLat] = centerLngLat
+  const latRad = (centerLat * Math.PI) / 180
+  const x = (lng - centerLng) * (111320 * Math.cos(latRad))
+  const y = (lat - centerLat) * 110540
+  return [x, y]
+}
+
+function distancePointToSegmentMeters(p, a, b) {
+  const vx = b[0] - a[0]
+  const vy = b[1] - a[1]
+  const wx = p[0] - a[0]
+  const wy = p[1] - a[1]
+  const len2 = vx * vx + vy * vy
+  if (len2 < 1e-8) {
+    const dx = p[0] - a[0]
+    const dy = p[1] - a[1]
+    return { distance: Math.hypot(dx, dy), direction: [0, 0] }
+  }
+  const t = clamp((wx * vx + wy * vy) / len2, 0, 1)
+  const projX = a[0] + t * vx
+  const projY = a[1] + t * vy
+  const dx = p[0] - projX
+  const dy = p[1] - projY
+  const segLen = Math.hypot(vx, vy)
+  const direction = segLen > 1e-8 ? [vx / segLen, vy / segLen] : [0, 0]
+  return { distance: Math.hypot(dx, dy), direction }
+}
+
+function analyzeRoadGeometryAtPoint(roadRecord, centerLngLat) {
+  const geometry = Array.isArray(roadRecord?.geometry) ? roadRecord.geometry : []
+  if (geometry.length < 2) return null
+  const centerXY = projectApproxMeters(centerLngLat, centerLngLat)
+
+  let best = null
+  for (let i = 0; i < geometry.length - 1; i += 1) {
+    const from = [toFiniteNumber(geometry[i]?.lon, Number.NaN), toFiniteNumber(geometry[i]?.lat, Number.NaN)]
+    const to = [toFiniteNumber(geometry[i + 1]?.lon, Number.NaN), toFiniteNumber(geometry[i + 1]?.lat, Number.NaN)]
+    if (!Number.isFinite(from[0]) || !Number.isFinite(from[1]) || !Number.isFinite(to[0]) || !Number.isFinite(to[1])) continue
+    const fromXY = projectApproxMeters(from, centerLngLat)
+    const toXY = projectApproxMeters(to, centerLngLat)
+    const candidate = distancePointToSegmentMeters(centerXY, fromXY, toXY)
+    if (!best || candidate.distance < best.distance) {
+      best = candidate
+    }
+  }
+  return best
+}
+
+function detectRoadIntersections(roadRecords, centerLngLat, radiusMeters) {
+  const roads = Array.isArray(roadRecords) ? roadRecords : []
+  if (roads.length < 2) return []
+
+  const analyzed = []
+  for (const road of roads) {
+    const nameZh = String(road?.nameZh || '').trim()
+    if (!nameZh) continue
+    const analysis = analyzeRoadGeometryAtPoint(road, centerLngLat)
+    if (!analysis) continue
+    analyzed.push({
+      ...road,
+      localDistanceMeters: analysis.distance,
+      direction: analysis.direction,
+    })
+  }
+
+  const intersections = []
+  const seen = new Set()
+  const nearThreshold = Math.min(55, radiusMeters * 0.2)
+
+  for (let i = 0; i < analyzed.length; i += 1) {
+    for (let j = i + 1; j < analyzed.length; j += 1) {
+      const a = analyzed[i]
+      const b = analyzed[j]
+      if (normalizeNameKey(a.nameZh) === normalizeNameKey(b.nameZh)) continue
+      if (a.localDistanceMeters > nearThreshold || b.localDistanceMeters > nearThreshold) continue
+
+      const dot = clamp(a.direction[0] * b.direction[0] + a.direction[1] * b.direction[1], -1, 1)
+      const angleDeg = Math.abs((Math.acos(Math.abs(dot)) * 180) / Math.PI)
+      if (angleDeg < 18) continue
+
+      const combinedImportance = (a.importance + b.importance) / 2
+      const combinedDistance = (a.localDistanceMeters + b.localDistanceMeters) / 2
+      const intersectionScore = combinedImportance * 0.8 + clamp(1 - combinedDistance / 60, 0, 1) * 0.2
+      const pairNames = [a.nameZh, b.nameZh].sort((x, y) => x.localeCompare(y, 'zh-Hans-CN'))
+      const key = `${normalizeNameKey(pairNames[0])}__${normalizeNameKey(pairNames[1])}`
+      if (seen.has(key)) continue
+      seen.add(key)
+
+      intersections.push({
+        nameZh: `${pairNames[0]}·${pairNames[1]}`,
+        nameEn: '',
+        type: '道路交叉口',
+        roadNameZhList: pairNames,
+        distanceMeters: round(combinedDistance, 0),
+        importance: round(combinedImportance, 3),
+        score: round(intersectionScore, 3),
+        source: `${a.osmType}/${a.osmId}+${b.osmType}/${b.osmId}`,
+      })
+    }
+  }
+
+  return intersections
+    .sort((a, b) => {
+      if (Math.abs(b.score - a.score) > 1e-6) return b.score - a.score
+      if (Math.abs(a.distanceMeters - b.distanceMeters) > 1e-6) return a.distanceMeters - b.distanceMeters
+      return a.nameZh.localeCompare(b.nameZh, 'zh-Hans-CN')
+    })
+    .slice(0, CATEGORY_LIMITS.intersections)
+}
+
+function rebalanceRoadRecords(records, radiusMeters) {
+  const items = Array.isArray(records) ? records : []
+  if (!items.length) return []
+
+  const nearbyMajorRoads = items.filter((record) => record.importance >= 0.9 && record.distanceMeters <= Math.min(radiusMeters * 0.95, 260))
+  const hasNearbyMajorRoad = nearbyMajorRoads.length > 0
+  const majorBestScore = nearbyMajorRoads.reduce((best, record) => Math.max(best, record.score), 0)
+
+  const rebalanced = items.map((record) => {
+    let adjustedScore = record.score
+    if (record.importance >= 0.9) adjustedScore += 0.085
+    else if (record.importance >= 0.84) adjustedScore += 0.032
+
+    if (hasNearbyMajorRoad) {
+      if (record.importance < 0.84 && record.distanceMeters > 85) adjustedScore -= 0.12
+      if (record.importance < 0.76 && record.distanceMeters > 45) adjustedScore -= 0.16
+    }
+
+    return {
+      ...record,
+      score: adjustedScore,
+    }
+  })
+
+  if (!hasNearbyMajorRoad) return rebalanced
+
+  return rebalanced.filter((record) => {
+    if (record.distanceMeters <= 55) return true
+    if (record.importance >= 0.84) return true
+    return record.score >= majorBestScore - 0.22
+  })
 }
 
 function upsertByName(bucket, record) {
@@ -267,8 +427,8 @@ function upsertByName(bucket, record) {
   }
 }
 
-function sortAndProjectRecords(bucket, limit) {
-  return [...bucket.values()]
+function sortAndProjectRecords(records, limit) {
+  return [...records]
     .sort((a, b) => {
       if (Math.abs(b.score - a.score) > 1e-6) return b.score - a.score
       if (Math.abs(a.distanceMeters - b.distanceMeters) > 1e-6) return a.distanceMeters - b.distanceMeters
@@ -306,14 +466,45 @@ export async function fetchNearbyStationNamingContext(lngLat, options = {}) {
     MAX_RADIUS_METERS,
   )
 
-  const query = buildNearbyContextQuery(center, radiusMeters)
-  const payload = await postOverpassQuery(query, options.signal)
-  const elements = Array.isArray(payload?.elements) ? payload.elements : []
+  const mainQuery = buildNearbyContextQuery(center, radiusMeters)
+  const roadQuery = buildNearbyRoadGeometryQuery(center, radiusMeters)
+  const [mainPayload, roadPayload] = await Promise.all([
+    postOverpassQuery(mainQuery, options.signal),
+    postOverpassQuery(roadQuery, options.signal),
+  ])
+  const elements = Array.isArray(mainPayload?.elements) ? mainPayload.elements : []
+  const roadElements = Array.isArray(roadPayload?.elements) ? roadPayload.elements : []
 
   const roads = new Map()
   const areas = new Map()
   const facilities = new Map()
   const buildings = new Map()
+
+  for (const element of roadElements) {
+    const tags = element?.tags
+    if (!tags || typeof tags !== 'object') continue
+    const names = resolveElementNames(tags)
+    if (!names.nameZh) continue
+    const featureLngLat = resolveElementLngLat(element)
+    if (!featureLngLat) continue
+    const distanceMeters = haversineDistanceMeters(center, featureLngLat)
+    if (!Number.isFinite(distanceMeters) || distanceMeters > radiusMeters * 1.45) continue
+    const roadType = resolveRoadType(tags)
+    if (!roadType) continue
+
+    upsertByName(
+      roads,
+      toScoredRecord({
+        entryType: 'road',
+        nameZh: names.nameZh,
+        nameEn: names.nameEn,
+        distanceMeters,
+        importance: ROAD_IMPORTANCE[roadType],
+        type: ROAD_LABEL[roadType] || `道路:${roadType}`,
+        element,
+      }),
+    )
+  }
 
   for (const element of elements) {
     const tags = element?.tags
@@ -327,22 +518,6 @@ export async function fetchNearbyStationNamingContext(lngLat, options = {}) {
 
     const distanceMeters = haversineDistanceMeters(center, featureLngLat)
     if (!Number.isFinite(distanceMeters) || distanceMeters > radiusMeters * 1.4) continue
-
-    const roadType = resolveRoadType(tags)
-    if (roadType) {
-      upsertByName(
-        roads,
-        toScoredRecord({
-          entryType: 'road',
-          nameZh: names.nameZh,
-          nameEn: names.nameEn,
-          distanceMeters,
-          importance: ROAD_IMPORTANCE[roadType],
-          type: ROAD_LABEL[roadType] || `道路:${roadType}`,
-          element,
-        }),
-      )
-    }
 
     const area = resolveAreaType(tags)
     if (area) {
@@ -393,14 +568,19 @@ export async function fetchNearbyStationNamingContext(lngLat, options = {}) {
     }
   }
 
+  const allRoadRecords = [...roads.values()]
+  const intersections = detectRoadIntersections(allRoadRecords, center, radiusMeters)
+  const roadRecords = rebalanceRoadRecords(allRoadRecords, radiusMeters)
+
   return {
     center,
     radiusMeters,
-    rawFeatureCount: elements.length,
-    roads: sortAndProjectRecords(roads, CATEGORY_LIMITS.roads),
-    areas: sortAndProjectRecords(areas, CATEGORY_LIMITS.areas),
-    facilities: sortAndProjectRecords(facilities, CATEGORY_LIMITS.facilities),
-    buildings: sortAndProjectRecords(buildings, CATEGORY_LIMITS.buildings),
+    rawFeatureCount: elements.length + roadElements.length,
+    intersections,
+    roads: sortAndProjectRecords(roadRecords, CATEGORY_LIMITS.roads),
+    areas: sortAndProjectRecords([...areas.values()], CATEGORY_LIMITS.areas),
+    facilities: sortAndProjectRecords([...facilities.values()], CATEGORY_LIMITS.facilities),
+    buildings: sortAndProjectRecords([...buildings.values()], CATEGORY_LIMITS.buildings),
   }
 }
 

@@ -349,6 +349,7 @@ function addStationAtContext() {
 async function requestAiCandidatesForStation({ lngLat, stationId, screenPoint } = {}) {
   if (!Array.isArray(lngLat) || lngLat.length !== 2 || !stationId) return
 
+  store.setSelectedStations([stationId])
   const projected = map ? map.project(lngLat) : { x: 0, y: 0 }
   const x = Number.isFinite(screenPoint?.x) ? screenPoint.x : projected.x
   const y = Number.isFinite(screenPoint?.y) ? screenPoint.y : projected.y
@@ -367,7 +368,7 @@ async function requestAiCandidatesForStation({ lngLat, stationId, screenPoint } 
 
     if (controller.signal.aborted || requestVersion !== aiStationMenu.requestVersion) return
 
-    store.statusText = 'AI点站：正在调用本机 Ollama 生成候选站名...'
+    store.statusText = 'AI点站：正在调用 OpenRouter 生成候选站名...'
     const candidates = await generateStationNameCandidates({
       context: namingContext,
       lngLat,
@@ -432,6 +433,19 @@ function retryAiStationNamingFromMenu() {
     lngLat: [...aiStationMenu.lngLat],
     stationId: aiStationMenu.stationId,
     screenPoint: { x: aiStationMenu.x, y: aiStationMenu.y },
+  })
+}
+
+function aiRenameContextStationFromContext() {
+  if (!contextStation.value?.id || !Array.isArray(contextStation.value.lngLat)) return
+  const stationId = contextStation.value.id
+  const lngLat = [...contextStation.value.lngLat]
+  const screenPoint = { x: contextMenu.x, y: contextMenu.y }
+  closeContextMenu()
+  void requestAiCandidatesForStation({
+    lngLat,
+    stationId,
+    screenPoint,
   })
 }
 
@@ -1001,8 +1015,19 @@ function handleWindowResize() {
 
 function handleStationClick(event) {
   closeContextMenu()
+  closeAiStationMenu()
   const stationId = event.features?.[0]?.properties?.id
   if (!stationId) return
+  if (store.mode === 'ai-add-station') {
+    const station = store.project?.stations?.find((item) => item.id === stationId)
+    if (!station?.lngLat) return
+    void requestAiCandidatesForStation({
+      lngLat: [...station.lngLat],
+      stationId: station.id,
+      screenPoint: event.point,
+    })
+    return
+  }
   if (store.mode === 'route-draw') {
     store.selectStation(stationId)
     return
@@ -1447,6 +1472,7 @@ watch(
           <div v-if="contextMenu.targetType === 'station'" class="map-editor__context-section">
             <p>站点操作</p>
             <div class="map-editor__context-row">
+              <button @click="aiRenameContextStationFromContext" :disabled="!contextStation">AI命名该站点</button>
               <button @click="renameContextStationFromContext" :disabled="!contextStation">重命名站点</button>
               <button @click="deleteContextStationFromContext" :disabled="!contextMenu.stationId">删除该站点</button>
             </div>

@@ -1,7 +1,9 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { generateStationNameCandidates } from '../lib/ai/stationNaming'
 import { getDisplayLineName } from '../lib/lineNaming'
 import { LINE_STYLE_OPTIONS, normalizeLineStyle } from '../lib/lineStyles'
+import { fetchNearbyStationNamingContext, STATION_NAMING_RADIUS_METERS } from '../lib/osm/nearbyStationNamingContext'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
@@ -58,8 +60,42 @@ const lineForm = reactive({
   style: 'solid',
   isLoop: false,
 })
+const aiBatchNaming = reactive({
+  active: false,
+  generating: false,
+  stationIds: [],
+  currentIndex: 0,
+  candidates: [],
+  error: '',
+  appliedCount: 0,
+  skippedCount: 0,
+})
 
 const selectedStationCount = computed(() => store.selectedStationIds.length)
+const selectedStationsInOrder = computed(() => {
+  if (!store.project) return []
+  const stationMap = new Map(store.project.stations.map((station) => [station.id, station]))
+  return (store.selectedStationIds || []).map((id) => stationMap.get(id)).filter(Boolean)
+})
+const aiBatchCurrentStation = computed(() => {
+  if (!aiBatchNaming.active || !store.project) return null
+  const stationId = aiBatchNaming.stationIds[aiBatchNaming.currentIndex]
+  if (!stationId) return null
+  return store.project.stations.find((station) => station.id === stationId) || null
+})
+const aiBatchTotal = computed(() => aiBatchNaming.stationIds.length)
+const aiBatchPercent = computed(() => {
+  const total = aiBatchTotal.value
+  if (!total) return 0
+  const finished = aiBatchNaming.appliedCount + aiBatchNaming.skippedCount
+  return Math.round((finished / total) * 100)
+})
+const stationEnglishRetranslateProgress = computed(() => store.stationEnglishRetranslateProgress || {
+  done: 0,
+  total: 0,
+  percent: 0,
+  message: '',
+})
 const canEditSelectedManualTransfer = computed(() => selectedStationCount.value === 2)
 const selectedManualTransferExists = computed(() => {
   if (!canEditSelectedManualTransfer.value) return false
@@ -265,6 +301,106 @@ function applyBatchStationRename() {
     enTemplate: stationBatchForm.enTemplate,
     startIndex: stationBatchForm.startIndex,
   })
+}
+
+function resetAiBatchNamingState() {
+  aiBatchNaming.active = false
+  aiBatchNaming.generating = false
+  aiBatchNaming.stationIds = []
+  aiBatchNaming.currentIndex = 0
+  aiBatchNaming.candidates = []
+  aiBatchNaming.error = ''
+  aiBatchNaming.appliedCount = 0
+  aiBatchNaming.skippedCount = 0
+}
+
+async function generateCandidatesForAiBatchCurrentStation() {
+  const station = aiBatchCurrentStation.value
+  if (!station || !Array.isArray(station.lngLat)) {
+    aiBatchNaming.error = '当前站点不存在或坐标无效'
+    aiBatchNaming.candidates = []
+    return
+  }
+  aiBatchNaming.generating = true
+  aiBatchNaming.error = ''
+  aiBatchNaming.candidates = []
+  try {
+    store.statusText = `AI批量命名：正在分析 ${station.nameZh || station.id} 周边 ${STATION_NAMING_RADIUS_METERS}m`
+    const context = await fetchNearbyStationNamingContext(station.lngLat, {
+      radiusMeters: STATION_NAMING_RADIUS_METERS,
+    })
+    const candidates = await generateStationNameCandidates({
+      context,
+      lngLat: station.lngLat,
+    })
+    aiBatchNaming.candidates = candidates
+    store.statusText = `AI批量命名：请为 ${station.nameZh || station.id} 选择候选站名`
+  } catch (error) {
+    const message = String(error?.message || '生成失败')
+    aiBatchNaming.error = message
+    aiBatchNaming.candidates = []
+    store.statusText = `AI批量命名失败: ${message}`
+  } finally {
+    aiBatchNaming.generating = false
+  }
+}
+
+async function moveToNextAiBatchStation() {
+  aiBatchNaming.currentIndex += 1
+  if (aiBatchNaming.currentIndex >= aiBatchNaming.stationIds.length) {
+    const total = aiBatchNaming.stationIds.length
+    const applied = aiBatchNaming.appliedCount
+    const skipped = aiBatchNaming.skippedCount
+    store.statusText = `AI批量命名完成：已应用 ${applied}/${total}，跳过 ${skipped}`
+    resetAiBatchNamingState()
+    return
+  }
+  await generateCandidatesForAiBatchCurrentStation()
+}
+
+async function startAiBatchNamingForSelectedStations() {
+  const selected = selectedStationsInOrder.value
+  if (!selected.length) return
+  aiBatchNaming.active = true
+  aiBatchNaming.generating = false
+  aiBatchNaming.stationIds = selected.map((station) => station.id)
+  aiBatchNaming.currentIndex = 0
+  aiBatchNaming.candidates = []
+  aiBatchNaming.error = ''
+  aiBatchNaming.appliedCount = 0
+  aiBatchNaming.skippedCount = 0
+  await generateCandidatesForAiBatchCurrentStation()
+}
+
+async function retryAiBatchCurrentStation() {
+  if (!aiBatchNaming.active) return
+  await generateCandidatesForAiBatchCurrentStation()
+}
+
+async function skipAiBatchCurrentStation() {
+  if (!aiBatchNaming.active || aiBatchNaming.generating) return
+  aiBatchNaming.skippedCount += 1
+  await moveToNextAiBatchStation()
+}
+
+async function applyAiBatchCandidate(candidate) {
+  if (!candidate || !aiBatchCurrentStation.value || aiBatchNaming.generating) return
+  const station = aiBatchCurrentStation.value
+  store.updateStationName(station.id, {
+    nameZh: candidate.nameZh,
+    nameEn: candidate.nameEn,
+  })
+  aiBatchNaming.appliedCount += 1
+  await moveToNextAiBatchStation()
+}
+
+function cancelAiBatchNaming() {
+  resetAiBatchNamingState()
+  store.statusText = '已取消 AI 批量命名'
+}
+
+async function retranslateAllStationEnglishNames() {
+  await store.retranslateAllStationEnglishNamesWithAi()
 }
 
 function addManualTransferForSelectedStations() {
@@ -494,7 +630,7 @@ onMounted(async () => {
             </button>
           </div>
           <p class="toolbar__hint">
-            提示: AI点站会抓取 300m 周边 OSM 道路/地域/设施并调用本机 Ollama 给出 5 个候选；连续布线模式下从首点开始，后续每次点击都会继续连线；Esc 可取消待连接起点。
+            提示: AI点站会抓取 300m 周边 OSM 道路/地域/设施并调用 OpenRouter 给出 5 个候选；连续布线模式下从首点开始，后续每次点击都会继续连线；Esc 可取消待连接起点。
           </p>
           <div class="toolbar__row">
             <span class="toolbar__meta">已选站点: {{ selectedStationCount }}</span>
@@ -532,6 +668,30 @@ onMounted(async () => {
         <section class="toolbar__section">
           <h3>站点属性</h3>
           <p class="toolbar__section-intro">编辑当前选中站点，或对多站点做批量操作。</p>
+          <div class="toolbar__row">
+            <button
+              class="toolbar__btn"
+              :disabled="!store.project?.stations?.length || store.isStationEnglishRetranslating"
+              @click="retranslateAllStationEnglishNames"
+            >
+              {{ store.isStationEnglishRetranslating ? '全图英文重译中...' : '按规范重译全图英文' }}
+            </button>
+          </div>
+          <div v-if="stationEnglishRetranslateProgress.total > 0" class="toolbar__progress">
+            <div class="toolbar__progress-head">
+              <span>{{ stationEnglishRetranslateProgress.message || '处理中...' }}</span>
+              <strong>{{ Math.round(stationEnglishRetranslateProgress.percent || 0) }}%</strong>
+            </div>
+            <div class="toolbar__progress-track">
+              <div
+                class="toolbar__progress-fill"
+                :style="{ width: `${Math.max(0, Math.min(100, stationEnglishRetranslateProgress.percent || 0))}%` }"
+              ></div>
+            </div>
+            <p class="toolbar__hint">
+              {{ stationEnglishRetranslateProgress.done || 0 }} / {{ stationEnglishRetranslateProgress.total || 0 }}
+            </p>
+          </div>
           <template v-if="selectedStation && selectedStationCount === 1">
             <p class="toolbar__hint">当前站点 ID: {{ selectedStation.id }}</p>
             <input v-model="stationForm.nameZh" class="toolbar__input" placeholder="车站中文名" />
@@ -543,6 +703,15 @@ onMounted(async () => {
           </template>
           <template v-else-if="selectedStationCount > 1">
             <p class="toolbar__hint">已选 {{ selectedStationCount }} 个站点，可用模板批量重命名（`{n}` 为序号）。</p>
+            <div class="toolbar__row">
+              <button
+                class="toolbar__btn"
+                :disabled="store.isStationEnglishRetranslating || aiBatchNaming.generating"
+                @click="startAiBatchNamingForSelectedStations"
+              >
+                AI批量命名（逐站5选1）
+              </button>
+            </div>
             <input v-model="stationBatchForm.zhTemplate" class="toolbar__input" placeholder="中文模板，例如：站点 {n}" />
             <input
               v-model="stationBatchForm.enTemplate"
@@ -554,6 +723,42 @@ onMounted(async () => {
             <div class="toolbar__row">
               <button class="toolbar__btn toolbar__btn--primary" @click="applyBatchStationRename">批量重命名</button>
               <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedStations">删除选中站点</button>
+            </div>
+            <div v-if="aiBatchNaming.active" class="toolbar__progress">
+              <div class="toolbar__progress-head">
+                <span>
+                  逐站命名 {{ Math.min(aiBatchNaming.currentIndex + 1, aiBatchTotal) }}/{{ aiBatchTotal }}
+                  {{ aiBatchCurrentStation ? `· ${aiBatchCurrentStation.nameZh || aiBatchCurrentStation.id}` : '' }}
+                </span>
+                <strong>{{ aiBatchPercent }}%</strong>
+              </div>
+              <div class="toolbar__progress-track">
+                <div class="toolbar__progress-fill" :style="{ width: `${aiBatchPercent}%` }"></div>
+              </div>
+              <p class="toolbar__hint">已应用 {{ aiBatchNaming.appliedCount }}，已跳过 {{ aiBatchNaming.skippedCount }}</p>
+              <p v-if="aiBatchNaming.generating" class="toolbar__hint">正在生成候选中...</p>
+              <p v-if="aiBatchNaming.error" class="toolbar__hint">{{ aiBatchNaming.error }}</p>
+
+              <div v-if="!aiBatchNaming.generating && aiBatchNaming.candidates.length" class="toolbar__ai-candidates">
+                <button
+                  v-for="candidate in aiBatchNaming.candidates"
+                  :key="`${candidate.nameZh}__${candidate.nameEn}`"
+                  class="toolbar__ai-candidate-btn"
+                  @click="applyAiBatchCandidate(candidate)"
+                >
+                  <strong>{{ candidate.nameZh }}</strong>
+                  <span>{{ candidate.nameEn }}</span>
+                  <small>{{ candidate.basis }} · {{ candidate.reason }}</small>
+                </button>
+              </div>
+
+              <div class="toolbar__row">
+                <button class="toolbar__btn" :disabled="aiBatchNaming.generating" @click="retryAiBatchCurrentStation">重试当前站</button>
+                <button class="toolbar__btn" :disabled="aiBatchNaming.generating" @click="skipAiBatchCurrentStation">跳过当前站</button>
+                <button class="toolbar__btn toolbar__btn--danger" :disabled="aiBatchNaming.generating" @click="cancelAiBatchNaming">
+                  结束批量命名
+                </button>
+              </div>
             </div>
             <div class="toolbar__divider"></div>
             <p class="toolbar__hint">
@@ -941,6 +1146,78 @@ onMounted(async () => {
   gap: 8px;
   margin-top: 8px;
   flex-wrap: wrap;
+}
+
+.toolbar__progress {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 8px;
+  background: var(--toolbar-item-bg);
+}
+
+.toolbar__progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--toolbar-muted);
+}
+
+.toolbar__progress-head strong {
+  color: var(--toolbar-text);
+}
+
+.toolbar__progress-track {
+  margin-top: 8px;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--toolbar-input-bg);
+  border: 1px solid var(--toolbar-input-border);
+  overflow: hidden;
+}
+
+.toolbar__progress-fill {
+  height: 100%;
+  background: var(--toolbar-primary-border);
+  transition: width 180ms ease;
+}
+
+.toolbar__ai-candidates {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toolbar__ai-candidate-btn {
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 8px;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-text);
+  text-align: left;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.toolbar__ai-candidate-btn strong {
+  font-size: 13px;
+}
+
+.toolbar__ai-candidate-btn span {
+  font-size: 12px;
+  color: var(--toolbar-muted);
+}
+
+.toolbar__ai-candidate-btn small {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--toolbar-hint);
 }
 
 .toolbar__btn {

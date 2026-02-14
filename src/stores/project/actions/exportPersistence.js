@@ -28,6 +28,13 @@ const exportPersistenceActions = {
     this.selectedEdgeId = null
     this.selectedEdgeAnchor = null
     this.pendingEdgeStartStationId = null
+    this.isStationEnglishRetranslating = false
+    this.stationEnglishRetranslateProgress = {
+      done: 0,
+      total: 0,
+      percent: 0,
+      message: '',
+    }
     this.recomputeStationLineMembership()
     this.statusText = `已加载工程文件: ${parsed.name}`
     await this.persistNow()

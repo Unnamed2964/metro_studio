@@ -20,6 +20,13 @@ export const useProjectStore = defineStore('project', {
     isLayoutRunning: false,
     isInitialized: false,
     statusText: '',
+    isStationEnglishRetranslating: false,
+    stationEnglishRetranslateProgress: {
+      done: 0,
+      total: 0,
+      percent: 0,
+      message: '',
+    },
     includeConstruction: false,
     includeProposed: false,
     exportStationVisibilityMode: 'all',

@@ -1,11 +1,6 @@
-const DEFAULT_OLLAMA_MODEL = 'kamekichi128/qwen3-4b-instruct-2507:latest'
-const OLLAMA_REQUEST_TIMEOUT_MS = 90000
+import { postOpenRouterChat } from './openrouterClient'
 
-const DEV_PROXY_ENDPOINTS = ['/api/ollama']
-const LOCAL_ENDPOINTS = ['http://127.0.0.1:11434', 'http://localhost:11434']
-const OLLAMA_ENDPOINTS = import.meta.env.DEV
-  ? [...DEV_PROXY_ENDPOINTS, ...LOCAL_ENDPOINTS]
-  : [...LOCAL_ENDPOINTS]
+const DEFAULT_OPENROUTER_MODEL = 'claude-haiku-4-5-20251001'
 
 const BASIS_OPTIONS = ['①道路', '②地域', '③公共设施', '④其它']
 
@@ -15,18 +10,19 @@ const STATION_NAME_RESPONSE_SCHEMA = {
   properties: {
     candidates: {
       type: 'array',
-      minItems: 5,
+      minItems: 0,
       maxItems: 5,
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
+          evidenceId: { type: 'string', minLength: 1, maxLength: 48 },
           nameZh: { type: 'string', minLength: 1, maxLength: 64 },
           nameEn: { type: 'string', minLength: 1, maxLength: 96 },
           basis: { type: 'string', enum: BASIS_OPTIONS },
           reason: { type: 'string', minLength: 1, maxLength: 220 },
         },
-        required: ['nameZh', 'nameEn', 'basis', 'reason'],
+        required: ['evidenceId', 'nameZh', 'nameEn', 'basis', 'reason'],
       },
     },
   },
@@ -40,45 +36,14 @@ const CHINESE_NAMING_STANDARD = `轨道交通车站名称按以下条件综合�
 ④ 以其它符合法律、法规的方法命名。
 车站名称命名的优先权主要由被选道路、地域或公共设施的重要程度、对社会的导向性等因素予以确定。`
 
-const ENGLISH_NAMING_STANDARD = `专名部分用汉语拼音，不标声调，多音节连写，如“Xujiahui”，各词首字母大写。通名部分按上海道路和公共场所英文规范意译，如“路/马路”Road，“大道”Avenue，“公园”Park，“火车站”Railway Station。含方位词时，用 East/West/South/North 置于专名前，如“East Nanjing Road”。报站和导向标识一般只写站名，必要时可在后加“Station”或“Metro Station”。多线换乘站中英文统一，不用生僻缩写和不规范拼写。`
+const ENGLISH_NAMING_STANDARD = `专名部分用汉语拼音，不标声调，多音节连写，各词首字母大写。通名部分按道路和公共场所英文规范意译（如路/马路=Road，大道=Avenue，公园=Park，医院=Hospital，妇幼保健院=Maternal and Child Health Hospital）。含方位词时，用 East/West/South/North 置于专名前。公共机构/医院/学校/政府部门等必须意译其通名，不得整词音译。报站和导向标识仅保留站名主体，英文名末尾不得出现 Station/Metro Station/Subway Station。多线换乘站中英文统一，不用生僻缩写和不规范拼写。`
+
+const STATION_SUFFIX_REGEX = /(地铁站|车站|站)$/u
+const ENGLISH_STATION_SUFFIX_REGEX = /\b(?:metro\s+station|subway\s+station|railway\s+station|train\s+station|station)\b\.?$/iu
 
 function toFiniteNumber(value, fallback = 0) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
-}
-
-function trimEndpoint(endpoint) {
-  return String(endpoint || '').replace(/\/+$/, '')
-}
-
-function createAbortSignalWithTimeout(parentSignal, timeoutMs) {
-  const controller = new AbortController()
-
-  const timeoutHandle = setTimeout(() => {
-    controller.abort(new Error(`timeout-${timeoutMs}ms`))
-  }, timeoutMs)
-
-  const abortFromParent = () => {
-    controller.abort(parentSignal?.reason || new Error('aborted'))
-  }
-
-  if (parentSignal) {
-    if (parentSignal.aborted) {
-      abortFromParent()
-    } else {
-      parentSignal.addEventListener('abort', abortFromParent, { once: true })
-    }
-  }
-
-  return {
-    signal: controller.signal,
-    cleanup() {
-      clearTimeout(timeoutHandle)
-      if (parentSignal) {
-        parentSignal.removeEventListener('abort', abortFromParent)
-      }
-    },
-  }
 }
 
 function normalizeBasis(value) {
@@ -122,27 +87,174 @@ function toTitleWords(text) {
     .join(' ')
 }
 
+function stripChineseStationSuffix(text) {
+  return String(text || '')
+    .trim()
+    .replace(STATION_SUFFIX_REGEX, '')
+    .trim()
+}
+
+function sanitizeEnglishStationName(text) {
+  return String(text || '')
+    .trim()
+    .replace(ENGLISH_STATION_SUFFIX_REGEX, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 function fallbackEnglishName(nameZh, nameEnHint = '') {
-  const fromHint = String(nameEnHint || '').trim()
+  const fromHint = sanitizeEnglishStationName(nameEnHint)
   if (fromHint) return fromHint
-  const fromZh = String(nameZh || '').trim()
+  const fromZh = stripChineseStationSuffix(nameZh)
   if (!fromZh) return ''
   if (!hasCjk(fromZh)) {
     return toTitleWords(fromZh)
   }
-  return `${fromZh} Station`
+  return fromZh
 }
 
-function normalizeCandidate(rawCandidate) {
-  const nameZh = String(rawCandidate?.nameZh || rawCandidate?.zh || rawCandidate?.name || '').trim()
+function normalizeNameKey(text) {
+  return String(text || '')
+    .trim()
+    .replace(STATION_SUFFIX_REGEX, '')
+    .replace(/[\s\-_()\[\]{}<>.,，。·•'"`]/g, '')
+    .toLowerCase()
+}
+
+function resolveBasisByCategory(category) {
+  if (category === 'intersections') return '①道路'
+  if (category === 'roads') return '①道路'
+  if (category === 'areas') return '②地域'
+  if (category === 'facilities' || category === 'buildings') return '③公共设施'
+  return '④其它'
+}
+
+function prioritizeIntersectionEvidenceItems(items) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => String(item?.nameZh || '').trim())
+    .sort((a, b) => {
+      const scoreDelta = toFiniteNumber(b?.score, 0) - toFiniteNumber(a?.score, 0)
+      if (Math.abs(scoreDelta) > 1e-6) return scoreDelta
+      const distanceDelta = toFiniteNumber(a?.distanceMeters, 0) - toFiniteNumber(b?.distanceMeters, 0)
+      if (Math.abs(distanceDelta) > 1e-6) return distanceDelta
+      return String(a?.nameZh || '').localeCompare(String(b?.nameZh || ''), 'zh-Hans-CN')
+    })
+    .slice(0, 10)
+}
+
+function shouldEnforceIntersectionPriority(intersections) {
+  const items = Array.isArray(intersections) ? intersections : []
+  if (!items.length) return false
+  return items.some((item) => {
+    const score = toFiniteNumber(item?.score, 0)
+    const distance = toFiniteNumber(item?.distanceMeters, 9999)
+    const importance = toFiniteNumber(item?.importance, 0)
+    return score >= 0.78 && distance <= 80 && importance >= 0.75
+  })
+}
+
+function prioritizeRoadEvidenceItems(items) {
+  const roads = (Array.isArray(items) ? items : []).filter((item) => String(item?.nameZh || '').trim())
+  if (!roads.length) return []
+
+  const hasNearbyMajorRoad = roads.some(
+    (road) => toFiniteNumber(road?.importance, 0) >= 0.9 && toFiniteNumber(road?.distanceMeters, 9999) <= 240,
+  )
+
+  const filtered = hasNearbyMajorRoad
+    ? roads.filter((road) => {
+        const importance = toFiniteNumber(road?.importance, 0)
+        const distance = toFiniteNumber(road?.distanceMeters, 9999)
+        if (importance >= 0.84) return true
+        return distance <= 42
+      })
+    : roads
+
+  return filtered.slice(0, 12)
+}
+
+function buildEvidenceListFromContext(context) {
+  const prioritizedIntersectionItems = prioritizeIntersectionEvidenceItems(context?.intersections)
+  const enforceIntersectionPriority = shouldEnforceIntersectionPriority(prioritizedIntersectionItems)
+  const categories = [
+    { key: 'intersections', limit: 10 },
+    { key: 'roads', limit: 18 },
+    { key: 'areas', limit: 14 },
+    { key: 'facilities', limit: 20 },
+    { key: 'buildings', limit: 20 },
+  ]
+
+  const evidences = []
+  let sequence = 1
+  const prioritizedRoadItems = prioritizeRoadEvidenceItems(context?.roads)
+
+  for (const category of categories) {
+    if (enforceIntersectionPriority && category.key === 'roads') continue
+    const sourceItems =
+      category.key === 'intersections'
+        ? prioritizedIntersectionItems
+        : category.key === 'roads'
+          ? prioritizedRoadItems
+          : Array.isArray(context?.[category.key])
+            ? context[category.key]
+            : []
+    const items = sourceItems.slice(0, category.limit)
+    for (const item of items) {
+      const nameZh = String(item?.nameZh || '').trim()
+      if (!nameZh) continue
+      const evidenceId = `ev_${String(sequence).padStart(3, '0')}`
+      sequence += 1
+      evidences.push({
+        evidenceId,
+        category: category.key,
+        basis: resolveBasisByCategory(category.key),
+        nameZh,
+        nameEn: String(item?.nameEn || '').trim(),
+        type: String(item?.type || '').trim(),
+        distanceMeters: Math.round(toFiniteNumber(item?.distanceMeters, 0)),
+        importance: toFiniteNumber(item?.importance, 0),
+        score: toFiniteNumber(item?.score, 0),
+      })
+    }
+  }
+
+  return {
+    evidences,
+    enforceIntersectionPriority,
+  }
+}
+
+function buildEvidenceMap(evidences) {
+  const map = new Map()
+  for (const evidence of evidences) {
+    if (!evidence?.evidenceId) continue
+    map.set(evidence.evidenceId, evidence)
+  }
+  return map
+}
+
+function normalizeCandidate(rawCandidate, evidenceById) {
+  const evidenceId = String(rawCandidate?.evidenceId || rawCandidate?.evidence_id || '').trim()
+  if (!evidenceId) return null
+  const evidence = evidenceById.get(evidenceId)
+  if (!evidence) return null
+
+  const nameZh = stripChineseStationSuffix(rawCandidate?.nameZh || rawCandidate?.zh || rawCandidate?.name)
   if (!nameZh) return null
 
-  const basis = normalizeBasis(rawCandidate?.basis || rawCandidate?.rule)
-  const nameEn = fallbackEnglishName(nameZh, rawCandidate?.nameEn || rawCandidate?.en)
+  const evidenceNameKey = normalizeNameKey(evidence.nameZh)
+  const candidateNameKey = normalizeNameKey(nameZh)
+  if (!candidateNameKey || candidateNameKey !== evidenceNameKey) return null
+
+  const basis = evidence.basis || normalizeBasis(rawCandidate?.basis || rawCandidate?.rule)
+  const nameEn = fallbackEnglishName(nameZh, rawCandidate?.nameEn || rawCandidate?.en || evidence.nameEn)
   if (!nameEn) return null
 
-  const reason = String(rawCandidate?.reason || rawCandidate?.why || '').trim() || `${basis}命名依据。`
+  const reasonRaw = String(rawCandidate?.reason || rawCandidate?.why || '').trim()
+  const reason = reasonRaw || `基于证据“${evidence.nameZh}”（${evidence.type || '周边要素'}）。`
+
   return {
+    evidenceId,
     nameZh,
     nameEn,
     basis,
@@ -166,18 +278,8 @@ function dedupeCandidates(candidates) {
   return result
 }
 
-function projectContextForModel(context, lngLat) {
+function projectContextForModel(context, lngLat, evidences) {
   const [lng, lat] = Array.isArray(lngLat) && lngLat.length === 2 ? lngLat : context.center || [0, 0]
-
-  const projectList = (items, limit) =>
-    (Array.isArray(items) ? items : []).slice(0, limit).map((item) => ({
-      nameZh: String(item?.nameZh || '').trim(),
-      nameEn: String(item?.nameEn || '').trim(),
-      type: String(item?.type || '').trim(),
-      distanceMeters: Math.round(toFiniteNumber(item?.distanceMeters, 0)),
-      importance: toFiniteNumber(item?.importance, 0),
-      score: toFiniteNumber(item?.score, 0),
-    }))
 
   return {
     stationPoint: {
@@ -185,57 +287,43 @@ function projectContextForModel(context, lngLat) {
       lat: Number(toFiniteNumber(lat, 0).toFixed(6)),
       radiusMeters: Math.round(toFiniteNumber(context?.radiusMeters, 300)),
     },
-    roads: projectList(context?.roads, 18),
-    areas: projectList(context?.areas, 14),
-    facilities: projectList(context?.facilities, 20),
-    buildings: projectList(context?.buildings, 20),
+    evidences: evidences.map((item) => ({
+      evidenceId: item.evidenceId,
+      basis: item.basis,
+      nameZh: item.nameZh,
+      nameEn: item.nameEn,
+      type: item.type,
+      distanceMeters: item.distanceMeters,
+      score: item.score,
+    })),
   }
 }
 
-function buildFallbackCandidatesFromContext(context) {
-  const pools = [
-    {
-      basis: '①道路',
-      items: Array.isArray(context?.roads) ? context.roads : [],
-    },
-    {
-      basis: '②地域',
-      items: Array.isArray(context?.areas) ? context.areas : [],
-    },
-    {
-      basis: '③公共设施',
-      items: Array.isArray(context?.facilities) ? context.facilities : [],
-    },
-    {
-      basis: '③公共设施',
-      items: Array.isArray(context?.buildings) ? context.buildings : [],
-    },
-  ]
-
-  const result = []
-  for (const pool of pools) {
-    for (const item of pool.items) {
-      const nameZh = String(item?.nameZh || '').trim()
-      if (!nameZh) continue
-      const nameEn = fallbackEnglishName(nameZh, item?.nameEn)
-      if (!nameEn) continue
-      const distanceMeters = Math.round(toFiniteNumber(item?.distanceMeters, 0))
-      const reason = `依据${pool.basis}对象“${nameZh}”（${String(item?.type || '周边要素')}，约${distanceMeters}m）。`
-      result.push({
-        nameZh,
-        nameEn,
-        basis: pool.basis,
-        reason,
-      })
-    }
-  }
-
-  return dedupeCandidates(result)
+function buildFallbackCandidatesFromEvidence(evidences) {
+  return dedupeCandidates(
+    evidences.map((evidence) => ({
+      evidenceId: evidence.evidenceId,
+      nameZh: evidence.nameZh,
+      nameEn: fallbackEnglishName(evidence.nameZh, evidence.nameEn),
+      basis: evidence.basis,
+      reason: `依据${evidence.basis}对象“${evidence.nameZh}”（${evidence.type || '周边要素'}，约${evidence.distanceMeters}m）。`,
+    })),
+  )
 }
 
 function extractCandidatesFromChatResponse(payload) {
-  const content = payload?.message?.content
+  const content = payload?.choices?.[0]?.message?.content
   if (content && typeof content === 'object') {
+    if (Array.isArray(content)) {
+      const joined = content
+        .map((part) => {
+          if (typeof part === 'string') return part
+          return String(part?.text || '')
+        })
+        .join('')
+      const parsed = extractJsonObject(joined)
+      return parsed && Array.isArray(parsed.candidates) ? parsed.candidates : []
+    }
     return Array.isArray(content.candidates) ? content.candidates : []
   }
   if (typeof content === 'string') {
@@ -247,80 +335,66 @@ function extractCandidatesFromChatResponse(payload) {
   return []
 }
 
-async function postOllamaChat(payload, signal) {
-  if (signal?.aborted) {
-    throw new Error('Ollama 请求已取消')
-  }
-
-  const failures = []
-
-  for (const endpoint of OLLAMA_ENDPOINTS) {
-    const base = trimEndpoint(endpoint)
-    if (!base) continue
-
-    const { signal: requestSignal, cleanup } = createAbortSignalWithTimeout(signal, OLLAMA_REQUEST_TIMEOUT_MS)
-    try {
-      const response = await fetch(`${base}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal: requestSignal,
-      })
-
-      if (!response.ok) {
-        failures.push(`${base}(${response.status})`)
-        continue
-      }
-
-      const text = await response.text()
-      const json = safeJsonParse(text)
-      if (!json || typeof json !== 'object') {
-        failures.push(`${base}(invalid-json)`)
-        continue
-      }
-
-      return json
-    } catch (error) {
-      if (signal?.aborted) {
-        throw new Error('Ollama 请求已取消')
-      }
-      failures.push(`${base}(${error?.message || 'network-error'})`)
-    } finally {
-      cleanup()
-    }
-  }
-
-  throw new Error(`Ollama 请求失败: ${failures.join(', ')}`)
+function isResponseFormatError(error) {
+  const text = String(error?.message || '').toLowerCase()
+  return text.includes('response_format') || text.includes('json_schema') || text.includes('structured')
 }
 
-export async function generateStationNameCandidates({ context, lngLat, model = DEFAULT_OLLAMA_MODEL, signal } = {}) {
+async function postOpenRouterChatWithFallback(payload, signal) {
+  try {
+    return await postOpenRouterChat(payload, signal)
+  } catch (error) {
+    if (!payload?.response_format || !isResponseFormatError(error)) {
+      throw error
+    }
+    const degradedPayload = { ...payload }
+    delete degradedPayload.response_format
+    return postOpenRouterChat(degradedPayload, signal)
+  }
+}
+
+export async function generateStationNameCandidates({ context, lngLat, model = DEFAULT_OPENROUTER_MODEL, signal } = {}) {
   if (!context || typeof context !== 'object') {
     throw new Error('缺少周边命名上下文')
   }
 
-  const modelInput = projectContextForModel(context, lngLat)
+  const { evidences, enforceIntersectionPriority } = buildEvidenceListFromContext(context)
+  if (!evidences.length) {
+    throw new Error('周边命名要素不足，无法生成候选站名')
+  }
+
+  const evidenceById = buildEvidenceMap(evidences)
+  const modelInput = projectContextForModel(context, lngLat, evidences)
   const systemPrompt = [
     '你是轨道交通车站命名评审助手。',
-    '必须严格依据输入的道路/地域/公共设施/建筑证据命名，不得虚构不存在的地名或设施名。',
+    '你只能从输入 evidence 列表中选择命名依据，禁止输出 evidence 列表之外的任何地名或设施名。',
+    '每个候选必须绑定一个 evidenceId，且 nameZh 必须与该 evidence 的 nameZh 对应。nameZh 末尾禁止出现“站/车站/地铁站”。',
+    '若 evidence 中存在主干路/次干路（高 importance 道路），优先考虑其作为道路命名依据，不要优先选择居住小路或服务道路。',
+    enforceIntersectionPriority
+      ? '当前证据显示站位处于强交叉口场景：①道路类候选只能使用 intersections 证据，严禁用单一道路证据命名。'
+      : '若证据中存在道路交叉口（intersections），优先使用交叉口证据作为①道路候选，不要忽略交汇关系。',
+    '如果无法给出充分 grounded 的候选，可以少给，绝不编造。',
     '严格遵守以下中文标准：',
     CHINESE_NAMING_STANDARD,
     '严格遵守以下英文标准：',
     ENGLISH_NAMING_STANDARD,
     '输出约束：',
-    '1) 仅输出 JSON；2) 必须给出恰好 5 个候选；3) 候选中英文名称均需互不重复；4) basis 仅可取 ①道路/②地域/③公共设施/④其它；5) reason 需简明说明导向性与优先级。',
+    '1) 仅输出 JSON；2) candidates 最多 5 条；3) 候选中英文名称均需互不重复；4) basis 仅可取 ①道路/②地域/③公共设施/④其它；5) 不得出现训练记忆中的外部知名站名；6) nameEn 末尾严禁出现 Station/Metro Station/Subway Station；7) 公共机构必须意译通名（医院/学校/政府机构等）。',
   ].join('\n')
 
   const payload = {
     model,
     stream: false,
-    format: STATION_NAME_RESPONSE_SCHEMA,
-    options: {
-      temperature: 0.2,
-      top_p: 0.9,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'station_name_candidates',
+        strict: true,
+        schema: STATION_NAME_RESPONSE_SCHEMA,
+      },
     },
+    temperature: 0.1,
+    top_p: 0.8,
     messages: [
       {
         role: 'system',
@@ -330,8 +404,8 @@ export async function generateStationNameCandidates({ context, lngLat, model = D
         role: 'user',
         content: JSON.stringify(
           {
-            task: '请根据输入上下文生成地铁车站命名候选。',
-            output: '返回 candidates 数组，每项含 nameZh/nameEn/basis/reason。',
+            task: '请根据输入 evidence 生成 grounded 的地铁车站命名候选。',
+            output: '返回 candidates 数组，每项含 evidenceId/nameZh/nameEn/basis/reason。',
             context: modelInput,
           },
           null,
@@ -341,18 +415,20 @@ export async function generateStationNameCandidates({ context, lngLat, model = D
     ],
   }
 
-  const responsePayload = await postOllamaChat(payload, signal)
+  const responsePayload = await postOpenRouterChatWithFallback(payload, signal)
   const rawCandidates = extractCandidatesFromChatResponse(responsePayload)
-  const normalized = dedupeCandidates(rawCandidates.map((item) => normalizeCandidate(item)).filter(Boolean))
+  const groundedModelCandidates = dedupeCandidates(
+    rawCandidates.map((item) => normalizeCandidate(item, evidenceById)).filter(Boolean),
+  )
 
-  const fallbackCandidates = buildFallbackCandidatesFromContext(context)
-  const merged = dedupeCandidates([...normalized, ...fallbackCandidates]).slice(0, 5)
+  const fallbackCandidates = buildFallbackCandidatesFromEvidence(evidences)
+  const merged = dedupeCandidates([...groundedModelCandidates, ...fallbackCandidates]).slice(0, 5)
 
   if (merged.length < 5) {
     throw new Error('周边命名要素不足，无法生成 5 个候选站名')
   }
 
-  return merged
+  return merged.map(({ evidenceId, ...rest }) => rest)
 }
 
-export { DEFAULT_OLLAMA_MODEL }
+export { DEFAULT_OPENROUTER_MODEL }

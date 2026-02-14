@@ -8,6 +8,16 @@ import {
   setLatestProject,
 } from '../../../lib/storage/db'
 
+function resetStationEnglishRetranslateState(store) {
+  store.isStationEnglishRetranslating = false
+  store.stationEnglishRetranslateProgress = {
+    done: 0,
+    total: 0,
+    percent: 0,
+    message: '',
+  }
+}
+
 const lifecycleActions = {
   async initialize() {
     if (this.isInitialized) return
@@ -22,6 +32,7 @@ const lifecycleActions = {
     this.selectedEdgeId = null
     this.selectedEdgeAnchor = null
     this.pendingEdgeStartStationId = null
+    resetStationEnglishRetranslateState(this)
     this.isInitialized = true
     this.statusText = latest ? `已加载最近工程: ${latest.name}` : '已创建新工程'
     if (!latest) {
@@ -42,6 +53,7 @@ const lifecycleActions = {
     this.selectedStationId = null
     this.selectedStationIds = []
     this.pendingEdgeStartStationId = null
+    resetStationEnglishRetranslateState(this)
     this.regionBoundary = null
     this.includeConstruction = false
     this.includeProposed = false
@@ -84,6 +96,7 @@ const lifecycleActions = {
     this.selectedEdgeId = null
     this.selectedEdgeAnchor = null
     this.pendingEdgeStartStationId = null
+    resetStationEnglishRetranslateState(this)
     this.recomputeStationLineMembership()
     this.statusText = `已复制工程: ${duplicated.name}`
     await this.persistNow()
@@ -110,6 +123,7 @@ const lifecycleActions = {
       this.selectedEdgeId = null
       this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
+      resetStationEnglishRetranslateState(this)
       this.statusText = '已删除工程，已创建新工程'
       await this.persistNow()
       return true
@@ -128,6 +142,7 @@ const lifecycleActions = {
       this.selectedEdgeId = null
       this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
+      resetStationEnglishRetranslateState(this)
       this.recomputeStationLineMembership()
       this.statusText = `已删除工程，已加载: ${fallback.name}`
       await setLatestProject(fallback.id)
@@ -152,6 +167,7 @@ const lifecycleActions = {
     this.selectedEdgeId = null
     this.selectedEdgeAnchor = null
     this.pendingEdgeStartStationId = null
+    resetStationEnglishRetranslateState(this)
     this.recomputeStationLineMembership()
     this.statusText = `已加载工程: ${project.name}`
     await setLatestProject(project.id)
