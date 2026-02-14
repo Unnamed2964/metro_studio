@@ -1,5 +1,16 @@
 import { dedupeStationIds } from '../helpers'
 
+function dedupeEdgeIds(ids, edgeIdSet) {
+  const result = []
+  const seen = new Set()
+  for (const id of ids || []) {
+    if (!edgeIdSet.has(id) || seen.has(id)) continue
+    seen.add(id)
+    result.push(id)
+  }
+  return result
+}
+
 const selectionActions = {
   setMode(mode) {
     this.mode = mode
@@ -39,8 +50,11 @@ const selectionActions = {
     const sanitized = dedupeStationIds(stationIds, stationIdSet)
     this.selectedStationIds = sanitized
     if (sanitized.length) {
-      this.selectedEdgeId = null
-      this.selectedEdgeAnchor = null
+      if (!options.keepEdges) {
+        this.selectedEdgeId = null
+        this.selectedEdgeIds = []
+        this.selectedEdgeAnchor = null
+      }
     }
     if (options.keepPrimary && this.selectedStationId && sanitized.includes(this.selectedStationId)) {
       return
@@ -52,17 +66,56 @@ const selectionActions = {
     this.selectedStationId = null
     this.selectedStationIds = []
     this.selectedEdgeId = null
+    this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
   },
 
   selectStations(stationIds, options = {}) {
     const replace = options.replace !== false
     if (replace) {
-      this.setSelectedStations(stationIds)
+      this.setSelectedStations(stationIds, { keepEdges: Boolean(options.keepEdges) })
       return
     }
     const merged = [...this.selectedStationIds, ...(stationIds || [])]
-    this.setSelectedStations(merged, { keepPrimary: true })
+    this.setSelectedStations(merged, { keepPrimary: true, keepEdges: Boolean(options.keepEdges) })
+  },
+
+  setSelectedEdges(edgeIds, options = {}) {
+    if (!this.project) return
+    const edgeIdSet = new Set(this.project.edges.map((edge) => edge.id))
+    const sanitized = dedupeEdgeIds(edgeIds, edgeIdSet)
+    this.selectedEdgeIds = sanitized
+    this.selectedEdgeId = sanitized.length ? sanitized[sanitized.length - 1] : null
+    if (sanitized.length) {
+      if (!options.keepStations) {
+        this.selectedStationId = null
+        this.selectedStationIds = []
+      }
+      if (
+        this.selectedEdgeAnchor &&
+        (this.selectedEdgeAnchor.edgeId !== this.selectedEdgeId || !sanitized.includes(this.selectedEdgeAnchor.edgeId))
+      ) {
+        this.selectedEdgeAnchor = null
+      }
+    } else {
+      this.selectedEdgeAnchor = null
+    }
+  },
+
+  selectEdges(edgeIds, options = {}) {
+    const replace = options.replace !== false
+    if (replace) {
+      this.setSelectedEdges(edgeIds, { keepStations: Boolean(options.keepStations) })
+      return
+    }
+    const merged = [...(this.selectedEdgeIds || []), ...(edgeIds || [])]
+    this.setSelectedEdges(merged, { keepStations: Boolean(options.keepStations) })
+  },
+
+  clearEdgeSelection() {
+    this.selectedEdgeId = null
+    this.selectedEdgeIds = []
+    this.selectedEdgeAnchor = null
   },
 
   selectAllStations() {
@@ -86,6 +139,7 @@ const selectionActions = {
       this.setSelectedStations([stationId])
     }
     this.selectedEdgeId = null
+    this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
     if (this.mode === 'add-edge') {
       if (!this.pendingEdgeStartStationId) {

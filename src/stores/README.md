@@ -4,6 +4,7 @@
 
 - `projectStore.js`
   - Store 入口与聚合层（state/getters/actions 组合）
+  - 维护线段多选状态（`selectedEdgeIds`）和撤销/重做能力（`canUndo`/`canRedo`）
   - 通过对象展开整合 `project/actions/*`
 - `project/`
   - `helpers.js`：站点/线段编辑通用工具函数

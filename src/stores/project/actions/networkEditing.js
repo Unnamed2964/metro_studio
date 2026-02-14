@@ -426,8 +426,10 @@ const networkEditingActions = {
 
     const selectedEdgeIds = Array.isArray(options.edgeIds)
       ? options.edgeIds
-      : this.selectedEdgeId
-        ? [this.selectedEdgeId]
+      : this.selectedEdgeIds?.length
+        ? this.selectedEdgeIds
+        : this.selectedEdgeId
+          ? [this.selectedEdgeId]
         : []
     const edgeIds = [...new Set(selectedEdgeIds.map((id) => String(id || '').trim()).filter(Boolean))]
     if (!edgeIds.length) {
@@ -473,6 +475,96 @@ const networkEditingActions = {
     return true
   },
 
+  updateEdgesBatch(edgeIds, patch = {}) {
+    if (!this.project) return { updatedCount: 0 }
+    const targetIds = [...new Set((Array.isArray(edgeIds) ? edgeIds : []).map((id) => String(id || '').trim()).filter(Boolean))]
+    if (!targetIds.length) return { updatedCount: 0 }
+
+    const edgeById = new Map(this.project.edges.map((edge) => [edge.id, edge]))
+    const lineById = new Map(this.project.lines.map((line) => [line.id, line]))
+    const targetLine = patch.targetLineId ? lineById.get(patch.targetLineId) : null
+    const hasTargetLinePatch = Boolean(targetLine)
+    const hasStylePatch = patch.lineStyle != null
+    const nextStyle = hasStylePatch ? normalizeLineStyle(patch.lineStyle) : null
+    const hasCurvePatch = patch.isCurved != null
+    const nextIsCurved = hasCurvePatch ? Boolean(patch.isCurved) : false
+
+    let updatedCount = 0
+    for (const edgeId of targetIds) {
+      const edge = edgeById.get(edgeId)
+      if (!edge) continue
+      let changed = false
+
+      if (hasTargetLinePatch) {
+        const previous = Array.isArray(edge.sharedByLineIds) ? edge.sharedByLineIds : []
+        const sameLine = previous.length === 1 && previous[0] === targetLine.id
+        if (!sameLine) {
+          edge.sharedByLineIds = [targetLine.id]
+          changed = true
+        }
+      }
+
+      if (hasStylePatch) {
+        const currentLine = lineById.get(edge.sharedByLineIds?.[0])
+        const baseLineStyle = normalizeLineStyle(currentLine?.style)
+        const previousStyle = normalizeLineStyle(edge.lineStyleOverride || baseLineStyle)
+        if (nextStyle === baseLineStyle) {
+          if (edge.lineStyleOverride != null) {
+            delete edge.lineStyleOverride
+            changed = true
+          }
+        } else if (previousStyle !== nextStyle || edge.lineStyleOverride !== nextStyle) {
+          edge.lineStyleOverride = nextStyle
+          changed = true
+        }
+      }
+
+      if (hasCurvePatch) {
+        if (nextIsCurved) {
+          if (!edge.isCurved) {
+            edge.isCurved = true
+            changed = true
+          }
+        } else {
+          const resolved = this.resolveEditableEdgeWaypoints(edge)
+          if (resolved && resolved.length >= 2) {
+            const collapsed = [resolved[0], resolved[resolved.length - 1]]
+            if ((edge.waypoints || []).length !== collapsed.length || edge.isCurved) {
+              edge.waypoints = collapsed
+              edge.isCurved = false
+              changed = true
+            }
+          }
+        }
+      }
+
+      if (changed) {
+        updatedCount += 1
+      }
+    }
+
+    if (!updatedCount) return { updatedCount: 0 }
+
+    if (hasTargetLinePatch) {
+      for (const line of this.project.lines) {
+        line.edgeIds = []
+      }
+      for (const edge of this.project.edges) {
+        for (const lineId of edge.sharedByLineIds || []) {
+          const line = lineById.get(lineId)
+          if (!line) continue
+          if (!line.edgeIds.includes(edge.id)) {
+            line.edgeIds.push(edge.id)
+          }
+        }
+      }
+    }
+
+    this.recomputeStationLineMembership()
+    this.touchProject(`批量更新线段: ${updatedCount} 条`)
+    return { updatedCount }
+  },
+
   deleteSelectedStations() {
     if (!this.project || !this.selectedStationIds.length) return
     const removing = new Set(this.selectedStationIds)
@@ -503,7 +595,19 @@ const networkEditingActions = {
     if (!this.project) return
     const target = this.project.edges.find((edge) => edge.id === edgeId)
     if (!target) return
-    this.selectedEdgeId = target.id
+    const multi = Boolean(options.multi || options.toggle)
+    const toggle = Boolean(options.toggle)
+    if (multi) {
+      const selected = new Set(this.selectedEdgeIds || [])
+      if (toggle && selected.has(target.id)) {
+        selected.delete(target.id)
+      } else {
+        selected.add(target.id)
+      }
+      this.setSelectedEdges([...selected], { keepStations: Boolean(options.keepStationSelection) })
+    } else {
+      this.setSelectedEdges([target.id], { keepStations: Boolean(options.keepStationSelection) })
+    }
     this.selectedEdgeAnchor = null
     if (!options.keepStationSelection) {
       this.selectedStationId = null
@@ -521,6 +625,7 @@ const networkEditingActions = {
     const normalizedIndex = Number(anchorIndex)
     if (!Number.isInteger(normalizedIndex) || normalizedIndex < 1 || normalizedIndex > waypoints.length - 2) return
     this.selectedEdgeId = edge.id
+    this.selectedEdgeIds = [edge.id]
     this.selectedEdgeAnchor = {
       edgeId: edge.id,
       anchorIndex: normalizedIndex,
@@ -558,6 +663,7 @@ const networkEditingActions = {
     edge.waypoints = [...waypoints.slice(0, insertIndex), point, ...waypoints.slice(insertIndex)]
     edge.isCurved = true
     this.selectedEdgeId = edge.id
+    this.selectedEdgeIds = [edge.id]
     this.selectedEdgeAnchor = {
       edgeId: edge.id,
       anchorIndex: insertIndex,
@@ -581,6 +687,7 @@ const networkEditingActions = {
     edge.waypoints = waypoints
     edge.isCurved = true
     this.selectedEdgeId = edge.id
+    this.selectedEdgeIds = [edge.id]
     this.selectedEdgeAnchor = {
       edgeId: edge.id,
       anchorIndex: normalizedIndex,
@@ -602,6 +709,7 @@ const networkEditingActions = {
     edge.waypoints = nextWaypoints
     edge.isCurved = nextWaypoints.length >= 3
     this.selectedEdgeId = edge.id
+    this.selectedEdgeIds = [edge.id]
     if (nextWaypoints.length < 3) {
       this.selectedEdgeAnchor = null
     } else {
@@ -624,6 +732,7 @@ const networkEditingActions = {
     edge.waypoints = [waypoints[0], waypoints[waypoints.length - 1]]
     edge.isCurved = false
     this.selectedEdgeId = edge.id
+    this.selectedEdgeIds = [edge.id]
     this.selectedEdgeAnchor = null
     this.touchProject('清空线段锚点')
     return true
@@ -635,18 +744,26 @@ const networkEditingActions = {
   },
 
   deleteSelectedEdge() {
-    if (!this.project || !this.selectedEdgeId) return
-    const deletingEdgeId = this.selectedEdgeId
-    const deletingEdge = this.project.edges.find((edge) => edge.id === deletingEdgeId)
-    if (!deletingEdge) {
+    if (!this.project) return
+    const selectedEdgeIds =
+      Array.isArray(this.selectedEdgeIds) && this.selectedEdgeIds.length
+        ? this.selectedEdgeIds
+        : this.selectedEdgeId
+          ? [this.selectedEdgeId]
+          : []
+    if (!selectedEdgeIds.length) return
+    const deletingEdgeIdSet = new Set(selectedEdgeIds)
+    const deletingEdges = this.project.edges.filter((edge) => deletingEdgeIdSet.has(edge.id))
+    if (!deletingEdges.length) {
       this.selectedEdgeId = null
+      this.selectedEdgeIds = []
       this.selectedEdgeAnchor = null
       return
     }
 
-    this.project.edges = this.project.edges.filter((edge) => edge.id !== deletingEdgeId)
+    this.project.edges = this.project.edges.filter((edge) => !deletingEdgeIdSet.has(edge.id))
     for (const line of this.project.lines) {
-      line.edgeIds = (line.edgeIds || []).filter((edgeId) => edgeId !== deletingEdgeId)
+      line.edgeIds = (line.edgeIds || []).filter((edgeId) => !deletingEdgeIdSet.has(edgeId))
     }
     this.project.lines = this.project.lines.filter((line) => line.edgeIds.length > 0)
     if (!this.project.lines.length) {
@@ -657,9 +774,10 @@ const networkEditingActions = {
     }
 
     this.selectedEdgeId = null
+    this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
     this.recomputeStationLineMembership()
-    this.touchProject(`删除线段: ${deletingEdge.fromStationId} -> ${deletingEdge.toStationId}`)
+    this.touchProject(`删除线段: ${deletingEdges.length} 条`)
   },
 
   deleteLine(lineId) {
@@ -694,10 +812,13 @@ const networkEditingActions = {
     if (!this.project.lines.some((item) => item.id === this.activeLineId)) {
       this.activeLineId = this.project.lines[0]?.id || null
     }
-    if (this.selectedEdgeId) {
-      const stillExists = this.project.edges.some((edge) => edge.id === this.selectedEdgeId)
-      if (!stillExists) {
-        this.selectedEdgeId = null
+    const existingEdgeIdSet = new Set(this.project.edges.map((edge) => edge.id))
+    if (Array.isArray(this.selectedEdgeIds) && this.selectedEdgeIds.length) {
+      this.selectedEdgeIds = this.selectedEdgeIds.filter((edgeId) => existingEdgeIdSet.has(edgeId))
+    }
+    if (this.selectedEdgeId && !existingEdgeIdSet.has(this.selectedEdgeId)) {
+      this.selectedEdgeId = this.selectedEdgeIds.length ? this.selectedEdgeIds[this.selectedEdgeIds.length - 1] : null
+      if (!this.selectedEdgeId) {
         this.selectedEdgeAnchor = null
       }
     }
@@ -788,6 +909,7 @@ const networkEditingActions = {
 
     this.recomputeStationLineMembership()
     this.selectedEdgeId = edge.id
+    this.selectedEdgeIds = [edge.id]
     this.selectedEdgeAnchor = null
     this.touchProject('新增线段')
     return edge
@@ -804,9 +926,15 @@ const networkEditingActions = {
     const stationLineSet = new Map(this.project.stations.map((station) => [station.id, new Set()]))
     const lineById = new Map(this.project.lines.map((line) => [line.id, line]))
     const edgeById = new Map(this.project.edges.map((edge) => [edge.id, edge]))
+    this.selectedEdgeIds = (this.selectedEdgeIds || []).filter((edgeId) => edgeById.has(edgeId))
+    if (!this.selectedEdgeId && this.selectedEdgeIds.length) {
+      this.selectedEdgeId = this.selectedEdgeIds[this.selectedEdgeIds.length - 1]
+    }
     if (this.selectedEdgeId && !edgeById.has(this.selectedEdgeId)) {
-      this.selectedEdgeId = null
-      this.selectedEdgeAnchor = null
+      this.selectedEdgeId = this.selectedEdgeIds.length ? this.selectedEdgeIds[this.selectedEdgeIds.length - 1] : null
+      if (!this.selectedEdgeId) {
+        this.selectedEdgeAnchor = null
+      }
     }
     if (this.selectedEdgeAnchor) {
       const selectedAnchorEdge = edgeById.get(this.selectedEdgeAnchor.edgeId)

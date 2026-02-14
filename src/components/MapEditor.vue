@@ -102,7 +102,7 @@ const aiStationMenu = reactive({
 
 const stationCount = computed(() => store.project?.stations.length || 0)
 const edgeCount = computed(() => store.project?.edges.length || 0)
-const selectedEdgeLabel = computed(() => (store.selectedEdgeId ? '1' : '0'))
+const selectedEdgeLabel = computed(() => String(store.selectedEdgeIds?.length || 0))
 const contextMenuStyle = computed(() => ({
   left: `${contextMenu.x}px`,
   top: `${contextMenu.y}px`,
@@ -112,7 +112,7 @@ const aiStationMenuStyle = computed(() => ({
   top: `${aiStationMenu.y}px`,
 }))
 const hasSelection = computed(
-  () => store.selectedStationIds.length > 0 || Boolean(store.selectedEdgeId) || Boolean(store.selectedEdgeAnchor),
+  () => store.selectedStationIds.length > 0 || (store.selectedEdgeIds?.length || 0) > 0 || Boolean(store.selectedEdgeAnchor),
 )
 const contextStation = computed(() => {
   if (!store.project || !contextMenu.stationId) return null
@@ -1006,7 +1006,12 @@ function ensureSources() {
 
 function updateSelectedEdgeFilter() {
   if (!map || !map.getLayer(LAYER_EDGES_SELECTED)) return
-  map.setFilter(LAYER_EDGES_SELECTED, ['==', ['get', 'id'], store.selectedEdgeId || '__none__'])
+  const selectedIds = Array.isArray(store.selectedEdgeIds) ? store.selectedEdgeIds : []
+  if (!selectedIds.length) {
+    map.setFilter(LAYER_EDGES_SELECTED, ['==', ['get', 'id'], '__none__'])
+    return
+  }
+  map.setFilter(LAYER_EDGES_SELECTED, ['in', ['get', 'id'], ['literal', selectedIds]])
 }
 
 function updateMapData() {
@@ -1075,9 +1080,14 @@ function handleEdgeClick(event) {
     store.setMode('select')
   }
   const mouseEvent = event.originalEvent
-  const keepStationSelection = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
-  store.selectEdge(edgeId, { keepStationSelection })
-  store.statusText = `已选中线段: ${edgeId}`
+  const isMultiModifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
+  store.selectEdge(edgeId, {
+    multi: isMultiModifier,
+    toggle: isMultiModifier,
+    keepStationSelection: isMultiModifier,
+  })
+  const selectedCount = store.selectedEdgeIds?.length || 0
+  store.statusText = selectedCount > 1 ? `已选中线段 ${selectedCount} 条` : `已选中线段: ${edgeId}`
 }
 
 function handleEdgeAnchorClick(event) {
@@ -1211,15 +1221,43 @@ function stopStationDrag() {
     const minY = Math.min(selectionBox.startY, selectionBox.endY)
     const maxY = Math.max(selectionBox.startY, selectionBox.endY)
 
-    const picked = (store.project?.stations || [])
-      .filter((station) => {
-        const pt = map.project(station.lngLat)
-        return pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY
-      })
-      .map((station) => station.id)
+    const selectionBounds = [
+      [minX, minY],
+      [maxX, maxY],
+    ]
+    const pickedStationIds = [
+      ...new Set(
+        map
+          .queryRenderedFeatures(selectionBounds, { layers: [LAYER_STATIONS] })
+          .map((feature) => String(feature?.properties?.id || '').trim())
+          .filter(Boolean),
+      ),
+    ]
+    const pickedEdgeIds = [
+      ...new Set(
+        map
+          .queryRenderedFeatures(selectionBounds, { layers: [LAYER_EDGES_HIT] })
+          .map((feature) => String(feature?.properties?.id || '').trim())
+          .filter(Boolean),
+      ),
+    ]
 
-    if (picked.length) {
-      store.selectStations(picked, { replace: !selectionBox.append })
+    if (pickedStationIds.length || pickedEdgeIds.length) {
+      if (selectionBox.append) {
+        if (pickedStationIds.length) {
+          store.selectStations(pickedStationIds, { replace: false, keepEdges: true })
+        }
+        if (pickedEdgeIds.length) {
+          store.selectEdges(pickedEdgeIds, { replace: false, keepStations: true })
+        }
+      } else if (pickedStationIds.length && pickedEdgeIds.length) {
+        store.setSelectedStations(pickedStationIds, { keepEdges: true })
+        store.setSelectedEdges(pickedEdgeIds, { keepStations: true })
+      } else if (pickedStationIds.length) {
+        store.setSelectedStations(pickedStationIds)
+      } else {
+        store.setSelectedEdges(pickedEdgeIds)
+      }
     } else if (!selectionBox.append) {
       store.clearSelection()
     }
@@ -1282,8 +1320,26 @@ function onInteractiveFeatureLeave() {
 
 function handleWindowKeyDown(event) {
   if (isTextInputTarget(event.target)) return
+  const key = String(event.key || '').toLowerCase()
+  const hasModifier = Boolean(event.ctrlKey || event.metaKey)
 
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+  if (hasModifier && key === 'z') {
+    event.preventDefault()
+    if (event.shiftKey) {
+      store.redo()
+    } else {
+      store.undo()
+    }
+    return
+  }
+
+  if (hasModifier && key === 'y') {
+    event.preventDefault()
+    store.redo()
+    return
+  }
+
+  if (hasModifier && key === 'a') {
     event.preventDefault()
     store.selectAllStations()
     return
@@ -1316,7 +1372,7 @@ function handleWindowKeyDown(event) {
     store.deleteSelectedStations()
     return
   }
-  if (store.selectedEdgeId) {
+  if ((store.selectedEdgeIds?.length || 0) > 0) {
     event.preventDefault()
     store.deleteSelectedEdge()
   }
@@ -1416,6 +1472,7 @@ watch(
     selectedStationId: store.selectedStationId,
     selectedStationIds: store.selectedStationIds,
     selectedEdgeId: store.selectedEdgeId,
+    selectedEdgeIds: store.selectedEdgeIds,
     selectedEdgeAnchor: store.selectedEdgeAnchor,
     boundary: store.regionBoundary,
   }),
@@ -1586,7 +1643,8 @@ watch(
       </div>
 
       <p class="map-editor__hint">
-        Shift/Ctrl/⌘ + 拖拽框选 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Esc 取消待连接起点/关闭菜单
+        Shift/Ctrl/⌘ + 拖拽框选站点/线段 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Ctrl/Cmd+Z 撤销 |
+        Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做 | Esc 取消待连接起点/关闭菜单
       </p>
     </div>
   </section>

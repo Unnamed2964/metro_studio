@@ -26,6 +26,7 @@ const exportPersistenceActions = {
     this.selectedStationId = null
     this.selectedStationIds = []
     this.selectedEdgeId = null
+    this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
     this.pendingEdgeStartStationId = null
     this.isStationEnglishRetranslating = false
@@ -37,6 +38,7 @@ const exportPersistenceActions = {
     }
     this.recomputeStationLineMembership()
     this.statusText = `已加载工程文件: ${parsed.name}`
+    this.resetHistoryBaseline()
     await this.persistNow()
   },
 
@@ -91,6 +93,7 @@ const exportPersistenceActions = {
   touchProject(statusText) {
     if (!this.project) return
     this.project.meta.updatedAt = new Date().toISOString()
+    this.recordHistory(statusText)
     if (statusText) {
       this.statusText = statusText
     }

@@ -58,7 +58,7 @@ export function buildSchematicRenderModel(project, options = {}) {
     sharedLineIds.forEach((lineId, index) => {
       const line = lineById.get(lineId)
       const statusStyle = STATUS_STYLE[line.status] || STATUS_STYLE.open
-      const lineStyle = getLineStyleSchematic(line.style)
+      const lineStyle = getLineStyleSchematic(edge.lineStyleOverride || line.style)
       const offset = (index - (sharedLineIds.length - 1) / 2) * laneGap
       const trackOffsets = Array.isArray(lineStyle.trackOffsets) && lineStyle.trackOffsets.length
         ? lineStyle.trackOffsets

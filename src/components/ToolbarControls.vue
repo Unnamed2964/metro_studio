@@ -1,9 +1,19 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { generateStationNameCandidates } from '../lib/ai/stationNaming'
+import { buildProjectMetroRanking, computeProjectRailLengthKm, fetchWorldMetroRanking } from '../lib/ranking/worldMetroRanking'
 import { getDisplayLineName } from '../lib/lineNaming'
 import { LINE_STYLE_OPTIONS, normalizeLineStyle } from '../lib/lineStyles'
 import { fetchNearbyStationNamingContext, STATION_NAMING_RADIUS_METERS } from '../lib/osm/nearbyStationNamingContext'
+import {
+  DEFAULT_UI_FONT,
+  DEFAULT_UI_THEME,
+  UI_FONT_OPTIONS,
+  UI_FONT_STORAGE_KEY,
+  UI_THEME_STORAGE_KEY,
+  normalizeUiFont,
+  normalizeUiTheme,
+} from '../lib/uiPreferences'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
@@ -15,7 +25,6 @@ const props = defineProps({
 })
 const emit = defineEmits(['toggle-collapse'])
 
-const THEME_STORAGE_KEY = 'railmap_ui_theme'
 const TAB_OPTIONS = [
   { key: 'project', label: '项目与数据' },
   { key: 'workflow', label: '绘制流程' },
@@ -31,7 +40,8 @@ const MODE_LABELS = {
 }
 
 const activeTab = ref('project')
-const uiTheme = ref('dark')
+const uiTheme = ref(DEFAULT_UI_THEME)
+const uiFont = ref(DEFAULT_UI_FONT)
 const newProjectName = ref('济南地铁图工程')
 const projectRenameName = ref('')
 const projectFilter = ref('')
@@ -60,7 +70,11 @@ const lineForm = reactive({
   style: 'solid',
   isLoop: false,
 })
-const edgeReassignTargetId = ref('')
+const edgeBatchForm = reactive({
+  targetLineId: '',
+  lineStyle: '',
+  curveMode: 'keep',
+})
 const aiBatchNaming = reactive({
   active: false,
   generating: false,
@@ -71,6 +85,13 @@ const aiBatchNaming = reactive({
   appliedCount: 0,
   skippedCount: 0,
 })
+const worldMetroRanking = reactive({
+  loading: false,
+  error: '',
+  fetchedAt: '',
+  entries: [],
+})
+let worldMetroRankingAbortController = null
 
 const selectedStationCount = computed(() => store.selectedStationIds.length)
 const selectedStationsInOrder = computed(() => {
@@ -126,13 +147,20 @@ const selectedStation = computed(() => {
   if (!store.project || !store.selectedStationId) return null
   return store.project.stations.find((station) => station.id === store.selectedStationId) || null
 })
+const selectedEdgeCount = computed(() => store.selectedEdgeIds.length)
+const selectedEdges = computed(() => {
+  if (!store.project || !store.selectedEdgeIds.length) return []
+  const edgeMap = new Map(store.project.edges.map((edge) => [edge.id, edge]))
+  return store.selectedEdgeIds.map((edgeId) => edgeMap.get(edgeId)).filter(Boolean)
+})
 const activeLine = computed(() => {
   if (!store.project || !store.activeLineId) return null
   return store.project.lines.find((line) => line.id === store.activeLineId) || null
 })
 const selectedEdge = computed(() => {
-  if (!store.project || !store.selectedEdgeId) return null
-  return store.project.edges.find((edge) => edge.id === store.selectedEdgeId) || null
+  if (!store.project || !store.selectedEdgeIds.length) return null
+  const primaryEdgeId = store.selectedEdgeId || store.selectedEdgeIds[store.selectedEdgeIds.length - 1]
+  return store.project.edges.find((edge) => edge.id === primaryEdgeId) || null
 })
 const selectedEdgeStations = computed(() => {
   if (!selectedEdge.value || !store.project) {
@@ -150,9 +178,13 @@ const selectedEdgeLines = computed(() => {
   return (selectedEdge.value.sharedByLineIds || []).map((lineId) => lineMap.get(lineId)).filter(Boolean)
 })
 const edgeReassignTargets = computed(() => store.project?.lines || [])
+const edgeSelectionCanApplyBatch = computed(
+  () => selectedEdgeCount.value > 0 && (Boolean(edgeBatchForm.targetLineId) || Boolean(edgeBatchForm.lineStyle) || edgeBatchForm.curveMode !== 'keep'),
+)
 const activeModeLabel = computed(() => MODE_LABELS[store.mode] || store.mode)
 const activeObjectLabel = computed(() => {
   if (store.selectedEdgeAnchor) return '锚点'
+  if (selectedEdgeCount.value > 1) return `多线段（${selectedEdgeCount.value}）`
   if (selectedEdge.value) return '线段'
   if (selectedStationCount.value === 1 && selectedStation.value) return '站点'
   if (selectedStationCount.value > 1) return `多站点（${selectedStationCount.value}）`
@@ -162,6 +194,9 @@ const activeObjectLabel = computed(() => {
 const contextSummary = computed(() => {
   if (store.selectedEdgeAnchor) {
     return `锚点 ${store.selectedEdgeAnchor.anchorIndex}（线段 ${store.selectedEdgeAnchor.edgeId}）`
+  }
+  if (selectedEdgeCount.value > 1) {
+    return `已选 ${selectedEdgeCount.value} 条线段`
   }
   if (selectedEdge.value) {
     return `线段 ${selectedEdge.value.id}`
@@ -177,13 +212,73 @@ const contextSummary = computed(() => {
   }
   return '未选择对象'
 })
+const projectRailLengthKm = computed(() => computeProjectRailLengthKm(store.project))
+const projectMetroRanking = computed(() =>
+  buildProjectMetroRanking(projectRailLengthKm.value, worldMetroRanking.entries),
+)
+const projectMetroRankingMessage = computed(() => {
+  const ranking = projectMetroRanking.value
+  const distance = ranking.playerLengthKm.toFixed(1)
+  if (!worldMetroRanking.entries.length) {
+    return `已建 ${distance} km`
+  }
+  return `已建 ${distance} km · 第 ${ranking.rank} / ${ranking.total} 名`
+})
+const worldMetroComparisonMessage = computed(() => {
+  const ranking = projectMetroRanking.value
+  if (!worldMetroRanking.entries.length) return ''
+  if (ranking.rank === 1) {
+    const second = ranking.below
+    if (!second) return '已超过当前榜单所有城市地铁系统'
+    const lead = (ranking.playerLengthKm - second.lengthKm).toFixed(1)
+    return `领先第 2 名 ${lead} km（${second.city} · ${second.systemName}）`
+  }
+  if (!ranking.above) return ''
+  const gap = (ranking.above.lengthKm - ranking.playerLengthKm).toFixed(1)
+  return `距离上一名 ${gap} km（${ranking.above.city} · ${ranking.above.systemName}）`
+})
+const worldMetroRankingTimestamp = computed(() => {
+  if (!worldMetroRanking.fetchedAt) return ''
+  const date = new Date(worldMetroRanking.fetchedAt)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString()
+})
+
+function cancelWorldMetroRankingRequest() {
+  if (!worldMetroRankingAbortController) return
+  worldMetroRankingAbortController.abort(new Error('aborted'))
+  worldMetroRankingAbortController = null
+}
+
+async function refreshWorldMetroRanking() {
+  cancelWorldMetroRankingRequest()
+  const controller = new AbortController()
+  worldMetroRankingAbortController = controller
+  worldMetroRanking.loading = true
+  worldMetroRanking.error = ''
+
+  try {
+    const result = await fetchWorldMetroRanking({ signal: controller.signal })
+    if (controller.signal.aborted) return
+    worldMetroRanking.entries = result.entries
+    worldMetroRanking.fetchedAt = result.fetchedAt
+  } catch (error) {
+    if (controller.signal.aborted) return
+    worldMetroRanking.error = String(error?.message || '全球排行榜加载失败')
+  } finally {
+    if (worldMetroRankingAbortController === controller) {
+      worldMetroRankingAbortController = null
+    }
+    worldMetroRanking.loading = false
+  }
+}
 
 function applyUiTheme(theme) {
-  const nextTheme = theme === 'light' ? 'light' : 'dark'
+  const nextTheme = normalizeUiTheme(theme)
   uiTheme.value = nextTheme
   document.documentElement.setAttribute('data-ui-theme', nextTheme)
   try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
+    window.localStorage.setItem(UI_THEME_STORAGE_KEY, nextTheme)
   } catch {
     // Ignore unavailable localStorage runtime.
   }
@@ -191,13 +286,35 @@ function applyUiTheme(theme) {
 
 function restoreUiTheme() {
   try {
-    const cachedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
-    applyUiTheme(cachedTheme === 'light' ? 'light' : 'dark')
+    const cachedTheme = window.localStorage.getItem(UI_THEME_STORAGE_KEY)
+    applyUiTheme(cachedTheme || DEFAULT_UI_THEME)
     return
   } catch {
     // Fall through to default theme.
   }
-  applyUiTheme('dark')
+  applyUiTheme(DEFAULT_UI_THEME)
+}
+
+function applyUiFont(fontId) {
+  const nextFont = normalizeUiFont(fontId)
+  uiFont.value = nextFont
+  document.documentElement.setAttribute('data-ui-font', nextFont)
+  try {
+    window.localStorage.setItem(UI_FONT_STORAGE_KEY, nextFont)
+  } catch {
+    // Ignore unavailable localStorage runtime.
+  }
+}
+
+function restoreUiFont() {
+  try {
+    const cachedFont = window.localStorage.getItem(UI_FONT_STORAGE_KEY)
+    applyUiFont(cachedFont || DEFAULT_UI_FONT)
+    return
+  } catch {
+    // Fall through to default font.
+  }
+  applyUiFont(DEFAULT_UI_FONT)
 }
 
 async function refreshProjectOptions() {
@@ -441,16 +558,53 @@ function deleteSelectedEdge() {
   store.deleteSelectedEdge()
 }
 
+function undoEdit() {
+  store.undo()
+}
+
+function redoEdit() {
+  store.redo()
+}
+
 function deleteActiveLine() {
   if (!activeLine.value) return
   store.deleteLine(activeLine.value.id)
 }
 
-function applySelectedEdgeReassign() {
-  if (!selectedEdge.value || !edgeReassignTargetId.value) return
-  store.reassignSelectedEdgesToLine(edgeReassignTargetId.value, {
-    edgeIds: [selectedEdge.value.id],
-  })
+function applySelectedEdgesBatch() {
+  const edgeIds = store.selectedEdgeIds || []
+  if (!edgeIds.length) return
+
+  const patch = {}
+  if (edgeBatchForm.targetLineId) {
+    patch.targetLineId = edgeBatchForm.targetLineId
+  }
+  if (edgeBatchForm.lineStyle) {
+    patch.lineStyle = edgeBatchForm.lineStyle
+  }
+  if (edgeBatchForm.curveMode === 'curved') {
+    patch.isCurved = true
+  } else if (edgeBatchForm.curveMode === 'straight') {
+    patch.isCurved = false
+  }
+
+  if (!Object.keys(patch).length) {
+    store.statusText = '请先选择至少一个批量变更项'
+    return
+  }
+
+  const { updatedCount } = store.updateEdgesBatch(edgeIds, patch)
+  if (!updatedCount) {
+    store.statusText = '所选线段未发生变化'
+    return
+  }
+  store.statusText = `已批量更新 ${updatedCount} 条线段`
+}
+
+function resetEdgeBatchForm() {
+  edgeBatchForm.targetLineId = ''
+  edgeBatchForm.lineStyle = ''
+  edgeBatchForm.curveMode = 'keep'
 }
 
 function isCurrentProject(projectId) {
@@ -484,20 +638,27 @@ watch(
 )
 
 watch(
-  [selectedEdge, () => store.project?.lines],
-  ([edge]) => {
+  [selectedEdges, () => store.project?.lines],
+  ([edges]) => {
     const lines = store.project?.lines || []
-    if (!edge || !lines.length) {
-      edgeReassignTargetId.value = ''
+    if (!edges?.length || !lines.length) {
+      edgeBatchForm.targetLineId = ''
+      resetEdgeBatchForm()
       return
     }
-    const currentLineIds = new Set((edge.sharedByLineIds || []).map((id) => String(id)))
+
+    const currentLineIds = new Set(
+      edges.flatMap((edge) => (edge.sharedByLineIds || []).map((lineId) => String(lineId))),
+    )
+    const targetStillAvailable = lines.some((line) => line.id === edgeBatchForm.targetLineId)
+    if (targetStillAvailable) return
+
     const preferred = lines.find((line) => !currentLineIds.has(String(line.id)))
     if (preferred) {
-      edgeReassignTargetId.value = preferred.id
+      edgeBatchForm.targetLineId = preferred.id
       return
     }
-    edgeReassignTargetId.value = lines[0].id
+    edgeBatchForm.targetLineId = lines[0].id
   },
   { immediate: true },
 )
@@ -512,8 +673,14 @@ watch(
 
 onMounted(async () => {
   restoreUiTheme()
+  restoreUiFont()
   await refreshProjectOptions()
   projectRenameName.value = store.project?.name || ''
+  void refreshWorldMetroRanking()
+})
+
+onBeforeUnmount(() => {
+  cancelWorldMetroRankingRequest()
 })
 </script>
 
@@ -537,9 +704,33 @@ onMounted(async () => {
       </div>
 
       <template v-if="!props.collapsed">
-        <div class="toolbar__theme-switch" role="group" aria-label="界面主题">
-          <button class="toolbar__theme-btn" :class="{ active: uiTheme === 'light' }" @click="applyUiTheme('light')">日间</button>
-          <button class="toolbar__theme-btn" :class="{ active: uiTheme === 'dark' }" @click="applyUiTheme('dark')">夜间</button>
+        <div class="toolbar__header-metrics">
+          <div class="toolbar__display-settings">
+            <div class="toolbar__theme-switch" role="group" aria-label="界面主题">
+              <button class="toolbar__theme-btn" :class="{ active: uiTheme === 'light' }" @click="applyUiTheme('light')">日间</button>
+              <button class="toolbar__theme-btn" :class="{ active: uiTheme === 'dark' }" @click="applyUiTheme('dark')">夜间</button>
+            </div>
+            <label class="toolbar__label toolbar__label--compact" for="toolbar-ui-font-select">界面字体</label>
+            <select id="toolbar-ui-font-select" v-model="uiFont" class="toolbar__select toolbar__font-select" @change="applyUiFont(uiFont)">
+              <option v-for="font in UI_FONT_OPTIONS" :key="font.id" :value="font.id">
+                {{ font.label }}
+              </option>
+            </select>
+          </div>
+          <section class="toolbar__world-ranking" aria-live="polite">
+            <p class="toolbar__world-ranking-title">全球轨道交通长度排名</p>
+            <p v-if="worldMetroRanking.loading" class="toolbar__world-ranking-main">排行榜加载中...</p>
+            <p v-else class="toolbar__world-ranking-main">{{ projectMetroRankingMessage }}</p>
+            <p v-if="!worldMetroRanking.loading && worldMetroRanking.error" class="toolbar__world-ranking-meta">
+              {{ worldMetroRanking.error }}
+            </p>
+            <p v-else-if="!worldMetroRanking.loading && worldMetroComparisonMessage" class="toolbar__world-ranking-meta">
+              {{ worldMetroComparisonMessage }}
+            </p>
+            <p v-if="worldMetroRankingTimestamp" class="toolbar__world-ranking-meta">
+              数据时间: {{ worldMetroRankingTimestamp }}
+            </p>
+          </section>
         </div>
 
         <p class="toolbar__status">{{ store.statusText }}</p>
@@ -666,7 +857,11 @@ onMounted(async () => {
           </p>
           <div class="toolbar__row">
             <span class="toolbar__meta">已选站点: {{ selectedStationCount }}</span>
-            <span class="toolbar__meta">已选线段: {{ selectedEdge ? 1 : 0 }}</span>
+            <span class="toolbar__meta">已选线段: {{ selectedEdgeCount }}</span>
+          </div>
+          <div class="toolbar__row">
+            <button class="toolbar__btn" :disabled="!store.canUndo" @click="undoEdit">撤销（Ctrl/Cmd+Z）</button>
+            <button class="toolbar__btn" :disabled="!store.canRedo" @click="redoEdit">重做（Ctrl/Cmd+Shift+Z）</button>
           </div>
           <div class="toolbar__row">
             <button class="toolbar__btn" @click="selectAllStations">全选站点</button>
@@ -825,36 +1020,58 @@ onMounted(async () => {
 
         <section class="toolbar__section">
           <h3>线段属性</h3>
-          <p class="toolbar__section-intro">查看线段连接关系和所属线路，执行线段级操作。</p>
-          <template v-if="selectedEdge">
-            <p class="toolbar__hint">线段 ID: {{ selectedEdge.id }}</p>
-            <p class="toolbar__hint">
-              连接:
-              {{ selectedEdgeStations.from?.nameZh || selectedEdge.fromStationId }}
-              ↔
-              {{ selectedEdgeStations.to?.nameZh || selectedEdge.toStationId }}
-            </p>
-            <p class="toolbar__hint">所属线路:</p>
-            <ul class="toolbar__line-tags">
-              <li v-for="line in selectedEdgeLines" :key="line.id" :title="line.nameZh">
-                <span class="toolbar__line-swatch" :style="{ backgroundColor: line.color }"></span>
-                <span>{{ displayLineName(line) }}</span>
-              </li>
-            </ul>
-            <p class="toolbar__hint">更改所属线（仅当前选中线段）:</p>
-            <select v-model="edgeReassignTargetId" class="toolbar__select" :disabled="!edgeReassignTargets.length">
-              <option v-for="line in edgeReassignTargets" :key="`edge_reassign_${line.id}`" :value="line.id">
+          <p class="toolbar__section-intro">支持多选线段批量改所属线、线型和曲线状态。</p>
+          <template v-if="selectedEdgeCount > 0">
+            <p class="toolbar__hint">已选线段: {{ selectedEdgeCount }} 条</p>
+            <template v-if="selectedEdgeCount === 1 && selectedEdge">
+              <p class="toolbar__hint">线段 ID: {{ selectedEdge.id }}</p>
+              <p class="toolbar__hint">
+                连接:
+                {{ selectedEdgeStations.from?.nameZh || selectedEdge.fromStationId }}
+                ↔
+                {{ selectedEdgeStations.to?.nameZh || selectedEdge.toStationId }}
+              </p>
+              <p class="toolbar__hint">所属线路:</p>
+              <ul class="toolbar__line-tags">
+                <li v-for="line in selectedEdgeLines" :key="line.id" :title="line.nameZh">
+                  <span class="toolbar__line-swatch" :style="{ backgroundColor: line.color }"></span>
+                  <span>{{ displayLineName(line) }}</span>
+                </li>
+              </ul>
+            </template>
+
+            <label class="toolbar__label">目标线路（批量）</label>
+            <select v-model="edgeBatchForm.targetLineId" class="toolbar__select" :disabled="!edgeReassignTargets.length">
+              <option value="">保持不变</option>
+              <option v-for="line in edgeReassignTargets" :key="`edge_batch_line_${line.id}`" :value="line.id">
                 {{ displayLineName(line) }}
               </option>
             </select>
+
+            <label class="toolbar__label">线型（批量）</label>
+            <select v-model="edgeBatchForm.lineStyle" class="toolbar__select">
+              <option value="">保持不变</option>
+              <option v-for="style in LINE_STYLE_OPTIONS" :key="`edge_batch_style_${style.id}`" :value="style.id">
+                {{ style.label }}
+              </option>
+            </select>
+
+            <label class="toolbar__label">曲线状态（批量）</label>
+            <select v-model="edgeBatchForm.curveMode" class="toolbar__select">
+              <option value="keep">保持不变</option>
+              <option value="curved">设为曲线</option>
+              <option value="straight">设为直线（清锚点）</option>
+            </select>
+
             <div class="toolbar__row">
-              <button class="toolbar__btn" :disabled="!edgeReassignTargetId" @click="applySelectedEdgeReassign">
-                迁移到目标线路
+              <button class="toolbar__btn toolbar__btn--primary" :disabled="!edgeSelectionCanApplyBatch" @click="applySelectedEdgesBatch">
+                应用批量属性
               </button>
-              <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedEdge">删除当前线段</button>
+              <button class="toolbar__btn" @click="resetEdgeBatchForm">重置批量项</button>
+              <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedEdge">删除选中线段</button>
             </div>
           </template>
-          <p v-else class="toolbar__hint">在真实地图中点击线段可选中并删除。</p>
+          <p v-else class="toolbar__hint">在真实地图中点击或框选线段后，可执行批量属性编辑。</p>
         </section>
 
         <section class="toolbar__section">
@@ -1037,13 +1254,28 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.toolbar__theme-switch {
+.toolbar__header-metrics {
   margin-top: 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.toolbar__display-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: start;
+}
+
+.toolbar__theme-switch {
   display: inline-flex;
   border: 1px solid var(--toolbar-input-border);
   border-radius: 9px;
   overflow: hidden;
   width: fit-content;
+  align-self: start;
 }
 
 .toolbar__theme-btn {
@@ -1058,6 +1290,45 @@ onMounted(async () => {
 .toolbar__theme-btn.active {
   background: var(--toolbar-tab-active-bg);
   color: var(--toolbar-tab-active-text);
+}
+
+.toolbar__label--compact {
+  margin: 0;
+}
+
+.toolbar__font-select {
+  min-width: 132px;
+}
+
+.toolbar__world-ranking {
+  border: 1px solid var(--toolbar-card-border);
+  background: var(--toolbar-item-bg);
+  border-radius: 8px;
+  padding: 7px 9px;
+  min-width: 0;
+}
+
+.toolbar__world-ranking-title {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--toolbar-muted);
+}
+
+.toolbar__world-ranking-main {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--toolbar-text);
+  word-break: break-word;
+}
+
+.toolbar__world-ranking-meta {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--toolbar-hint);
+  word-break: break-word;
 }
 
 .toolbar__status {

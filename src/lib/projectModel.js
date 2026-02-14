@@ -28,6 +28,7 @@ export const JINAN_RELATION_ID = 3486449
  * @property {string} toStationId
  * @property {[number, number][]} waypoints
  * @property {string[]} sharedByLineIds
+ * @property {('solid'|'dashed'|'dotted'|'double-solid'|'double-dashed'|'double-dotted-square') | null} lineStyleOverride
  * @property {number} lengthMeters
  * @property {boolean} isCurved
  */
@@ -195,6 +196,7 @@ export function normalizeProject(raw) {
     toStationId: edge.toStationId,
     waypoints: Array.isArray(edge.waypoints) ? edge.waypoints : [],
     sharedByLineIds: Array.isArray(edge.sharedByLineIds) ? edge.sharedByLineIds : [],
+    lineStyleOverride: edge.lineStyleOverride != null ? normalizeLineStyle(edge.lineStyleOverride) : null,
     lengthMeters: Number(edge.lengthMeters || 0),
     isCurved: Boolean(edge.isCurved),
   }))

@@ -46,6 +46,7 @@ const importLayoutActions = {
       this.selectedStationId = null
       this.selectedStationIds = []
       this.selectedEdgeId = null
+      this.selectedEdgeIds = []
       this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
       this.isStationEnglishRetranslating = false
@@ -57,6 +58,7 @@ const importLayoutActions = {
       }
       this.recomputeStationLineMembership()
       this.statusText = `导入完成（已新建工程）: ${this.project.lines.length} 条线 / ${this.project.stations.length} 站`
+      this.resetHistoryBaseline()
       await this.persistNow()
     } catch (error) {
       this.statusText = `导入失败: ${error.message || 'unknown error'}`

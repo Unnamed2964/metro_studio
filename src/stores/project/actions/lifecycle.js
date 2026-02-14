@@ -30,11 +30,13 @@ const lifecycleActions = {
     this.selectedStationId = null
     this.selectedStationIds = []
     this.selectedEdgeId = null
+    this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
     this.pendingEdgeStartStationId = null
     resetStationEnglishRetranslateState(this)
     this.isInitialized = true
     this.statusText = latest ? `已加载最近工程: ${latest.name}` : '已创建新工程'
+    this.resetHistoryBaseline()
     if (!latest) {
       try {
         await this.persistNow()
@@ -49,6 +51,7 @@ const lifecycleActions = {
     this.activeLineId = this.project.lines[0]?.id || null
     this.mode = 'select'
     this.selectedEdgeId = null
+    this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
     this.selectedStationId = null
     this.selectedStationIds = []
@@ -58,6 +61,7 @@ const lifecycleActions = {
     this.includeConstruction = false
     this.includeProposed = false
     this.statusText = '已创建空工程'
+    this.resetHistoryBaseline()
     await this.persistNow()
   },
 
@@ -94,11 +98,13 @@ const lifecycleActions = {
     this.selectedStationId = null
     this.selectedStationIds = []
     this.selectedEdgeId = null
+    this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
     this.pendingEdgeStartStationId = null
     resetStationEnglishRetranslateState(this)
     this.recomputeStationLineMembership()
     this.statusText = `已复制工程: ${duplicated.name}`
+    this.resetHistoryBaseline()
     await this.persistNow()
     return duplicated
   },
@@ -121,10 +127,12 @@ const lifecycleActions = {
       this.selectedStationId = null
       this.selectedStationIds = []
       this.selectedEdgeId = null
+      this.selectedEdgeIds = []
       this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
       resetStationEnglishRetranslateState(this)
       this.statusText = '已删除工程，已创建新工程'
+      this.resetHistoryBaseline()
       await this.persistNow()
       return true
     }
@@ -140,11 +148,13 @@ const lifecycleActions = {
       this.selectedStationId = null
       this.selectedStationIds = []
       this.selectedEdgeId = null
+      this.selectedEdgeIds = []
       this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
       resetStationEnglishRetranslateState(this)
       this.recomputeStationLineMembership()
       this.statusText = `已删除工程，已加载: ${fallback.name}`
+      this.resetHistoryBaseline()
       await setLatestProject(fallback.id)
       return true
     }
@@ -165,11 +175,13 @@ const lifecycleActions = {
     this.selectedStationId = null
     this.selectedStationIds = []
     this.selectedEdgeId = null
+    this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
     this.pendingEdgeStartStationId = null
     resetStationEnglishRetranslateState(this)
     this.recomputeStationLineMembership()
     this.statusText = `已加载工程: ${project.name}`
+    this.resetHistoryBaseline()
     await setLatestProject(project.id)
   },
 

@@ -296,7 +296,7 @@ onBeforeUnmount(() => {
 
             <g v-for="station in model.stations" :key="station.id">
               <circle :cx="station.x" :cy="station.y" r="20.2" fill="#ffffff" :stroke="model.lineColor" stroke-width="6" />
-              <circle v-if="station.isInterchange" :cx="station.x" :cy="station.y" r="14.2" fill="#f9fcff" :stroke="model.lineColor" stroke-width="2.6" />
+              <circle v-if="station.isInterchange" :cx="station.x" :cy="station.y" r="28.4" fill="#f9fcff" :stroke="model.lineColor" stroke-width="2.6" />
 
               <g v-if="station.isInterchange">
                 <path
@@ -317,8 +317,8 @@ onBeforeUnmount(() => {
                   :key="`${station.id}_badge_${badge.lineId}`"
                 >
                   <rect
-                    :x="station.x - badge.badgeWidth / 2"
-                    :y="station.transferBadgeY + (station.transferCalloutDirection > 0 ? badgeIndex * 30 : badgeIndex * -30)"
+                    :x="station.x - badge.badgeWidth / 2 + (station.transferBadges.length > 2 ? (badgeIndex % 2 === 0 ? -badge.badgeWidth / 2 - 4 : badge.badgeWidth / 2 + 4) : 0)"
+                    :y="station.transferBadgeY + (station.transferCalloutDirection > 0 ? (station.transferBadges.length > 2 ? Math.floor(badgeIndex / 2) * 36 : badgeIndex * 36) : (station.transferBadges.length > 2 ? Math.floor(badgeIndex / 2) * -36 : badgeIndex * -36))"
                     :width="badge.badgeWidth"
                     height="26"
                     rx="6"
@@ -327,8 +327,8 @@ onBeforeUnmount(() => {
                     stroke-width="1.1"
                   />
                   <text
-                    :x="station.x"
-                    :y="station.transferBadgeY + (station.transferCalloutDirection > 0 ? badgeIndex * 30 : badgeIndex * -30) + 18"
+                    :x="station.x + (station.transferBadges.length > 2 ? (badgeIndex % 2 === 0 ? -badge.badgeWidth / 2 - 4 : badge.badgeWidth / 2 + 4) : 0)"
+                    :y="station.transferBadgeY + (station.transferCalloutDirection > 0 ? (station.transferBadges.length > 2 ? Math.floor(badgeIndex / 2) * 36 : badgeIndex * 36) : (station.transferBadges.length > 2 ? Math.floor(badgeIndex / 2) * -36 : badgeIndex * -36)) + 18"
                     text-anchor="middle"
                     fill="#ffffff"
                     font-size="16"

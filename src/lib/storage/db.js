@@ -98,6 +98,7 @@ function toSerializableProject(project) {
       toStationId: String(edge.toStationId || ''),
       waypoints: (Array.isArray(edge.waypoints) ? edge.waypoints : []).map((point) => toPoint(point)),
       sharedByLineIds: toStringArray(edge.sharedByLineIds),
+      lineStyleOverride: edge.lineStyleOverride != null ? String(edge.lineStyleOverride) : null,
       lengthMeters: toFiniteNumber(edge.lengthMeters, 0),
       isCurved: Boolean(edge.isCurved),
     })),

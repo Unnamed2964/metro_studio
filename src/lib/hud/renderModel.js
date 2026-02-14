@@ -3,8 +3,8 @@ import { getDisplayLineName } from '../lineNaming'
 const DEFAULT_MESSAGE = '请选择线路'
 const HUD_MIN_WIDTH = 2400
 const HUD_MAX_WIDTH = 7600
-const HUD_SINGLE_ROW_HEIGHT = 360
-const HUD_DOUBLE_ROW_HEIGHT = 760
+const HUD_SINGLE_ROW_HEIGHT = 1200
+const HUD_DOUBLE_ROW_HEIGHT = 2400
 const HUD_FOLD_THRESHOLD = 30
 
 class MinHeap {
@@ -277,17 +277,17 @@ export function buildVehicleHudRenderModel(project, options = {}) {
   const row2Count = stationIds.length - row1Count
   const maxRowCount = Math.max(row1Count, row2Count || 0)
   const sidePadding = hasBend ? 230 : 220
-  const topPadding = 48
+  const topPadding = 96
   const bendOffset = hasBend ? 72 : 0
   const targetGap = hasBend ? 176 : resolveHudStationGap(stationIds.length)
   const rawWidth = sidePadding * 2 + bendOffset + Math.max(1, maxRowCount - 1) * targetGap
   const width = clamp(rawWidth * 2, HUD_MIN_WIDTH, HUD_MAX_WIDTH)
-  const row1Y = topPadding + 176
+  const row1Y = topPadding + 352
   const topStationIds = stationIds.slice(0, row1Count)
   const bottomStationIds = stationIds.slice(row1Count)
   const topCalloutDownExtent = hasBend ? estimateRowCalloutDownExtent(topStationIds, stationById, lineId) : 0
   const bottomCalloutUpExtent = hasBend ? estimateRowCalloutUpExtent(bottomStationIds, stationById, lineId) : 0
-  const foldGap = hasBend ? Math.max(206, topCalloutDownExtent + bottomCalloutUpExtent + 56) : 0
+  const foldGap = hasBend ? Math.max(412, topCalloutDownExtent + bottomCalloutUpExtent + 112) : 0
   const row2Y = hasBend ? row1Y + foldGap : row1Y
   const height = hasBend ? HUD_DOUBLE_ROW_HEIGHT : HUD_SINGLE_ROW_HEIGHT
 
@@ -411,15 +411,15 @@ function buildLoopHudRenderModel({ route, direction, stationIds, stationById, li
   const topCount = Math.ceil(stationCount / 2)
   const bottomCount = stationCount - topCount
   const sidePadding = 220
-  const topPadding = 48
-  const topY = topPadding + 176
-  const bottomY = topY + 132
+  const topPadding = 96
+  const topY = topPadding + 352
+  const bottomY = topY + 264
   const connectorOffset = 96
   const maxRowCount = Math.max(topCount, bottomCount || 0)
   const targetGap = resolveHudStationGap(stationCount)
   const rawWidth = sidePadding * 2 + Math.max(1, maxRowCount - 1) * targetGap + connectorOffset * 2
   const width = clamp(rawWidth * 2, HUD_MIN_WIDTH, HUD_MAX_WIDTH)
-  const height = 560
+  const height = 1120
   const trackStartX = sidePadding
   const trackEndX = width - sidePadding
   const topGap = topCount > 1 ? (trackEndX - trackStartX) / (topCount - 1) : 0
@@ -514,13 +514,17 @@ function buildStationRender(station, isStart, isEnd, lineId, lineById, position)
     .map((key) => lineById.get(key))
     .filter(Boolean)
     .slice(0, 6)
-    .map((line) => ({
-      lineId: line.id,
-      label: resolveLineBadgeLabel(line),
-      text: resolveLineBadgeText(line),
-      color: line.color || '#2563EB',
-      badgeWidth: resolveTransferBadgeWidth(resolveLineBadgeText(line)),
-    }))
+    .map((line, index) => {
+      const badgeWidth = resolveTransferBadgeWidth(resolveLineBadgeText(line))
+      return {
+        lineId: line.id,
+        label: resolveLineBadgeLabel(line),
+        text: resolveLineBadgeText(line),
+        color: line.color || '#2563EB',
+        badgeWidth,
+        gridIndex: index,
+      }
+    })
   const labelAngle = resolveHudLabelAngle(nameZh, nameEn)
   const labelOffset = resolveHudLabelOffset(nameZh, nameEn)
   let rowIndex = position.rowIndex

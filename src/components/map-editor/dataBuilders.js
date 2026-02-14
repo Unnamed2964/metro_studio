@@ -187,6 +187,7 @@ function buildEdgesGeoJson(project) {
         if (linearWaypoints.length < 2) return null
         const shouldSmooth = Boolean(edge?.isCurved) && linearWaypoints.length >= 3 && linearWaypoints.length <= 20
         const coordinates = shouldSmooth ? buildCurveFromWaypoints(linearWaypoints) : linearWaypoints
+        const resolvedLineStyle = normalizeLineStyle(edge?.lineStyleOverride || line?.style)
         return {
           type: 'Feature',
           geometry: {
@@ -196,7 +197,7 @@ function buildEdgesGeoJson(project) {
           properties: {
             id: edge.id,
             color: line?.color || '#2563EB',
-            lineStyle: normalizeLineStyle(line?.style),
+            lineStyle: resolvedLineStyle,
             sharedCount: edge.sharedByLineIds.length,
             hasAnchors: linearWaypoints.length > 2,
           },

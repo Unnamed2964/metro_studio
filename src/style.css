@@ -1,5 +1,6 @@
 :root {
-  font-family: 'Source Han Sans SC', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
+  --app-font-family: 'Source Han Sans SC', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
+  font-family: var(--app-font-family);
   line-height: 1.4;
   font-weight: 400;
   text-rendering: optimizeLegibility;
@@ -49,6 +50,22 @@
   --workspace-panel-text: #e4edf8;
   --workspace-panel-muted: #b0c1d6;
   --workspace-canvas-bg: #0d1729;
+}
+
+:root[data-ui-font='source-han'] {
+  --app-font-family: 'Source Han Sans SC', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
+}
+
+:root[data-ui-font='pingfang'] {
+  --app-font-family: 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', sans-serif;
+}
+
+:root[data-ui-font='yahei'] {
+  --app-font-family: 'Microsoft YaHei', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
+}
+
+:root[data-ui-font='heiti'] {
+  --app-font-family: 'SimHei', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
 }
 
 :root[data-ui-theme='light'] {

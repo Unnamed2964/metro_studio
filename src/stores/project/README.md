@@ -7,6 +7,7 @@
 - `actions/`
   - Store action 拆分目录
   - 详见 `actions/README.md`
+  - 包含编辑历史（撤销/重做）与线段多选批量编辑相关 action
 
 约定：
 
