@@ -449,6 +449,18 @@ function aiRenameContextStationFromContext() {
   })
 }
 
+async function aiTranslateContextStationEnglishFromContext() {
+  if (!contextStation.value?.id) return
+  const stationId = contextStation.value.id
+  closeContextMenu()
+  try {
+    await store.retranslateStationEnglishNamesByIdsWithAi([stationId])
+  } catch (error) {
+    const message = String(error?.message || '翻译失败')
+    store.statusText = `站点英文翻译失败: ${message}`
+  }
+}
+
 function clearSelectionFromContext() {
   store.clearSelection()
   closeContextMenu()
@@ -917,7 +929,20 @@ function ensureMapLayers() {
       type: 'symbol',
       source: SOURCE_STATIONS,
       layout: {
-        'text-field': ['get', 'nameZh'],
+        'text-field': [
+          'case',
+          ['>', ['length', ['coalesce', ['get', 'nameEn'], '']], 0],
+          [
+            'format',
+            ['coalesce', ['get', 'nameZh'], ''],
+            {},
+            '\n',
+            {},
+            ['get', 'nameEn'],
+            { 'font-scale': 0.8 },
+          ],
+          ['coalesce', ['get', 'nameZh'], ''],
+        ],
         'text-font': ['Noto Sans CJK SC Regular', 'Noto Sans Regular'],
         'text-size': 12,
         'text-offset': [0.8, 0.2],
@@ -1473,6 +1498,12 @@ watch(
             <p>站点操作</p>
             <div class="map-editor__context-row">
               <button @click="aiRenameContextStationFromContext" :disabled="!contextStation">AI命名该站点</button>
+              <button
+                @click="aiTranslateContextStationEnglishFromContext"
+                :disabled="!contextStation || store.isStationEnglishRetranslating"
+              >
+                {{ store.isStationEnglishRetranslating ? '翻译中...' : 'AI翻译英文' }}
+              </button>
               <button @click="renameContextStationFromContext" :disabled="!contextStation">重命名站点</button>
               <button @click="deleteContextStationFromContext" :disabled="!contextMenu.stationId">删除该站点</button>
             </div>

@@ -25,7 +25,7 @@ const STATION_TRANSLATION_SCHEMA = {
   required: ['items'],
 }
 
-const ENGLISH_NAMING_STANDARD = `专名部分用汉语拼音，不标声调，多音节连写，各词首字母大写。通名部分按道路和公共场所英文规范意译（如路/马路=Road，大道=Avenue，公园=Park，医院=Hospital，妇幼保健院=Maternal and Child Health Hospital）。含方位词时，用 East/West/South/North 置于专名前。公共机构/医院/学校/政府部门等必须意译其通名，不得整词音译。报站和导向标识仅保留站名主体，英文名末尾不得出现 Station/Metro Station/Subway Station。多线换乘站中英文统一，不用生僻缩写和不规范拼写。`
+const ENGLISH_NAMING_STANDARD = `专名部分用汉语拼音，不标声调，多音节连写，各词首字母大写。通名部分按道路和公共场所英文规范意译（如路/马路=Road，大道=Avenue，公园=Park，医院=Hospital，妇幼保健院=Maternal and Child Health Hospital）。若“东/西/南/北”是道路专名的固有组成（如“二环南路”“山师东路”），方位词不翻译，直接写入拼音（Erhuan Nanlu、Shanshi Donglu）；仅在表达独立方位修饰时才使用 East/West/South/North。公共机构/医院/学校/政府部门等必须意译其通名，不得整词音译。报站和导向标识仅保留站名主体，英文名末尾不得出现 Station/Metro Station/Subway Station。多线换乘站中英文统一，不用生僻缩写和不规范拼写。`
 const CHINESE_STATION_SUFFIX_REGEX = /(地铁站|车站|站)$/u
 const ENGLISH_STATION_SUFFIX_REGEX = /\b(?:metro\s+station|subway\s+station|railway\s+station|train\s+station|station)\b\.?$/iu
 

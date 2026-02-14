@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import { exportPersistenceActions } from './project/actions/exportPersistence'
 import { importLayoutActions } from './project/actions/importLayout'
 import { lifecycleActions } from './project/actions/lifecycle'
@@ -67,3 +67,7 @@ export const useProjectStore = defineStore('project', {
     ...exportPersistenceActions,
   },
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useProjectStore, import.meta.hot))
+}

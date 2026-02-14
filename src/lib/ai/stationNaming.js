@@ -30,16 +30,17 @@ const STATION_NAME_RESPONSE_SCHEMA = {
 }
 
 const CHINESE_NAMING_STANDARD = `轨道交通车站名称按以下条件综合考虑：
-① 以与车站站位邻近的主要横向道路名称命名；
-② 以相近的地域名称命名；
-③ 以相近的较为著名的公共设施名称命名；
-④ 以其它符合法律、法规的方法命名。
-车站名称命名的优先权主要由被选道路、地域或公共设施的重要程度、对社会的导向性等因素予以确定。`
+以与车站站位邻近的道路交叉口或道路；
+以相近的较为著名的公共设施名称命名；
+车站名称命名的优先权主要由被选道路、地域或公共设施的重要程度、对社会的导向性等因素予以确定。
+商场和小区不能做名字`
 
-const ENGLISH_NAMING_STANDARD = `专名部分用汉语拼音，不标声调，多音节连写，各词首字母大写。通名部分按道路和公共场所英文规范意译（如路/马路=Road，大道=Avenue，公园=Park，医院=Hospital，妇幼保健院=Maternal and Child Health Hospital）。含方位词时，用 East/West/South/North 置于专名前。公共机构/医院/学校/政府部门等必须意译其通名，不得整词音译。报站和导向标识仅保留站名主体，英文名末尾不得出现 Station/Metro Station/Subway Station。多线换乘站中英文统一，不用生僻缩写和不规范拼写。`
+const ENGLISH_NAMING_STANDARD = `专名部分用汉语拼音，不标声调，多音节连写，各词首字母大写。通名部分按道路和公共场所英文规范意译（如路/马路=Road，大道=Avenue，公园=Park，医院=Hospital，妇幼保健院=Maternal and Child Health Hospital）。若“东/西/南/北”是道路专名的固有组成（如“二环南路”“山师东路”），方位词不翻译，直接写入拼音（Erhuan Nanlu、Shanshi Donglu）；仅在表达独立方位修饰时才使用 East/West/South/North。公共机构/医院/学校/政府部门等必须意译其通名，不得整词音译。报站和导向标识仅保留站名主体，英文名末尾不得出现 Station/Metro Station/Subway Station。多线换乘站中英文统一，不用生僻缩写和不规范拼写。`
 
 const STATION_SUFFIX_REGEX = /(地铁站|车站|站)$/u
 const ENGLISH_STATION_SUFFIX_REGEX = /\b(?:metro\s+station|subway\s+station|railway\s+station|train\s+station|station)\b\.?$/iu
+const RESIDENTIAL_NAME_REGEX = /(小区|家园|花园|公寓|宿舍|新村|社区|苑区?|住宅区)/u
+const RESIDENTIAL_TYPE_REGEX = /(residential|apartments?|dormitory|neighbourhood|housing|community|estate|village)/iu
 
 function toFiniteNumber(value, fallback = 0) {
   const parsed = Number(value)
@@ -129,6 +130,16 @@ function resolveBasisByCategory(category) {
   return '④其它'
 }
 
+function isDisallowedNamingEvidence(item, category) {
+  const nameZh = String(item?.nameZh || '').trim()
+  const type = String(item?.type || '').trim()
+  if (!nameZh) return true
+  if (category === 'intersections' || category === 'roads') return false
+  if (RESIDENTIAL_NAME_REGEX.test(nameZh)) return true
+  if (RESIDENTIAL_TYPE_REGEX.test(type)) return true
+  return false
+}
+
 function prioritizeIntersectionEvidenceItems(items) {
   return (Array.isArray(items) ? items : [])
     .filter((item) => String(item?.nameZh || '').trim())
@@ -200,6 +211,7 @@ function buildEvidenceListFromContext(context) {
             : []
     const items = sourceItems.slice(0, category.limit)
     for (const item of items) {
+      if (isDisallowedNamingEvidence(item, category.key)) continue
       const nameZh = String(item?.nameZh || '').trim()
       if (!nameZh) continue
       const evidenceId = `ev_${String(sequence).padStart(3, '0')}`
@@ -369,6 +381,8 @@ export async function generateStationNameCandidates({ context, lngLat, model = D
     '你是轨道交通车站命名评审助手。',
     '你只能从输入 evidence 列表中选择命名依据，禁止输出 evidence 列表之外的任何地名或设施名。',
     '每个候选必须绑定一个 evidenceId，且 nameZh 必须与该 evidence 的 nameZh 对应。nameZh 末尾禁止出现“站/车站/地铁站”。',
+    '严禁使用小区/社区/家园/花园/公寓等居住区名称命名。',
+    '优先使用片区名、立交桥、道路交叉口、主干路等导向性更强的名称。',
     '若 evidence 中存在主干路/次干路（高 importance 道路），优先考虑其作为道路命名依据，不要优先选择居住小路或服务道路。',
     enforceIntersectionPriority
       ? '当前证据显示站位处于强交叉口场景：①道路类候选只能使用 intersections 证据，严禁用单一道路证据命名。'

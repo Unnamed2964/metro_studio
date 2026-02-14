@@ -2,6 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { getDisplayLineName } from '../lib/lineNaming'
 import { buildHudLineRoute, buildVehicleHudRenderModel } from '../lib/hud/renderModel'
+import {
+  JINAN_METRO_ICON_COLOR,
+  JINAN_METRO_ICON_INNER_PATH,
+  JINAN_METRO_ICON_MAIN_PATH,
+  JINAN_METRO_ICON_TRANSFORM,
+} from '../lib/hud/jinanBrand'
+import jinanWordmarkImage from '../assets/jinan.png'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
@@ -64,6 +71,10 @@ const model = computed(() =>
     route: route.value,
   }),
 )
+const headerCenterWidth = 380
+const headerCenterX = computed(() => Math.max(460, model.value.width * 0.5 - headerCenterWidth / 2))
+const headerRightWidth = 420
+const headerRightX = computed(() => Math.max(headerCenterX.value + headerCenterWidth + 16, model.value.width - headerRightWidth - 46))
 
 function displayLineName(line) {
   return getDisplayLineName(line, 'zh') || line?.nameZh || ''
@@ -216,10 +227,17 @@ onBeforeUnmount(() => {
             <g id="hudChevron">
               <path d="M -7 -7 L 0 0 L -7 7" fill="none" stroke="#f5fbff" stroke-width="2.8" stroke-linecap="round" />
             </g>
+            <g id="jinanMetroIcon">
+              <rect x="32.2" y="3.8" width="206.1" height="268.2" fill="#ffffff" />
+              <g :transform="JINAN_METRO_ICON_TRANSFORM">
+                <path :d="JINAN_METRO_ICON_MAIN_PATH" :fill="JINAN_METRO_ICON_COLOR" />
+                <path :d="JINAN_METRO_ICON_INNER_PATH" :fill="JINAN_METRO_ICON_COLOR" />
+              </g>
+            </g>
           </defs>
 
           <rect width="100%" height="100%" fill="url(#hudBg)" />
-          <g class="vehicle-hud__skyline" opacity="0.22">
+          <g class="vehicle-hud__skyline" opacity="0.14">
             <path
               d="M0 400 L110 360 L170 380 L230 320 L300 350 L380 300 L430 340 L520 260 L620 330 L710 290 L780 345 L860 280 L940 355 L1010 310 L1090 350 L1170 285 L1260 360 L1340 300 L1410 345 L1490 280 L1580 355 L1660 320 L1730 360 L1810 330 L1920 385 L1920 620 L0 620 Z"
               fill="#bfd4ec"
@@ -227,13 +245,30 @@ onBeforeUnmount(() => {
           </g>
 
           <g :transform="viewportTransform">
-            <rect x="34" y="26" :width="model.width - 68" :height="model.height - 52" rx="20" fill="#ffffff" opacity="0.9" />
+            <rect x="12" y="12" :width="model.width - 24" :height="model.height - 24" rx="22" fill="#ffffff" stroke="#d6dfeb" stroke-width="1.8" />
+            <rect x="40" y="20" :width="model.width - 80" height="64" rx="6" :fill="model.lineColor" />
 
-            <rect x="64" y="42" width="220" height="62" rx="10" :fill="model.lineColor" />
-            <text x="84" y="80" fill="#ffffff" font-size="30" font-weight="700">{{ model.lineNameZh }}</text>
+            <rect x="48" y="24" width="246" height="56" rx="5" fill="#ffffff" />
+            <g transform="translate(56 26) scale(0.16)">
+              <use href="#jinanMetroIcon" />
+            </g>
+            <image :href="jinanWordmarkImage" x="136" y="31" width="152" height="28" preserveAspectRatio="xMinYMid meet" />
+            <text class="hud-brand-en" x="136" y="68">JINAN METRO</text>
 
-            <text x="314" y="72" fill="#12324c" font-size="31" font-weight="700">{{ model.directionLabelZh }}</text>
-            <text v-if="model.terminalNameZh" x="314" y="101" fill="#45617b" font-size="18">终点 {{ model.terminalNameZh }}</text>
+            <rect x="302" y="24" width="116" height="56" rx="4" :fill="model.lineColor" />
+            <text class="hud-line-badge-zh" x="314" y="49">{{ model.lineBadgeZh || model.lineNameZh }}</text>
+            <text class="hud-line-badge-en" x="314" y="68">{{ model.lineBadgeEn || model.lineNameEn }}</text>
+
+            <rect :x="headerCenterX" y="24" :width="headerCenterWidth" height="56" rx="4" fill="#ffffff" />
+            <text class="hud-next-tag" :x="headerCenterX + 18" y="43">下一站</text>
+            <text class="hud-next-tag-en" :x="headerCenterX + 18" y="60">Next</text>
+            <text class="hud-next-main" :x="headerCenterX + 126" y="43">{{ model.nextStationZh || '' }}</text>
+            <text class="hud-next-main-en" :x="headerCenterX + 126" y="60">{{ model.nextStationEn || '' }}</text>
+
+            <rect :x="headerRightX" y="24" :width="headerRightWidth" height="56" rx="4" :fill="model.lineColor" />
+            <text class="hud-destination-zh" :x="headerRightX + 16" y="43">{{ model.destinationZh || model.terminalNameZh || '' }}</text>
+            <text class="hud-destination-en" :x="headerRightX + 16" y="60">{{ model.destinationEn || model.terminalNameEn || '' }}</text>
+            <text class="hud-destination-arrow" :x="headerRightX + headerRightWidth - 66" y="47">≫</text>
 
             <path
               :d="model.trackPath"
@@ -272,7 +307,7 @@ onBeforeUnmount(() => {
                 <text :x="station.x" :y="station.transferLabelZhY" text-anchor="middle" fill="#14283e" font-size="18" font-weight="700">
                   换乘
                 </text>
-                <text :x="station.x" :y="station.transferLabelEnY" text-anchor="middle" fill="#516984" font-size="13" font-weight="600">
+                <text :x="station.x" :y="station.transferLabelEnY" text-anchor="middle" fill="#516984" font-size="13" font-weight="600" class="hud-text-en">
                   Transfer
                 </text>
 
@@ -304,6 +339,7 @@ onBeforeUnmount(() => {
               </g>
 
               <text
+                class="hud-station-zh"
                 :x="station.labelX"
                 :y="station.labelY"
                 :text-anchor="station.labelAnchor"
@@ -316,6 +352,7 @@ onBeforeUnmount(() => {
               </text>
               <text
                 v-if="station.nameEn"
+                class="hud-station-en"
                 :x="station.labelX"
                 :y="station.labelEnY"
                 :text-anchor="station.labelAnchor"
@@ -325,7 +362,7 @@ onBeforeUnmount(() => {
                 font-weight="700"
                 letter-spacing="0.02em"
               >
-                {{ station.nameEn.toUpperCase() }}
+                {{ station.nameEn }}
               </text>
             </g>
           </g>
@@ -416,5 +453,106 @@ onBeforeUnmount(() => {
   margin: auto;
   color: var(--workspace-panel-muted);
   font-size: 14px;
+}
+
+.hud-brand-zh,
+.hud-line-badge-zh,
+.hud-next-tag,
+.hud-next-main,
+.hud-destination-zh,
+.hud-station-zh {
+  font-family: 'Source Han Sans SC', 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.hud-brand-en,
+.hud-line-badge-en,
+.hud-next-tag-en,
+.hud-next-main-en,
+.hud-destination-en,
+.hud-station-en,
+.hud-text-en {
+  font-family: 'DIN Alternate', 'Bahnschrift', 'Roboto Condensed', 'Arial Narrow', 'Noto Sans', sans-serif;
+}
+
+.hud-brand-zh {
+  fill: #111827;
+  font-size: 23px;
+  font-weight: 750;
+}
+
+.hud-brand-en {
+  fill: #374151;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.hud-line-badge-zh {
+  fill: #ffffff;
+  font-size: 19px;
+  font-weight: 760;
+}
+
+.hud-line-badge-en {
+  fill: #e5edff;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+}
+
+.hud-next-tag {
+  fill: #4b5563;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.hud-next-tag-en {
+  fill: #9ca3af;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  font-weight: 680;
+}
+
+.hud-next-main {
+  fill: #1f2937;
+  font-size: 29px;
+  font-weight: 760;
+}
+
+.hud-next-main-en {
+  fill: #374151;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  font-weight: 680;
+}
+
+.hud-destination-zh {
+  fill: #ffffff;
+  font-size: 23px;
+  font-weight: 760;
+}
+
+.hud-destination-en {
+  fill: #e5edff;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+}
+
+.hud-destination-arrow {
+  fill: #ffffff;
+  font-size: 32px;
+  font-weight: 760;
+}
+
+.hud-station-zh {
+  font-size: 26px;
+  font-weight: 760;
+}
+
+.hud-station-en {
+  font-size: 17px;
+  font-weight: 680;
+  letter-spacing: 0.01em;
 }
 </style>

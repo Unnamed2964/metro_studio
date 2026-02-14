@@ -163,6 +163,7 @@ function buildStationsGeoJson(project, selectedStationIds = []) {
       properties: {
         id: station.id,
         nameZh: station.nameZh,
+        nameEn: station.nameEn,
         isInterchange: station.isInterchange,
         underConstruction: station.underConstruction,
         proposed: station.proposed,

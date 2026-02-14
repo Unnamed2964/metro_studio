@@ -1,5 +1,12 @@
 import JSZip from 'jszip'
 import { buildHudLineRoute, buildVehicleHudRenderModel } from '../hud/renderModel'
+import {
+  JINAN_METRO_ICON_COLOR,
+  JINAN_METRO_ICON_INNER_PATH,
+  JINAN_METRO_ICON_MAIN_PATH,
+  JINAN_METRO_ICON_TRANSFORM,
+} from '../hud/jinanBrand'
+import jinanWordmarkImage from '../../assets/jinan.png'
 import { getDisplayLineName } from '../lineNaming'
 import { buildSchematicRenderModel } from '../schematic/renderModel'
 
@@ -230,6 +237,10 @@ function sanitizeZipSegment(value, fallback = 'item') {
 }
 
 function buildVehicleHudSvg(model) {
+  const headerCenterWidth = 380
+  const headerCenterX = Math.max(460, model.width * 0.5 - headerCenterWidth / 2)
+  const headerRightWidth = 420
+  const headerRightX = Math.max(headerCenterX + headerCenterWidth + 16, model.width - headerRightWidth - 46)
   const chevrons = model.chevrons
     .map(
       (mark) =>
@@ -250,7 +261,9 @@ function buildVehicleHudSvg(model) {
       const zhTransform = `rotate(${station.labelAngle} ${station.labelX} ${station.labelY})`
       const enTransform = `rotate(${station.labelAngle} ${station.labelX} ${station.labelEnY})`
       const enLabel = station.nameEn
-        ? `<text x="${station.labelX}" y="${station.labelEnY}" text-anchor="${station.labelAnchor}" transform="${enTransform}" fill="#11263e" font-size="17" font-weight="700" letter-spacing="0.02em">${escapeXml(String(station.nameEn).toUpperCase())}</text>`
+        ? `<text x="${station.labelX}" y="${station.labelEnY}" text-anchor="${station.labelAnchor}" transform="${enTransform}" fill="#11263e" font-size="17" font-weight="680" letter-spacing="0.01em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">${escapeXml(
+            String(station.nameEn),
+          )}</text>`
         : ''
 
       return `
@@ -258,15 +271,13 @@ function buildVehicleHudSvg(model) {
   <circle cx="${station.x}" cy="${station.y}" r="20.2" fill="#ffffff" stroke="${escapeXml(model.lineColor)}" stroke-width="6" />
   ${interchangeCircle}
   ${callout}
-  <text x="${station.labelX}" y="${station.labelY}" text-anchor="${station.labelAnchor}" transform="${zhTransform}" fill="#11263e" font-size="26" font-weight="700">${escapeXml(station.nameZh)}</text>
+  <text x="${station.labelX}" y="${station.labelY}" text-anchor="${station.labelAnchor}" transform="${zhTransform}" fill="#11263e" font-size="26" font-weight="760" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">${escapeXml(
+    station.nameZh,
+  )}</text>
   ${enLabel}
 </g>`
     })
     .join('\n')
-
-  const terminalText = model.terminalNameZh
-    ? `<text x="314" y="101" fill="#45617b" font-size="18">终点 ${escapeXml(model.terminalNameZh)}</text>`
-    : ''
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${model.width}" height="${model.height}" viewBox="0 0 ${model.width} ${model.height}">
@@ -281,21 +292,57 @@ function buildVehicleHudSvg(model) {
     <g id="hudChevron">
       <path d="M -7 -7 L 0 0 L -7 7" fill="none" stroke="#f5fbff" stroke-width="2.8" stroke-linecap="round" />
     </g>
+    <g id="jinanMetroIcon">
+      <rect x="32.2" y="3.8" width="206.1" height="268.2" fill="#ffffff" />
+      <g transform="${JINAN_METRO_ICON_TRANSFORM}">
+        <path d="${JINAN_METRO_ICON_MAIN_PATH}" fill="${JINAN_METRO_ICON_COLOR}" />
+        <path d="${JINAN_METRO_ICON_INNER_PATH}" fill="${JINAN_METRO_ICON_COLOR}" />
+      </g>
+    </g>
   </defs>
 
   <rect width="100%" height="100%" fill="url(#hudBg)" />
-  <g opacity="0.22">
+  <g opacity="0.14">
     <path d="M0 400 L110 360 L170 380 L230 320 L300 350 L380 300 L430 340 L520 260 L620 330 L710 290 L780 345 L860 280 L940 355 L1010 310 L1090 350 L1170 285 L1260 360 L1340 300 L1410 345 L1490 280 L1580 355 L1660 320 L1730 360 L1810 330 L1920 385 L1920 620 L0 620 Z" fill="#bfd4ec" />
   </g>
 
   <g>
-    <rect x="34" y="26" width="${model.width - 68}" height="${model.height - 52}" rx="20" fill="#ffffff" opacity="0.9" />
+    <rect x="12" y="12" width="${model.width - 24}" height="${model.height - 24}" rx="22" fill="#ffffff" stroke="#d6dfeb" stroke-width="1.8" />
+    <rect x="40" y="20" width="${model.width - 80}" height="64" rx="6" fill="${escapeXml(model.lineColor || '#A855F7')}" />
 
-    <rect x="64" y="42" width="220" height="62" rx="10" fill="${escapeXml(model.lineColor)}" />
-    <text x="84" y="80" fill="#ffffff" font-size="30" font-weight="700">${escapeXml(model.lineNameZh || '')}</text>
+    <rect x="48" y="24" width="246" height="56" rx="5" fill="#ffffff" />
+    <g transform="translate(56 26) scale(0.16)">
+      <use href="#jinanMetroIcon" />
+    </g>
+    <image href="${escapeXml(jinanWordmarkImage)}" x="136" y="31" width="152" height="28" preserveAspectRatio="xMinYMid meet" />
+    <text x="136" y="68" fill="#374151" font-size="12" font-weight="700" letter-spacing="0.04em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">JINAN METRO</text>
 
-    <text x="314" y="72" fill="#12324c" font-size="31" font-weight="700">${escapeXml(model.directionLabelZh || '')}</text>
-    ${terminalText}
+    <rect x="302" y="24" width="116" height="56" rx="4" fill="${escapeXml(model.lineColor || '#A855F7')}" />
+    <text x="314" y="49" fill="#ffffff" font-size="19" font-weight="760" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">${escapeXml(
+      model.lineBadgeZh || model.lineNameZh || '',
+    )}</text>
+    <text x="314" y="68" fill="#e5edff" font-size="12" font-weight="700" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">${escapeXml(
+      model.lineBadgeEn || model.lineNameEn || '',
+    )}</text>
+
+    <rect x="${headerCenterX}" y="24" width="${headerCenterWidth}" height="56" rx="4" fill="#ffffff" />
+    <text x="${headerCenterX + 18}" y="43" fill="#4b5563" font-size="15" font-weight="700" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">下一站</text>
+    <text x="${headerCenterX + 18}" y="60" fill="#9ca3af" font-size="11" font-weight="680" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">Next</text>
+    <text x="${headerCenterX + 126}" y="43" fill="#1f2937" font-size="29" font-weight="760" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">${escapeXml(
+      model.nextStationZh || '',
+    )}</text>
+    <text x="${headerCenterX + 126}" y="60" fill="#374151" font-size="14" font-weight="680" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">${escapeXml(
+      model.nextStationEn || '',
+    )}</text>
+
+    <rect x="${headerRightX}" y="24" width="${headerRightWidth}" height="56" rx="4" fill="${escapeXml(model.lineColor || '#A855F7')}" />
+    <text x="${headerRightX + 16}" y="43" fill="#ffffff" font-size="23" font-weight="760" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">${escapeXml(
+      model.destinationZh || model.terminalNameZh || '',
+    )}</text>
+    <text x="${headerRightX + 16}" y="60" fill="#e5edff" font-size="13" font-weight="700" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">${escapeXml(
+      model.destinationEn || model.terminalNameEn || '',
+    )}</text>
+    <text x="${headerRightX + headerRightWidth - 66}" y="47" fill="#ffffff" font-size="32" font-weight="760">≫</text>
 
     <path d="${model.trackPath}" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#hudShadow)" />
     <path d="${model.trackPath}" fill="none" stroke="${escapeXml(model.lineColor)}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />

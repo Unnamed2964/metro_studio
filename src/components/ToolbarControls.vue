@@ -403,6 +403,10 @@ async function retranslateAllStationEnglishNames() {
   await store.retranslateAllStationEnglishNamesWithAi()
 }
 
+async function retranslateSelectedStationEnglishNames() {
+  await store.retranslateSelectedStationEnglishNamesWithAi()
+}
+
 function addManualTransferForSelectedStations() {
   store.addManualTransferForSelectedStations()
 }
@@ -630,7 +634,7 @@ onMounted(async () => {
             </button>
           </div>
           <p class="toolbar__hint">
-            提示: AI点站会抓取 300m 周边 OSM 道路/地域/设施并调用 OpenRouter 给出 5 个候选；连续布线模式下从首点开始，后续每次点击都会继续连线；Esc 可取消待连接起点。
+            提示: AI点站会抓取 300m 周边 OSM 道路/地域/设施并生成 5 个候选；连续布线模式下从首点开始，后续每次点击都会继续连线；Esc 可取消待连接起点。
           </p>
           <div class="toolbar__row">
             <span class="toolbar__meta">已选站点: {{ selectedStationCount }}</span>
@@ -639,6 +643,13 @@ onMounted(async () => {
           <div class="toolbar__row">
             <button class="toolbar__btn" @click="selectAllStations">全选站点</button>
             <button class="toolbar__btn" @click="store.clearSelection()">清空选择</button>
+            <button
+              class="toolbar__btn"
+              :disabled="selectedStationCount < 1 || store.isStationEnglishRetranslating"
+              @click="retranslateSelectedStationEnglishNames"
+            >
+              {{ store.isStationEnglishRetranslating ? '翻译中...' : 'AI翻译选中站英文' }}
+            </button>
           </div>
           <label class="toolbar__label">地理种子缩放（geoSeedScale）</label>
           <div class="toolbar__range-row">

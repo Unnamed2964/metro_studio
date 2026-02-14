@@ -1,14 +1,11 @@
 import { getDisplayLineName } from '../lineNaming'
 
 const DEFAULT_MESSAGE = '请选择线路'
-const HUD_FIXED_WIDTH = 4400
-const HUD_SINGLE_ROW_HEIGHT = 430
-const HUD_DOUBLE_ROW_HEIGHT = 800
+const HUD_MIN_WIDTH = 2400
+const HUD_MAX_WIDTH = 7600
+const HUD_SINGLE_ROW_HEIGHT = 360
+const HUD_DOUBLE_ROW_HEIGHT = 760
 const HUD_FOLD_THRESHOLD = 30
-const HUD_LOOP_BASE_SIZE = 2200
-const HUD_LOOP_MIN_TRACK_RADIUS = 420
-const HUD_LOOP_MIN_ARC_GAP = 92
-const HUD_LOOP_CONTENT_PADDING = 300
 
 class MinHeap {
   constructor() {
@@ -256,13 +253,13 @@ export function buildVehicleHudRenderModel(project, options = {}) {
   const row1Count = hasBend ? Math.ceil(stationIds.length / 2) : stationIds.length
   const row2Count = stationIds.length - row1Count
   const maxRowCount = Math.max(row1Count, row2Count || 0)
-  const sidePadding = 120
-  const topPadding = 66
-  const bendOffset = hasBend ? 66 : 0
-  const minGap = 74
-  const minWidth = sidePadding * 2 + bendOffset + Math.max(1, maxRowCount - 1) * minGap
-  const width = hasBend ? Math.max(HUD_FIXED_WIDTH, minWidth) : HUD_FIXED_WIDTH
-  const row1Y = topPadding + 154
+  const sidePadding = hasBend ? 230 : 220
+  const topPadding = 48
+  const bendOffset = hasBend ? 72 : 0
+  const targetGap = hasBend ? 176 : resolveHudStationGap(stationIds.length)
+  const rawWidth = sidePadding * 2 + bendOffset + Math.max(1, maxRowCount - 1) * targetGap
+  const width = clamp(rawWidth * 2, HUD_MIN_WIDTH, HUD_MAX_WIDTH)
+  const row1Y = topPadding + 176
   const topStationIds = stationIds.slice(0, row1Count)
   const bottomStationIds = stationIds.slice(row1Count)
   const topCalloutDownExtent = hasBend ? estimateRowCalloutDownExtent(topStationIds, stationById, lineId) : 0
@@ -323,6 +320,7 @@ export function buildVehicleHudRenderModel(project, options = {}) {
   const terminalNameZh = stationById.get(direction.toStationId)?.nameZh || ''
   const terminalNameEn = stationById.get(direction.toStationId)?.nameEn || ''
   const lineDisplayName = getDisplayLineName(route.line, 'zh') || route.line?.nameZh || ''
+  const headerMeta = buildHudHeaderMeta(route.line, direction, stationById, stationIds)
 
   return {
     ready: true,
@@ -333,6 +331,13 @@ export function buildVehicleHudRenderModel(project, options = {}) {
     lineColor: route.line?.color || '#2563EB',
     lineNameZh: lineDisplayName,
     lineNameEn: route.line?.nameEn || '',
+    lineHeaderWidth: estimateHudLineHeaderWidth(lineDisplayName),
+    lineBadgeZh: headerMeta.lineBadgeZh,
+    lineBadgeEn: headerMeta.lineBadgeEn,
+    nextStationZh: headerMeta.nextStationZh,
+    nextStationEn: headerMeta.nextStationEn,
+    destinationZh: headerMeta.destinationZh,
+    destinationEn: headerMeta.destinationEn,
     directionLabelZh: direction.labelZh || '',
     directionLabelEn: direction.labelEn || '',
     terminalNameZh,
@@ -355,6 +360,13 @@ function createEmptyModel(reason) {
     lineColor: '#2563EB',
     lineNameZh: '',
     lineNameEn: '',
+    lineHeaderWidth: 220,
+    lineBadgeZh: '',
+    lineBadgeEn: '',
+    nextStationZh: '',
+    nextStationEn: '',
+    destinationZh: '',
+    destinationEn: '',
     directionLabelZh: '',
     directionLabelEn: '',
     terminalNameZh: '',
@@ -369,38 +381,69 @@ function createEmptyModel(reason) {
 
 function buildLoopHudRenderModel({ route, direction, stationIds, stationById, lineById, lineId }) {
   const stationCount = stationIds.length
-  const minRadiusByStations = (stationCount * HUD_LOOP_MIN_ARC_GAP) / (2 * Math.PI)
-  const trackRadius = Math.max(HUD_LOOP_MIN_TRACK_RADIUS, minRadiusByStations)
-  const width = Math.max(HUD_LOOP_BASE_SIZE, Math.round((trackRadius + HUD_LOOP_CONTENT_PADDING) * 2))
-  const centerX = width / 2
-  const centerY = Math.round(trackRadius + 360)
-  const height = Math.max(HUD_LOOP_BASE_SIZE, Math.round(centerY + trackRadius + HUD_LOOP_CONTENT_PADDING))
-  const useAlternatingLabels = stationCount >= 22
+  const topCount = Math.ceil(stationCount / 2)
+  const bottomCount = stationCount - topCount
+  const sidePadding = 220
+  const topPadding = 48
+  const topY = topPadding + 176
+  const bottomY = topY + 132
+  const connectorOffset = 96
+  const maxRowCount = Math.max(topCount, bottomCount || 0)
+  const targetGap = resolveHudStationGap(stationCount)
+  const rawWidth = sidePadding * 2 + Math.max(1, maxRowCount - 1) * targetGap + connectorOffset * 2
+  const width = clamp(rawWidth * 2, HUD_MIN_WIDTH, HUD_MAX_WIDTH)
+  const height = 560
+  const trackStartX = sidePadding
+  const trackEndX = width - sidePadding
+  const topGap = topCount > 1 ? (trackEndX - trackStartX) / (topCount - 1) : 0
+  const bottomGap = bottomCount > 1 ? (trackEndX - trackStartX) / (bottomCount - 1) : 0
 
   const positionedStations = []
-  for (let i = 0; i < stationCount; i += 1) {
+  for (let i = 0; i < topCount; i += 1) {
     const stationId = stationIds[i]
     const station = stationById.get(stationId)
     if (!station) continue
-    const angle = -Math.PI / 2 + (2 * Math.PI * i) / stationCount
-    const labelOutside = useAlternatingLabels ? i % 2 === 0 : true
     positionedStations.push(
       buildStationRender(station, false, false, lineId, lineById, {
-        layout: 'loop',
-        x: centerX + trackRadius * Math.cos(angle),
-        y: centerY + trackRadius * Math.sin(angle),
-        centerX,
-        centerY,
-        angle,
-        labelOutside,
+        x: trackStartX + topGap * i,
+        y: topY,
+        rowIndex: 0,
+        isLoop: true,
+      }),
+    )
+  }
+  for (let i = 0; i < bottomCount; i += 1) {
+    const stationId = stationIds[topCount + i]
+    const station = stationById.get(stationId)
+    if (!station) continue
+    positionedStations.push(
+      buildStationRender(station, false, false, lineId, lineById, {
+        x: trackEndX - bottomGap * i,
+        y: bottomY,
+        rowIndex: 1,
+        isLoop: true,
       }),
     )
   }
 
-  const points = positionedStations.map((station) => [station.x, station.y])
+  const topRowPoints = positionedStations.filter((station) => station.rowIndex === 0).map((station) => [station.x, station.y])
+  const bottomRowPoints = positionedStations.filter((station) => station.rowIndex === 1).map((station) => [station.x, station.y])
+  const points = [...topRowPoints]
+  if (bottomRowPoints.length) {
+    points.push([trackEndX + connectorOffset, topY])
+    points.push([trackEndX + connectorOffset, bottomY])
+    points.push([trackEndX, bottomY])
+    for (let i = 1; i < bottomRowPoints.length; i += 1) {
+      points.push(bottomRowPoints[i])
+    }
+    points.push([trackStartX - connectorOffset, bottomY])
+    points.push([trackStartX - connectorOffset, topY])
+    points.push([trackStartX, topY])
+  }
   const trackPath = pointsToClosedRoundedPath(points, 18)
   const chevrons = buildChevronMarks(positionedStations, { isLoop: true })
   const lineDisplayName = getDisplayLineName(route.line, 'zh') || route.line?.nameZh || ''
+  const headerMeta = buildHudHeaderMeta(route.line, direction, stationById, stationIds)
 
   return {
     ready: true,
@@ -411,6 +454,13 @@ function buildLoopHudRenderModel({ route, direction, stationIds, stationById, li
     lineColor: route.line?.color || '#2563EB',
     lineNameZh: lineDisplayName,
     lineNameEn: route.line?.nameEn || '',
+    lineHeaderWidth: estimateHudLineHeaderWidth(lineDisplayName),
+    lineBadgeZh: headerMeta.lineBadgeZh,
+    lineBadgeEn: headerMeta.lineBadgeEn,
+    nextStationZh: headerMeta.nextStationZh,
+    nextStationEn: headerMeta.nextStationEn,
+    destinationZh: headerMeta.destinationZh,
+    destinationEn: headerMeta.destinationEn,
     directionLabelZh: direction.labelZh || '',
     directionLabelEn: direction.labelEn || '',
     terminalNameZh: '',
@@ -453,7 +503,7 @@ function buildStationRender(station, isStart, isEnd, lineId, lineById, position)
   let calloutDirection = labelY >= position.y ? -1 : 1
   let connectorDotY = position.y + calloutDirection * 28
 
-  if (position.layout === 'loop') {
+  if (position.layout === 'loop-radial') {
     rowIndex = 0
     const radialX = Math.cos(position.angle)
     const radialY = Math.sin(position.angle)
@@ -481,7 +531,7 @@ function buildStationRender(station, isStart, isEnd, lineId, lineById, position)
     rowIndex,
     nameZh,
     nameEn,
-    isTerminal: position.layout === 'loop' ? false : Boolean(isStart || isEnd),
+    isTerminal: Boolean(position.isLoop) ? false : Boolean(isStart || isEnd),
     isInterchange: transferBadges.length > 0,
     transferBadges,
     labelX,
@@ -526,6 +576,76 @@ function resolveHudLabelOffset(nameZh, nameEn) {
   return 0
 }
 
+function resolveHudStationGap(stationCount) {
+  const count = Math.max(2, Number(stationCount) || 2)
+  if (count <= 8) return 230
+  if (count <= 16) return 182
+  if (count <= 24) return 148
+  return 124
+}
+
+function estimateHudLineHeaderWidth(lineNameZh) {
+  const text = String(lineNameZh || '').trim()
+  if (!text) return 220
+  let units = 0
+  for (const ch of text) {
+    if (/[\u4e00-\u9fff]/u.test(ch)) units += 1.35
+    else units += 1
+  }
+  return clamp(Math.round(120 + units * 44), 220, 620)
+}
+
+function buildHudHeaderMeta(line, direction, stationById, stationIds) {
+  const lineBadge = resolveHudLineBadge(line)
+  const nextStation = stationById.get(stationIds?.[1])
+  const destination = stationById.get(direction?.toStationId)
+  return {
+    lineBadgeZh: lineBadge.zh,
+    lineBadgeEn: lineBadge.en,
+    nextStationZh: String(nextStation?.nameZh || '').trim(),
+    nextStationEn: String(nextStation?.nameEn || '').trim(),
+    destinationZh: String(destination?.nameZh || '').trim(),
+    destinationEn: String(destination?.nameEn || '').trim(),
+  }
+}
+
+function resolveHudLineBadge(line) {
+  const zhName = String(getDisplayLineName(line, 'zh') || line?.nameZh || '').trim()
+  const enName = String(line?.nameEn || '').trim()
+  const isLoop = Boolean(line?.isLoop) || /环线/u.test(zhName) || /\bloop\b/i.test(enName)
+  if (isLoop) {
+    return {
+      zh: '环线',
+      en: 'Loop Line',
+    }
+  }
+  const lineNumber = extractLineNumber([zhName, enName, line?.key])
+  if (lineNumber) {
+    return {
+      zh: `${lineNumber}号线`,
+      en: `Line ${lineNumber}`,
+    }
+  }
+  return {
+    zh: zhName || '线路',
+    en: enName || 'Line',
+  }
+}
+
+function extractLineNumber(candidates = []) {
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim()
+    if (!value) continue
+    const zhMatch = value.match(/(\d+)\s*号?\s*线/u)
+    if (zhMatch?.[1]) return zhMatch[1]
+    const enMatch = value.match(/\bline\s*([0-9]+)/i)
+    if (enMatch?.[1]) return enMatch[1]
+    const genericMatch = value.match(/([0-9]+)/)
+    if (genericMatch?.[1]) return genericMatch[1]
+  }
+  return ''
+}
+
 function resolveLineBadgeLabel(line) {
   const candidates = [line?.nameZh, line?.nameEn, line?.key]
   for (const value of candidates) {
@@ -568,6 +688,10 @@ function resolveTransferBadgeWidth(text) {
 function toIdKey(id) {
   if (id == null) return ''
   return String(id)
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
 }
 
 function estimateRowCalloutDownExtent(stationIds, stationById, lineId) {
