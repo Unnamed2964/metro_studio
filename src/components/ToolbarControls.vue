@@ -60,6 +60,7 @@ const lineForm = reactive({
   style: 'solid',
   isLoop: false,
 })
+const edgeReassignTargetId = ref('')
 const aiBatchNaming = reactive({
   active: false,
   generating: false,
@@ -148,6 +149,7 @@ const selectedEdgeLines = computed(() => {
   const lineMap = new Map(store.project.lines.map((line) => [line.id, line]))
   return (selectedEdge.value.sharedByLineIds || []).map((lineId) => lineMap.get(lineId)).filter(Boolean)
 })
+const edgeReassignTargets = computed(() => store.project?.lines || [])
 const activeModeLabel = computed(() => MODE_LABELS[store.mode] || store.mode)
 const activeObjectLabel = computed(() => {
   if (store.selectedEdgeAnchor) return '锚点'
@@ -444,6 +446,13 @@ function deleteActiveLine() {
   store.deleteLine(activeLine.value.id)
 }
 
+function applySelectedEdgeReassign() {
+  if (!selectedEdge.value || !edgeReassignTargetId.value) return
+  store.reassignSelectedEdgesToLine(edgeReassignTargetId.value, {
+    edgeIds: [selectedEdge.value.id],
+  })
+}
+
 function isCurrentProject(projectId) {
   return currentProjectId.value === projectId
 }
@@ -470,6 +479,25 @@ watch(
     lineForm.status = line?.status || 'open'
     lineForm.style = normalizeLineStyle(line?.style)
     lineForm.isLoop = Boolean(line?.isLoop)
+  },
+  { immediate: true },
+)
+
+watch(
+  [selectedEdge, () => store.project?.lines],
+  ([edge]) => {
+    const lines = store.project?.lines || []
+    if (!edge || !lines.length) {
+      edgeReassignTargetId.value = ''
+      return
+    }
+    const currentLineIds = new Set((edge.sharedByLineIds || []).map((id) => String(id)))
+    const preferred = lines.find((line) => !currentLineIds.has(String(line.id)))
+    if (preferred) {
+      edgeReassignTargetId.value = preferred.id
+      return
+    }
+    edgeReassignTargetId.value = lines[0].id
   },
   { immediate: true },
 )
@@ -813,7 +841,16 @@ onMounted(async () => {
                 <span>{{ displayLineName(line) }}</span>
               </li>
             </ul>
+            <p class="toolbar__hint">更改所属线（仅当前选中线段）:</p>
+            <select v-model="edgeReassignTargetId" class="toolbar__select" :disabled="!edgeReassignTargets.length">
+              <option v-for="line in edgeReassignTargets" :key="`edge_reassign_${line.id}`" :value="line.id">
+                {{ displayLineName(line) }}
+              </option>
+            </select>
             <div class="toolbar__row">
+              <button class="toolbar__btn" :disabled="!edgeReassignTargetId" @click="applySelectedEdgeReassign">
+                迁移到目标线路
+              </button>
               <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedEdge">删除当前线段</button>
             </div>
           </template>

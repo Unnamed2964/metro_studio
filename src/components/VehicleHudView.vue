@@ -260,15 +260,16 @@ onBeforeUnmount(() => {
             <text class="hud-line-badge-en" x="314" y="68">{{ model.lineBadgeEn || model.lineNameEn }}</text>
 
             <rect :x="headerCenterX" y="24" :width="headerCenterWidth" height="56" rx="4" fill="#ffffff" />
-            <text class="hud-next-tag" :x="headerCenterX + 18" y="43">下一站</text>
-            <text class="hud-next-tag-en" :x="headerCenterX + 18" y="60">Next</text>
-            <text class="hud-next-main" :x="headerCenterX + 126" y="43">{{ model.nextStationZh || '' }}</text>
-            <text class="hud-next-main-en" :x="headerCenterX + 126" y="60">{{ model.nextStationEn || '' }}</text>
+            <text class="hud-next-tag" :x="headerCenterX + 18" y="47">下一站</text>
+            <text class="hud-next-tag-en" :x="headerCenterX + 18" y="64">Next</text>
+            <text class="hud-next-main" :x="headerCenterX + 126" y="52">{{ model.nextStationZh || '' }}</text>
+            <text class="hud-next-main-en" :x="headerCenterX + 126" y="69">{{ model.nextStationEn || '' }}</text>
 
-            <rect :x="headerRightX" y="24" :width="headerRightWidth" height="56" rx="4" :fill="model.lineColor" />
-            <text class="hud-destination-zh" :x="headerRightX + 16" y="43">{{ model.destinationZh || model.terminalNameZh || '' }}</text>
-            <text class="hud-destination-en" :x="headerRightX + 16" y="60">{{ model.destinationEn || model.terminalNameEn || '' }}</text>
-            <text class="hud-destination-arrow" :x="headerRightX + headerRightWidth - 66" y="47">≫</text>
+            <g v-if="!model.isLoop">
+              <rect :x="headerRightX" y="24" :width="headerRightWidth" height="56" rx="4" :fill="model.lineColor" />
+              <text class="hud-route-zh" :x="headerRightX + 16" y="47">{{ model.routeSpanZh || '' }}</text>
+              <text class="hud-route-en" :x="headerRightX + 16" y="64">{{ model.routeSpanEn || '' }}</text>
+            </g>
 
             <path
               :d="model.trackPath"
@@ -459,7 +460,7 @@ onBeforeUnmount(() => {
 .hud-line-badge-zh,
 .hud-next-tag,
 .hud-next-main,
-.hud-destination-zh,
+.hud-route-zh,
 .hud-station-zh {
   font-family: 'Source Han Sans SC', 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -468,7 +469,7 @@ onBeforeUnmount(() => {
 .hud-line-badge-en,
 .hud-next-tag-en,
 .hud-next-main-en,
-.hud-destination-en,
+.hud-route-en,
 .hud-station-en,
 .hud-text-en {
   font-family: 'DIN Alternate', 'Bahnschrift', 'Roboto Condensed', 'Arial Narrow', 'Noto Sans', sans-serif;
@@ -526,23 +527,17 @@ onBeforeUnmount(() => {
   font-weight: 680;
 }
 
-.hud-destination-zh {
+.hud-route-zh {
   fill: #ffffff;
-  font-size: 23px;
+  font-size: 20px;
   font-weight: 760;
 }
 
-.hud-destination-en {
+.hud-route-en {
   fill: #e5edff;
-  font-size: 13px;
+  font-size: 12px;
   letter-spacing: 0.03em;
   font-weight: 700;
-}
-
-.hud-destination-arrow {
-  fill: #ffffff;
-  font-size: 32px;
-  font-weight: 760;
 }
 
 .hud-station-zh {

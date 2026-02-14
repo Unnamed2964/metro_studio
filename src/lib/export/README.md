@@ -11,7 +11,7 @@
   - `downloadOfficialSchematicPng(project, options)`：导出官方风格图 PNG（Y 轴镜像）。
   - `downloadAllLineHudZip(project, options)`：按所有线路与方向批量渲染车辆 HUD PNG，并 ZIP 打包下载。
     - 内部基于 `lib/hud/renderModel.js` 的线路路由与 HUD 渲染模型
-    - HUD 导出模板与预览保持一致：济南地铁风格头部（Logo/线路牌/下一站/终点）与双层闭合环线版式
+    - HUD 导出模板与预览保持一致：济南地铁风格头部（Logo/线路牌/下一站；非环线右侧 `起点 >>> 终点`，环线隐藏右侧区块）与双层闭合环线/部分环线版式
     - 品牌中文字样使用 `src/assets/jinan.png` 资源嵌入到 HUD 头部
     - 依赖 `jszip` 进行浏览器端打包
 

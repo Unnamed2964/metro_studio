@@ -278,6 +278,16 @@ function buildVehicleHudSvg(model) {
 </g>`
     })
     .join('\n')
+  const rightHeaderBlock = !model.isLoop
+    ? `
+    <rect x="${headerRightX}" y="24" width="${headerRightWidth}" height="56" rx="4" fill="${escapeXml(model.lineColor || '#A855F7')}" />
+    <text x="${headerRightX + 16}" y="47" fill="#ffffff" font-size="20" font-weight="760" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">${escapeXml(
+      model.routeSpanZh || '',
+    )}</text>
+    <text x="${headerRightX + 16}" y="64" fill="#e5edff" font-size="12" font-weight="700" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">${escapeXml(
+      model.routeSpanEn || '',
+    )}</text>`
+    : ''
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${model.width}" height="${model.height}" viewBox="0 0 ${model.width} ${model.height}">
@@ -326,23 +336,16 @@ function buildVehicleHudSvg(model) {
     )}</text>
 
     <rect x="${headerCenterX}" y="24" width="${headerCenterWidth}" height="56" rx="4" fill="#ffffff" />
-    <text x="${headerCenterX + 18}" y="43" fill="#4b5563" font-size="15" font-weight="700" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">下一站</text>
-    <text x="${headerCenterX + 18}" y="60" fill="#9ca3af" font-size="11" font-weight="680" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">Next</text>
-    <text x="${headerCenterX + 126}" y="43" fill="#1f2937" font-size="29" font-weight="760" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">${escapeXml(
+    <text x="${headerCenterX + 18}" y="47" fill="#4b5563" font-size="15" font-weight="700" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">下一站</text>
+    <text x="${headerCenterX + 18}" y="64" fill="#9ca3af" font-size="11" font-weight="680" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">Next</text>
+    <text x="${headerCenterX + 126}" y="52" fill="#1f2937" font-size="29" font-weight="760" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">${escapeXml(
       model.nextStationZh || '',
     )}</text>
-    <text x="${headerCenterX + 126}" y="60" fill="#374151" font-size="14" font-weight="680" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">${escapeXml(
+    <text x="${headerCenterX + 126}" y="69" fill="#374151" font-size="14" font-weight="680" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">${escapeXml(
       model.nextStationEn || '',
     )}</text>
 
-    <rect x="${headerRightX}" y="24" width="${headerRightWidth}" height="56" rx="4" fill="${escapeXml(model.lineColor || '#A855F7')}" />
-    <text x="${headerRightX + 16}" y="43" fill="#ffffff" font-size="23" font-weight="760" font-family="'Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">${escapeXml(
-      model.destinationZh || model.terminalNameZh || '',
-    )}</text>
-    <text x="${headerRightX + 16}" y="60" fill="#e5edff" font-size="13" font-weight="700" letter-spacing="0.03em" font-family="'DIN Alternate','Bahnschrift','Roboto Condensed','Arial Narrow','Noto Sans',sans-serif">${escapeXml(
-      model.destinationEn || model.terminalNameEn || '',
-    )}</text>
-    <text x="${headerRightX + headerRightWidth - 66}" y="47" fill="#ffffff" font-size="32" font-weight="760">≫</text>
+    ${rightHeaderBlock}
 
     <path d="${model.trackPath}" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#hudShadow)" />
     <path d="${model.trackPath}" fill="none" stroke="${escapeXml(model.lineColor)}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />

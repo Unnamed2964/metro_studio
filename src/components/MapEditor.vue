@@ -791,7 +791,7 @@ function ensureMapLayers() {
       source: SOURCE_EDGES,
       paint: {
         'line-color': '#000000',
-        'line-width': 14,
+        'line-width': 22,
         'line-opacity': 0.001,
       },
       layout: {
@@ -1041,6 +1041,7 @@ function handleWindowResize() {
 function handleStationClick(event) {
   closeContextMenu()
   closeAiStationMenu()
+  suppressNextMapClick = true
   const stationId = event.features?.[0]?.properties?.id
   if (!stationId) return
   if (store.mode === 'ai-add-station') {
@@ -1067,22 +1068,30 @@ function handleStationClick(event) {
 
 function handleEdgeClick(event) {
   closeContextMenu()
-  if (store.mode !== 'select') return
+  suppressNextMapClick = true
   const edgeId = event.features?.[0]?.properties?.id
   if (!edgeId) return
+  if (store.mode !== 'select') {
+    store.setMode('select')
+  }
   const mouseEvent = event.originalEvent
   const keepStationSelection = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
   store.selectEdge(edgeId, { keepStationSelection })
+  store.statusText = `已选中线段: ${edgeId}`
 }
 
 function handleEdgeAnchorClick(event) {
   closeContextMenu()
-  if (store.mode !== 'select') return
+  suppressNextMapClick = true
   const edgeId = event.features?.[0]?.properties?.edgeId
   const anchorIndexRaw = event.features?.[0]?.properties?.anchorIndex
   const anchorIndex = Number(anchorIndexRaw)
   if (!edgeId || !Number.isInteger(anchorIndex)) return
+  if (store.mode !== 'select') {
+    store.setMode('select')
+  }
   store.selectEdgeAnchor(edgeId, anchorIndex)
+  store.statusText = `已选中锚点: ${edgeId} #${anchorIndex}`
 }
 
 function handleMapClick(event) {

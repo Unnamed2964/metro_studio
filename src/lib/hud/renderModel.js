@@ -71,6 +71,8 @@ export function buildHudLineRoute(project, lineId) {
       reason: DEFAULT_MESSAGE,
       line: null,
       stationIds: [],
+      isSimpleLoop: false,
+      isPartialLoop: false,
       directionOptions: [],
     }
   }
@@ -99,6 +101,8 @@ export function buildHudLineRoute(project, lineId) {
       reason: '所选线路暂无有效线段',
       line,
       stationIds: [],
+      isSimpleLoop: false,
+      isPartialLoop: false,
       directionOptions: [],
     }
   }
@@ -110,6 +114,8 @@ export function buildHudLineRoute(project, lineId) {
       reason: '所选线路可用站点不足',
       line,
       stationIds: componentIds,
+      isSimpleLoop: false,
+      isPartialLoop: false,
       directionOptions: [],
     }
   }
@@ -120,11 +126,18 @@ export function buildHudLineRoute(project, lineId) {
     const neighbors = (adjacency.get(stationId) || []).filter((entry) => componentSet.has(entry.to))
     componentAdjacency.set(stationId, neighbors)
   }
+  const componentEdgeCount = lineEdges.reduce((count, edge) => {
+    if (!componentSet.has(edge.fromStationId) || !componentSet.has(edge.toStationId)) return count
+    return count + 1
+  }, 0)
+  const isLoopLikeLine = isLoopLineLike(line)
+  const hasCycle = componentEdgeCount >= componentIds.length
 
   const isCycleCandidate =
-    Boolean(line.isLoop) &&
+    isLoopLikeLine &&
     componentIds.length >= 3 &&
     componentIds.every((stationId) => (componentAdjacency.get(stationId) || []).length === 2)
+  const isPartialLoop = isLoopLikeLine && hasCycle && !isCycleCandidate
 
   if (isCycleCandidate) {
     const cycle = traceCycle(componentAdjacency, stationById)
@@ -136,6 +149,8 @@ export function buildHudLineRoute(project, lineId) {
         reason: '',
         line,
         stationIds: forward,
+        isSimpleLoop: true,
+        isPartialLoop: false,
         directionOptions: [
           {
             key: `${cycle[0]}::forward`,
@@ -165,6 +180,8 @@ export function buildHudLineRoute(project, lineId) {
       reason: '无法计算线路方向',
       line,
       stationIds: componentIds,
+      isSimpleLoop: false,
+      isPartialLoop: false,
       directionOptions: [],
     }
   }
@@ -176,6 +193,8 @@ export function buildHudLineRoute(project, lineId) {
       reason: '线路路径长度不足',
       line,
       stationIds: mainPath,
+      isSimpleLoop: false,
+      isPartialLoop: false,
       directionOptions: [],
     }
   }
@@ -190,6 +209,8 @@ export function buildHudLineRoute(project, lineId) {
     reason: '',
     line,
     stationIds: forward,
+    isSimpleLoop: false,
+    isPartialLoop,
     directionOptions: [
       {
         key: `${forward[0]}->${forward[forward.length - 1]}`,
@@ -237,7 +258,9 @@ export function buildVehicleHudRenderModel(project, options = {}) {
   if (stationIds.length < 2) {
     return createEmptyModel('缺少可用站点')
   }
-  const isLoopLine = Boolean(route.line?.isLoop) && stationIds.length >= 3
+  const isLoopLine =
+    stationIds.length >= 3 &&
+    (Boolean(route.isSimpleLoop) || Boolean(route.isPartialLoop) || isLoopLineLike(route.line))
   if (isLoopLine) {
     return buildLoopHudRenderModel({
       route,
@@ -336,6 +359,8 @@ export function buildVehicleHudRenderModel(project, options = {}) {
     lineBadgeEn: headerMeta.lineBadgeEn,
     nextStationZh: headerMeta.nextStationZh,
     nextStationEn: headerMeta.nextStationEn,
+    routeSpanZh: headerMeta.routeSpanZh,
+    routeSpanEn: headerMeta.routeSpanEn,
     destinationZh: headerMeta.destinationZh,
     destinationEn: headerMeta.destinationEn,
     directionLabelZh: direction.labelZh || '',
@@ -365,6 +390,8 @@ function createEmptyModel(reason) {
     lineBadgeEn: '',
     nextStationZh: '',
     nextStationEn: '',
+    routeSpanZh: '',
+    routeSpanEn: '',
     destinationZh: '',
     destinationEn: '',
     directionLabelZh: '',
@@ -459,6 +486,8 @@ function buildLoopHudRenderModel({ route, direction, stationIds, stationById, li
     lineBadgeEn: headerMeta.lineBadgeEn,
     nextStationZh: headerMeta.nextStationZh,
     nextStationEn: headerMeta.nextStationEn,
+    routeSpanZh: headerMeta.routeSpanZh,
+    routeSpanEn: headerMeta.routeSpanEn,
     destinationZh: headerMeta.destinationZh,
     destinationEn: headerMeta.destinationEn,
     directionLabelZh: direction.labelZh || '',
@@ -598,21 +627,34 @@ function estimateHudLineHeaderWidth(lineNameZh) {
 function buildHudHeaderMeta(line, direction, stationById, stationIds) {
   const lineBadge = resolveHudLineBadge(line)
   const nextStation = stationById.get(stationIds?.[1])
+  const origin = stationById.get(stationIds?.[0])
   const destination = stationById.get(direction?.toStationId)
+  const originZh = String(origin?.nameZh || '').trim()
+  const originEn = String(origin?.nameEn || '').trim()
+  const destinationZh = String(destination?.nameZh || '').trim()
+  const destinationEn = String(destination?.nameEn || '').trim()
+  const routeSpanZh = !isLoopLineLike(line)
+    ? `${originZh || stationIds?.[0] || ''} >>> ${destinationZh || direction?.toStationId || ''}`.trim()
+    : ''
+  const routeSpanEn = !isLoopLineLike(line)
+    ? `${originEn || originZh || stationIds?.[0] || ''} >>> ${destinationEn || destinationZh || direction?.toStationId || ''}`.trim()
+    : ''
   return {
     lineBadgeZh: lineBadge.zh,
     lineBadgeEn: lineBadge.en,
     nextStationZh: String(nextStation?.nameZh || '').trim(),
     nextStationEn: String(nextStation?.nameEn || '').trim(),
-    destinationZh: String(destination?.nameZh || '').trim(),
-    destinationEn: String(destination?.nameEn || '').trim(),
+    routeSpanZh,
+    routeSpanEn,
+    destinationZh,
+    destinationEn,
   }
 }
 
 function resolveHudLineBadge(line) {
   const zhName = String(getDisplayLineName(line, 'zh') || line?.nameZh || '').trim()
   const enName = String(line?.nameEn || '').trim()
-  const isLoop = Boolean(line?.isLoop) || /环线/u.test(zhName) || /\bloop\b/i.test(enName)
+  const isLoop = isLoopLineLike(line)
   if (isLoop) {
     return {
       zh: '环线',
@@ -630,6 +672,12 @@ function resolveHudLineBadge(line) {
     zh: zhName || '线路',
     en: enName || 'Line',
   }
+}
+
+function isLoopLineLike(line) {
+  const zhName = String(getDisplayLineName(line, 'zh') || line?.nameZh || '').trim()
+  const enName = String(line?.nameEn || '').trim()
+  return Boolean(line?.isLoop) || /环线/u.test(zhName) || /\b(?:loop|circle)\b/i.test(enName)
 }
 
 function extractLineNumber(candidates = []) {

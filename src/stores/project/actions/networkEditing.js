@@ -419,6 +419,60 @@ const networkEditingActions = {
     this.touchProject(`更新线路: ${line.nameZh}`)
   },
 
+  reassignSelectedEdgesToLine(toLineId, options = {}) {
+    if (!this.project) return false
+    const targetLine = this.project.lines.find((item) => item.id === toLineId)
+    if (!targetLine) return false
+
+    const selectedEdgeIds = Array.isArray(options.edgeIds)
+      ? options.edgeIds
+      : this.selectedEdgeId
+        ? [this.selectedEdgeId]
+        : []
+    const edgeIds = [...new Set(selectedEdgeIds.map((id) => String(id || '').trim()).filter(Boolean))]
+    if (!edgeIds.length) {
+      this.statusText = '请先选中线段'
+      return false
+    }
+
+    const edgeById = new Map(this.project.edges.map((edge) => [edge.id, edge]))
+    let movedCount = 0
+    for (const edgeId of edgeIds) {
+      const edge = edgeById.get(edgeId)
+      if (!edge) continue
+      const previous = Array.isArray(edge.sharedByLineIds) ? edge.sharedByLineIds : []
+      const unchanged = previous.length === 1 && previous[0] === targetLine.id
+      if (unchanged) continue
+      edge.sharedByLineIds = [targetLine.id]
+      movedCount += 1
+    }
+
+    if (!movedCount) {
+      this.statusText = '未找到可迁移线段'
+      return false
+    }
+
+    const lineById = new Map(this.project.lines.map((line) => [line.id, line]))
+    for (const line of this.project.lines) {
+      line.edgeIds = []
+    }
+    for (const edge of this.project.edges) {
+      for (const lineId of edge.sharedByLineIds || []) {
+        const line = lineById.get(lineId)
+        if (!line) continue
+        if (!line.edgeIds.includes(edge.id)) {
+          line.edgeIds.push(edge.id)
+        }
+      }
+    }
+
+    this.recomputeStationLineMembership()
+    const targetName = targetLine.nameZh || targetLine.id
+    this.touchProject(`迁移选中线段所属线: -> ${targetName}（${movedCount}段）`)
+    this.statusText = `已将 ${movedCount} 条选中线段迁移到 ${targetName}`
+    return true
+  },
+
   deleteSelectedStations() {
     if (!this.project || !this.selectedStationIds.length) return
     const removing = new Set(this.selectedStationIds)
