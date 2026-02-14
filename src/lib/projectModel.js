@@ -27,6 +27,7 @@ export const JINAN_RELATION_ID = 3486449
  * @property {[number, number][]} waypoints
  * @property {string[]} sharedByLineIds
  * @property {number} lengthMeters
+ * @property {boolean} isCurved
  */
 
 /**
@@ -157,6 +158,7 @@ export function normalizeProject(raw) {
     waypoints: Array.isArray(edge.waypoints) ? edge.waypoints : [],
     sharedByLineIds: Array.isArray(edge.sharedByLineIds) ? edge.sharedByLineIds : [],
     lengthMeters: Number(edge.lengthMeters || 0),
+    isCurved: Boolean(edge.isCurved),
   }))
 
   merged.lines = merged.lines.map((line, index) => {

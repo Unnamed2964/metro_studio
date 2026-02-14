@@ -45,6 +45,35 @@ out body;
 out body qt;
 `.trim()
 
+function buildStandaloneStationQuery(includeConstruction, includeProposed) {
+  const clauses = []
+
+  if (includeConstruction) {
+    clauses.push('node(area.a)["construction:railway"~"station|subway|light_rail"];')
+    clauses.push('node(area.a)["railway"="construction"]["station"~"subway|light_rail"];')
+    clauses.push('node(area.a)["railway"="station"]["station"~"subway|light_rail"]["state"="construction"];')
+    clauses.push('node(area.a)["railway"="station"]["station"~"subway|light_rail"]["construction"];')
+  }
+
+  if (includeProposed) {
+    clauses.push('node(area.a)["proposed:railway"~"station|subway|light_rail"];')
+    clauses.push('node(area.a)["railway"="proposed"]["station"~"subway|light_rail"];')
+    clauses.push('node(area.a)["railway"="station"]["station"~"subway|light_rail"]["state"="proposed"];')
+    clauses.push('node(area.a)["railway"="station"]["station"~"subway|light_rail"]["proposed"];')
+  }
+
+  if (!clauses.length) return null
+
+  return `
+[out:json][timeout:120];
+area(${AREA_ID})->.a;
+(
+  ${clauses.join('\n  ')}
+);
+out body;
+`.trim()
+}
+
 const boundaryFeature =
   jinanBoundaryGeoJson.type === 'Polygon'
     ? polygon(jinanBoundaryGeoJson.coordinates)
@@ -62,6 +91,8 @@ const STATUS_WEIGHT = {
 const SAME_LINE_MERGE_DISTANCE_METERS = 520
 const CROSS_LINE_MERGE_DISTANCE_METERS = 320
 const VERY_CLOSE_FORCE_MERGE_METERS = 28
+const ZH_DIRECTION_SUFFIX_PATTERN = /\s*(?:[-—–~～→↔⇄⟷]|至|到)\s*.+$/u
+const EN_DIRECTION_SUFFIX_PATTERN = /\s*(?:[-—–~～→↔⇄⟷]|\bto\b)\s*.+$/iu
 
 function mergeElements(payloads) {
   const elementMap = new Map()
@@ -111,6 +142,42 @@ function classifyRelationStatus(tags = {}) {
   return 'open'
 }
 
+function classifyStationStatus(tags = {}) {
+  const state = String(tags.state || '').toLowerCase()
+  const proposed = String(tags.proposed || '').toLowerCase()
+  const proposedRailway = String(tags['proposed:railway'] || '').toLowerCase()
+  const construction = String(tags.construction || '').toLowerCase()
+  const constructionRailway = String(tags['construction:railway'] || '').toLowerCase()
+  const railway = String(tags.railway || '').toLowerCase()
+
+  if (
+    state === 'proposed' ||
+    railway === 'proposed' ||
+    proposed === 'yes' ||
+    proposed === 'station' ||
+    proposed.includes('subway') ||
+    proposed.includes('light_rail') ||
+    proposedRailway === 'station' ||
+    proposedRailway === 'subway' ||
+    proposedRailway === 'light_rail'
+  ) {
+    return 'proposed'
+  }
+
+  if (
+    state === 'construction' ||
+    railway === 'construction' ||
+    (construction && construction !== 'no') ||
+    constructionRailway === 'station' ||
+    constructionRailway === 'subway' ||
+    constructionRailway === 'light_rail'
+  ) {
+    return 'construction'
+  }
+
+  return 'open'
+}
+
 function shouldIncludeStatus(status, includeConstruction, includeProposed) {
   if (status === 'open') return true
   if (status === 'construction') return includeConstruction
@@ -118,9 +185,97 @@ function shouldIncludeStatus(status, includeConstruction, includeProposed) {
   return false
 }
 
+function cleanTagText(value) {
+  return String(value || '').trim()
+}
+
+function stripDirectionalSuffix(rawName, isZh = true) {
+  const raw = cleanTagText(rawName)
+  if (!raw) return ''
+
+  const colonParts = raw.split(/[：:]/u)
+  if (colonParts.length > 1) {
+    const prefix = cleanTagText(colonParts[0])
+    if (prefix) return prefix
+  }
+
+  const pattern = isZh ? ZH_DIRECTION_SUFFIX_PATTERN : EN_DIRECTION_SUFFIX_PATTERN
+  const stripped = raw.replace(pattern, '').trim()
+  return stripped || raw
+}
+
+function normalizeLineRefZh(ref) {
+  const raw = cleanTagText(ref)
+  if (!raw) return ''
+  const compact = raw.replace(/\s+/g, '')
+  if (/^\d+$/u.test(compact)) return `${compact}号线`
+  if (/^\d+线$/u.test(compact)) return compact.replace(/线$/u, '号线')
+  return compact
+}
+
+function normalizeLineRefEn(ref) {
+  const raw = cleanTagText(ref)
+  if (!raw) return ''
+  const compact = raw.replace(/\s+/g, '')
+  if (/^\d+$/u.test(compact)) return `Line ${compact}`
+  if (/^\d+号线$/u.test(compact)) return `Line ${compact.replace(/号线$/u, '')}`
+  return raw
+}
+
+function resolveImportedLineNameZh(tags = {}, relationId) {
+  const fromRef = normalizeLineRefZh(tags.ref)
+  if (fromRef) return fromRef
+
+  const fromName = stripDirectionalSuffix(tags['name:zh'] || tags.name, true)
+  if (fromName) return fromName
+
+  return `线路 ${tags.ref || relationId}`
+}
+
+function resolveImportedLineNameEn(tags = {}, relationId, fallbackZhName = '') {
+  const fromRef = normalizeLineRefEn(tags.ref)
+  if (fromRef) return fromRef
+
+  const fromName = stripDirectionalSuffix(tags['name:en'] || tags.int_name, false)
+  if (fromName) return fromName
+
+  const fallbackZh = cleanTagText(fallbackZhName)
+  if (fallbackZh) return fallbackZh
+
+  return `Line ${tags.ref || relationId}`
+}
+
+function isSubwayStationNode(tags = {}) {
+  const station = String(tags.station || '').toLowerCase()
+  const railway = String(tags.railway || '').toLowerCase()
+  const publicTransport = String(tags.public_transport || '').toLowerCase()
+  const subway = String(tags.subway || '').toLowerCase()
+  const lightRail = String(tags.light_rail || '').toLowerCase()
+  const constructionRailway = String(tags['construction:railway'] || '').toLowerCase()
+  const proposedRailway = String(tags['proposed:railway'] || '').toLowerCase()
+
+  if (station === 'subway' || station === 'light_rail') return true
+  if (constructionRailway === 'station' || constructionRailway === 'subway' || constructionRailway === 'light_rail') {
+    return true
+  }
+  if (proposedRailway === 'station' || proposedRailway === 'subway' || proposedRailway === 'light_rail') {
+    return true
+  }
+  if ((subway === 'yes' || lightRail === 'yes') && (railway === 'station' || railway === 'halt' || publicTransport === 'station')) {
+    return true
+  }
+  if (publicTransport === 'station' && (railway === 'station' || railway === 'halt' || subway === 'yes' || lightRail === 'yes')) {
+    return true
+  }
+  return false
+}
+
 function toLineKey(relation) {
   const tags = relation.tags || {}
-  return String(tags.ref || tags['name:zh'] || tags.name || relation.id)
+  const fromRef = normalizeLineRefZh(tags.ref)
+  if (fromRef) return fromRef
+  const fromName = stripDirectionalSuffix(tags['name:zh'] || tags.name, true)
+  return String(fromName || relation.id)
 }
 
 function readStationName(node) {
@@ -147,9 +302,8 @@ function isLoopRelation(tags = {}) {
 function createLineFromRelation(relation, colorIndex, status) {
   const tags = relation.tags || {}
   const isLoop = isLoopRelation(tags)
-  const nameZhRaw = tags['name:zh'] || tags.name || `线路 ${tags.ref || relation.id}`
-  const nameEnRaw =
-    tags['name:en'] || tags.int_name || tags['name:zh'] || tags.name || `Line ${tags.ref || relation.id}`
+  const nameZhRaw = resolveImportedLineNameZh(tags, relation.id)
+  const nameEnRaw = resolveImportedLineNameEn(tags, relation.id, nameZhRaw)
   const normalizedNames = normalizeLineNamesForLoop({
     nameZh: nameZhRaw,
     nameEn: nameEnRaw,
@@ -403,6 +557,32 @@ function sumPathLength(waypoints) {
   return length
 }
 
+function distanceSquared(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== 2 || b.length !== 2) {
+    return Number.POSITIVE_INFINITY
+  }
+  const dx = Number(a[0]) - Number(b[0])
+  const dy = Number(a[1]) - Number(b[1])
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
+    return Number.POSITIVE_INFINITY
+  }
+  return dx * dx + dy * dy
+}
+
+function orientWaypointsByEndpoints(waypoints, fromLngLat, toLngLat) {
+  if (!Array.isArray(waypoints) || waypoints.length < 2) {
+    return [fromLngLat, toLngLat]
+  }
+  const first = waypoints[0]
+  const last = waypoints[waypoints.length - 1]
+  const directError = distanceSquared(first, fromLngLat) + distanceSquared(last, toLngLat)
+  const reverseError = distanceSquared(first, toLngLat) + distanceSquared(last, fromLngLat)
+  const ordered = reverseError < directError ? [...waypoints].reverse() : [...waypoints]
+  ordered[0] = [...fromLngLat]
+  ordered[ordered.length - 1] = [...toLngLat]
+  return ordered
+}
+
 function assignCompactDisplayPositions(stations) {
   if (!stations.length) return
 
@@ -524,6 +704,10 @@ function mergeStationsAndTopology({ stations, edges, lines, lineStatusById }) {
     }
 
     const lineIds = [...allLineIds]
+    const explicitUnderConstruction = groupedStations.some((station) => Boolean(station.underConstruction))
+    const explicitProposed = groupedStations.some((station) => Boolean(station.proposed))
+    const derivedUnderConstruction = lineIds.some((lineId) => lineStatusById.get(lineId) === 'construction')
+    const derivedProposed = lineIds.some((lineId) => lineStatusById.get(lineId) === 'proposed')
     const station = {
       id: mergedStationId,
       nameZh: baseStation.nameZh,
@@ -531,8 +715,8 @@ function mergeStationsAndTopology({ stations, edges, lines, lineStatusById }) {
       lngLat: [sumLng / groupedStations.length, sumLat / groupedStations.length],
       displayPos: [0, 0],
       isInterchange: lineIds.length > 1,
-      underConstruction: lineIds.some((lineId) => lineStatusById.get(lineId) === 'construction'),
-      proposed: lineIds.some((lineId) => lineStatusById.get(lineId) === 'proposed'),
+      underConstruction: lineIds.length > 0 ? derivedUnderConstruction : explicitUnderConstruction,
+      proposed: lineIds.length > 0 ? derivedProposed : explicitProposed,
       lineIds,
     }
 
@@ -558,9 +742,8 @@ function mergeStationsAndTopology({ stations, edges, lines, lineStatusById }) {
     const baseWaypoints =
       Array.isArray(edge.waypoints) && edge.waypoints.length >= 2 ? edge.waypoints.map((w) => [...w]) : []
 
-    const waypoints = baseWaypoints.length ? baseWaypoints : [fromStation.lngLat, toStation.lngLat]
-    waypoints[0] = [...fromStation.lngLat]
-    waypoints[waypoints.length - 1] = [...toStation.lngLat]
+    const candidateWaypoints = baseWaypoints.length ? baseWaypoints : [fromStation.lngLat, toStation.lngLat]
+    const waypoints = orientWaypointsByEndpoints(candidateWaypoints, fromStation.lngLat, toStation.lngLat)
     const lengthMeters = sumPathLength(waypoints)
 
     if (!edgeByPair.has(pairKey)) {
@@ -571,6 +754,7 @@ function mergeStationsAndTopology({ stations, edges, lines, lineStatusById }) {
         waypoints,
         sharedByLineIds: [...new Set(edge.sharedByLineIds || [])],
         lengthMeters,
+        isCurved: false,
       }
       edgeByPair.set(pairKey, mergedEdge)
       oldEdgeIdToNewEdgeId.set(edge.id, mergedEdge.id)
@@ -613,11 +797,18 @@ function mergeStationsAndTopology({ stations, edges, lines, lineStatusById }) {
   }
 
   for (const station of mergedStations) {
+    const previousUnderConstruction = Boolean(station.underConstruction)
+    const previousProposed = Boolean(station.proposed)
     const lineIds = [...(mergedStationLineSet.get(station.id) || [])]
     station.lineIds = lineIds
     station.isInterchange = lineIds.length > 1
-    station.underConstruction = lineIds.some((lineId) => lineStatusById.get(lineId) === 'construction')
-    station.proposed = lineIds.some((lineId) => lineStatusById.get(lineId) === 'proposed')
+    if (lineIds.length > 0) {
+      station.underConstruction = lineIds.some((lineId) => lineStatusById.get(lineId) === 'construction')
+      station.proposed = lineIds.some((lineId) => lineStatusById.get(lineId) === 'proposed')
+      continue
+    }
+    station.underConstruction = previousUnderConstruction
+    station.proposed = previousProposed
   }
 
   assignCompactDisplayPositions(mergedStations)
@@ -643,6 +834,10 @@ export async function importJinanMetroFromOsm(options, signal) {
   }
   if (includeProposed) {
     queries.push(PROPOSED_ROUTE_QUERY)
+  }
+  const standaloneStationQuery = buildStandaloneStationQuery(includeConstruction, includeProposed)
+  if (standaloneStationQuery) {
+    queries.push(standaloneStationQuery)
   }
 
   const payloads = []
@@ -753,6 +948,7 @@ export async function importJinanMetroFromOsm(options, signal) {
           waypoints: finalWaypoints,
           sharedByLineIds: [line.id],
           lengthMeters: sumPathLength(finalWaypoints),
+          isCurved: false,
         })
       } else {
         const edge = edgeByPairKey.get(pairKey)
@@ -766,6 +962,38 @@ export async function importJinanMetroFromOsm(options, signal) {
         line.edgeIds.push(edge.id)
       }
     }
+  }
+
+  // Some under-construction/proposed metro stations are mapped as standalone station nodes
+  // and are not yet connected to route relations. Import them only when the corresponding
+  // status switches are enabled.
+  for (const [nodeId, node] of nodes) {
+    const tags = node?.tags || {}
+    if (!isSubwayStationNode(tags)) continue
+
+    const status = classifyStationStatus(tags)
+    if (status === 'open') continue
+    if (!shouldIncludeStatus(status, includeConstruction, includeProposed)) continue
+    if (stationByNodeId.has(nodeId)) continue
+
+    const lngLat = toNodeLngLat(node)
+    if (!isInsideJinan(lngLat)) continue
+
+    const names = readStationName(node)
+    const station = {
+      id: createId('station'),
+      osmNodeId: nodeId,
+      nameZh: names.nameZh,
+      nameEn: names.nameEn,
+      lngLat,
+      displayPos: [0, 0],
+      isInterchange: false,
+      underConstruction: status === 'construction',
+      proposed: status === 'proposed',
+      lineIds: [],
+    }
+    stationByNodeId.set(nodeId, station)
+    nodeIdByStationId.set(station.id, nodeId)
   }
 
   const merged = mergeStationsAndTopology({

@@ -338,9 +338,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .vehicle-hud {
-  border: 1px solid #d2dae1;
+  border: 1px solid var(--workspace-panel-border);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--workspace-panel-bg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -349,7 +349,9 @@ onBeforeUnmount(() => {
 
 .vehicle-hud__header {
   padding: 12px 14px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--workspace-panel-header-border);
+  background: var(--workspace-panel-header-bg);
+  color: var(--workspace-panel-text);
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -359,11 +361,12 @@ onBeforeUnmount(() => {
 .vehicle-hud__header h2 {
   margin: 0;
   font-size: 16px;
+  color: var(--workspace-panel-text);
 }
 
 .vehicle-hud__subtitle {
   margin: 4px 0 0;
-  color: #475569;
+  color: var(--workspace-panel-muted);
   font-size: 12px;
 }
 
@@ -376,23 +379,23 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  color: #334155;
+  color: var(--workspace-panel-muted);
   font-size: 12px;
   min-width: 190px;
 }
 
 .vehicle-hud__control select {
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--toolbar-input-border);
   border-radius: 8px;
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-input-text);
   padding: 7px 10px;
 }
 
 .vehicle-hud__canvas {
   flex: 1;
   min-height: 0;
-  background: #eef1f4;
+  background: var(--workspace-canvas-bg);
   display: flex;
   user-select: none;
   cursor: default;
@@ -411,7 +414,7 @@ onBeforeUnmount(() => {
 
 .vehicle-hud__empty {
   margin: auto;
-  color: #475569;
+  color: var(--workspace-panel-muted);
   font-size: 14px;
 }
 </style>

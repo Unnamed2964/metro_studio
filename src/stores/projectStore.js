@@ -87,6 +87,71 @@ function applyRenameTemplate(template, sequenceNumber) {
   return `${normalized}${sequenceNumber}`
 }
 
+function cloneLngLat(lngLat) {
+  if (!Array.isArray(lngLat) || lngLat.length !== 2) return null
+  const lng = Number(lngLat[0])
+  const lat = Number(lngLat[1])
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
+  return [lng, lat]
+}
+
+function distanceSquared(a, b) {
+  if (!a || !b) return Number.POSITIVE_INFINITY
+  const dx = a[0] - b[0]
+  const dy = a[1] - b[1]
+  return dx * dx + dy * dy
+}
+
+function buildEditableEdgeWaypoints(edge, fromLngLat, toLngLat) {
+  const from = cloneLngLat(fromLngLat)
+  const to = cloneLngLat(toLngLat)
+  if (!from || !to) return null
+  const rawPoints =
+    Array.isArray(edge?.waypoints) && edge.waypoints.length >= 2
+      ? edge.waypoints.map((point) => cloneLngLat(point)).filter(Boolean)
+      : [from, to]
+  if (rawPoints.length < 2) {
+    return [from, to]
+  }
+
+  const directError = distanceSquared(rawPoints[0], from) + distanceSquared(rawPoints[rawPoints.length - 1], to)
+  const reverseError = distanceSquared(rawPoints[0], to) + distanceSquared(rawPoints[rawPoints.length - 1], from)
+  const orderedPoints = reverseError < directError ? [...rawPoints].reverse() : rawPoints
+  orderedPoints[0] = from
+  orderedPoints[orderedPoints.length - 1] = to
+  return orderedPoints
+}
+
+function findClosestSegmentInsertionIndex(points, target) {
+  if (!Array.isArray(points) || points.length < 2 || !Array.isArray(target) || target.length !== 2) {
+    return 1
+  }
+  let bestInsertIndex = 1
+  let bestDistanceSquared = Number.POSITIVE_INFINITY
+  const [px, py] = target
+
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const [x1, y1] = points[i]
+    const [x2, y2] = points[i + 1]
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const lenSq = dx * dx + dy * dy
+    let t = 0
+    if (lenSq > 0) {
+      t = ((px - x1) * dx + (py - y1) * dy) / lenSq
+    }
+    const clamped = Math.max(0, Math.min(1, t))
+    const cx = x1 + clamped * dx
+    const cy = y1 + clamped * dy
+    const distSq = (px - cx) * (px - cx) + (py - cy) * (py - cy)
+    if (distSq < bestDistanceSquared) {
+      bestDistanceSquared = distSq
+      bestInsertIndex = i + 1
+    }
+  }
+  return bestInsertIndex
+}
+
 export const useProjectStore = defineStore('project', {
   state: () => ({
     project: null,
@@ -95,6 +160,7 @@ export const useProjectStore = defineStore('project', {
     selectedStationId: null,
     selectedStationIds: [],
     selectedEdgeId: null,
+    selectedEdgeAnchor: null,
     pendingEdgeStartStationId: null,
     activeLineId: null,
     isImporting: false,
@@ -145,6 +211,7 @@ export const useProjectStore = defineStore('project', {
       this.selectedStationId = null
       this.selectedStationIds = []
       this.selectedEdgeId = null
+      this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
       this.isInitialized = true
       this.statusText = latest ? `已加载最近工程: ${latest.name}` : '已创建新工程'
@@ -162,6 +229,7 @@ export const useProjectStore = defineStore('project', {
       this.activeLineId = this.project.lines[0]?.id || null
       this.mode = 'select'
       this.selectedEdgeId = null
+      this.selectedEdgeAnchor = null
       this.selectedStationId = null
       this.selectedStationIds = []
       this.pendingEdgeStartStationId = null
@@ -205,6 +273,7 @@ export const useProjectStore = defineStore('project', {
       this.selectedStationId = null
       this.selectedStationIds = []
       this.selectedEdgeId = null
+      this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
       this.recomputeStationLineMembership()
       this.statusText = `已复制工程: ${duplicated.name}`
@@ -230,6 +299,7 @@ export const useProjectStore = defineStore('project', {
         this.selectedStationId = null
         this.selectedStationIds = []
         this.selectedEdgeId = null
+        this.selectedEdgeAnchor = null
         this.pendingEdgeStartStationId = null
         this.statusText = '已删除工程，已创建新工程'
         await this.persistNow()
@@ -247,6 +317,7 @@ export const useProjectStore = defineStore('project', {
         this.selectedStationId = null
         this.selectedStationIds = []
         this.selectedEdgeId = null
+        this.selectedEdgeAnchor = null
         this.pendingEdgeStartStationId = null
         this.recomputeStationLineMembership()
         this.statusText = `已删除工程，已加载: ${fallback.name}`
@@ -277,6 +348,7 @@ export const useProjectStore = defineStore('project', {
       this.selectedStationIds = sanitized
       if (sanitized.length) {
         this.selectedEdgeId = null
+        this.selectedEdgeAnchor = null
       }
       if (options.keepPrimary && this.selectedStationId && sanitized.includes(this.selectedStationId)) {
         return
@@ -288,6 +360,7 @@ export const useProjectStore = defineStore('project', {
       this.selectedStationId = null
       this.selectedStationIds = []
       this.selectedEdgeId = null
+      this.selectedEdgeAnchor = null
     },
 
     selectStations(stationIds, options = {}) {
@@ -354,12 +427,28 @@ export const useProjectStore = defineStore('project', {
       return station
     },
 
+    syncConnectedEdgeEndpoints(stationId, lngLat) {
+      if (!this.project) return
+      const safePoint = cloneLngLat(lngLat)
+      if (!safePoint) return
+      for (const edge of this.project.edges || []) {
+        if (!Array.isArray(edge.waypoints) || edge.waypoints.length < 2) continue
+        if (edge.fromStationId === stationId) {
+          edge.waypoints[0] = [...safePoint]
+        }
+        if (edge.toStationId === stationId) {
+          edge.waypoints[edge.waypoints.length - 1] = [...safePoint]
+        }
+      }
+    },
+
     updateStationPosition(stationId, lngLat) {
       if (!this.project) return
       const station = this.project.stations.find((item) => item.id === stationId)
       if (!station) return
       station.lngLat = [...lngLat]
       station.displayPos = estimateDisplayPositionFromLngLat(this.project.stations, lngLat)
+      this.syncConnectedEdgeEndpoints(station.id, station.lngLat)
       this.touchProject('')
     },
 
@@ -375,6 +464,7 @@ export const useProjectStore = defineStore('project', {
         const nextLngLat = [station.lngLat[0] + dx, station.lngLat[1] + dy]
         station.lngLat = nextLngLat
         station.displayPos = estimateDisplayPositionFromLngLat(this.project.stations, nextLngLat)
+        this.syncConnectedEdgeEndpoints(station.id, station.lngLat)
       }
       this.touchProject('')
     },
@@ -478,11 +568,134 @@ export const useProjectStore = defineStore('project', {
       const target = this.project.edges.find((edge) => edge.id === edgeId)
       if (!target) return
       this.selectedEdgeId = target.id
+      this.selectedEdgeAnchor = null
       if (!options.keepStationSelection) {
         this.selectedStationId = null
         this.selectedStationIds = []
       }
       this.pendingEdgeStartStationId = null
+    },
+
+    selectEdgeAnchor(edgeId, anchorIndex) {
+      if (!this.project) return
+      const edge = this.project.edges.find((item) => item.id === edgeId)
+      if (!edge) return
+      const waypoints = this.resolveEditableEdgeWaypoints(edge)
+      if (!waypoints || waypoints.length < 3) return
+      const normalizedIndex = Number(anchorIndex)
+      if (!Number.isInteger(normalizedIndex) || normalizedIndex < 1 || normalizedIndex > waypoints.length - 2) return
+      this.selectedEdgeId = edge.id
+      this.selectedEdgeAnchor = {
+        edgeId: edge.id,
+        anchorIndex: normalizedIndex,
+      }
+      this.selectedStationId = null
+      this.selectedStationIds = []
+      this.pendingEdgeStartStationId = null
+    },
+
+    resolveEditableEdgeWaypoints(edge) {
+      if (!this.project || !edge) return null
+      const fromStation = this.project.stations.find((station) => station.id === edge.fromStationId)
+      const toStation = this.project.stations.find((station) => station.id === edge.toStationId)
+      if (!fromStation || !toStation) return null
+      return buildEditableEdgeWaypoints(edge, fromStation.lngLat, toStation.lngLat)
+    },
+
+    addEdgeAnchor(edgeId, lngLat, options = {}) {
+      if (!this.project) return null
+      const edge = this.project.edges.find((item) => item.id === edgeId)
+      if (!edge) return null
+      const point = cloneLngLat(lngLat)
+      if (!point) return null
+      const resolvedWaypoints = this.resolveEditableEdgeWaypoints(edge)
+      if (!resolvedWaypoints || resolvedWaypoints.length < 2) return null
+      const waypoints = edge.isCurved
+        ? resolvedWaypoints
+        : [resolvedWaypoints[0], resolvedWaypoints[resolvedWaypoints.length - 1]]
+
+      const requestedIndex = Number(options.insertIndex)
+      const insertIndex = Number.isInteger(requestedIndex) && requestedIndex >= 1 && requestedIndex <= waypoints.length - 1
+        ? requestedIndex
+        : findClosestSegmentInsertionIndex(waypoints, point)
+
+      edge.waypoints = [...waypoints.slice(0, insertIndex), point, ...waypoints.slice(insertIndex)]
+      edge.isCurved = true
+      this.selectedEdgeId = edge.id
+      this.selectedEdgeAnchor = {
+        edgeId: edge.id,
+        anchorIndex: insertIndex,
+      }
+      this.touchProject('新增锚点')
+      return this.selectedEdgeAnchor
+    },
+
+    updateEdgeAnchor(edgeId, anchorIndex, lngLat) {
+      if (!this.project) return false
+      const edge = this.project.edges.find((item) => item.id === edgeId)
+      if (!edge) return false
+      const point = cloneLngLat(lngLat)
+      if (!point) return false
+      const waypoints = this.resolveEditableEdgeWaypoints(edge)
+      if (!waypoints || waypoints.length < 3) return false
+
+      const normalizedIndex = Number(anchorIndex)
+      if (!Number.isInteger(normalizedIndex) || normalizedIndex < 1 || normalizedIndex > waypoints.length - 2) return false
+      waypoints[normalizedIndex] = point
+      edge.waypoints = waypoints
+      edge.isCurved = true
+      this.selectedEdgeId = edge.id
+      this.selectedEdgeAnchor = {
+        edgeId: edge.id,
+        anchorIndex: normalizedIndex,
+      }
+      this.touchProject('')
+      return true
+    },
+
+    removeEdgeAnchor(edgeId, anchorIndex) {
+      if (!this.project) return false
+      const edge = this.project.edges.find((item) => item.id === edgeId)
+      if (!edge) return false
+      const waypoints = this.resolveEditableEdgeWaypoints(edge)
+      if (!waypoints || waypoints.length < 3) return false
+
+      const normalizedIndex = Number(anchorIndex)
+      if (!Number.isInteger(normalizedIndex) || normalizedIndex < 1 || normalizedIndex > waypoints.length - 2) return false
+      const nextWaypoints = waypoints.filter((_, index) => index !== normalizedIndex)
+      edge.waypoints = nextWaypoints
+      edge.isCurved = nextWaypoints.length >= 3
+      this.selectedEdgeId = edge.id
+      if (nextWaypoints.length < 3) {
+        this.selectedEdgeAnchor = null
+      } else {
+        const nextAnchorIndex = Math.max(1, Math.min(normalizedIndex, nextWaypoints.length - 2))
+        this.selectedEdgeAnchor = {
+          edgeId: edge.id,
+          anchorIndex: nextAnchorIndex,
+        }
+      }
+      this.touchProject('删除锚点')
+      return true
+    },
+
+    clearEdgeAnchors(edgeId) {
+      if (!this.project) return false
+      const edge = this.project.edges.find((item) => item.id === edgeId)
+      if (!edge) return false
+      const waypoints = this.resolveEditableEdgeWaypoints(edge)
+      if (!waypoints || waypoints.length < 2) return false
+      edge.waypoints = [waypoints[0], waypoints[waypoints.length - 1]]
+      edge.isCurved = false
+      this.selectedEdgeId = edge.id
+      this.selectedEdgeAnchor = null
+      this.touchProject('清空线段锚点')
+      return true
+    },
+
+    removeSelectedEdgeAnchor() {
+      if (!this.selectedEdgeAnchor?.edgeId) return false
+      return this.removeEdgeAnchor(this.selectedEdgeAnchor.edgeId, this.selectedEdgeAnchor.anchorIndex)
     },
 
     deleteSelectedEdge() {
@@ -491,6 +704,7 @@ export const useProjectStore = defineStore('project', {
       const deletingEdge = this.project.edges.find((edge) => edge.id === deletingEdgeId)
       if (!deletingEdge) {
         this.selectedEdgeId = null
+        this.selectedEdgeAnchor = null
         return
       }
 
@@ -507,6 +721,7 @@ export const useProjectStore = defineStore('project', {
       }
 
       this.selectedEdgeId = null
+      this.selectedEdgeAnchor = null
       this.recomputeStationLineMembership()
       this.touchProject(`删除线段: ${deletingEdge.fromStationId} -> ${deletingEdge.toStationId}`)
     },
@@ -541,6 +756,13 @@ export const useProjectStore = defineStore('project', {
         const stillExists = this.project.edges.some((edge) => edge.id === this.selectedEdgeId)
         if (!stillExists) {
           this.selectedEdgeId = null
+          this.selectedEdgeAnchor = null
+        }
+      }
+      if (this.selectedEdgeAnchor) {
+        const anchorEdgeExists = this.project.edges.some((edge) => edge.id === this.selectedEdgeAnchor.edgeId)
+        if (!anchorEdgeExists) {
+          this.selectedEdgeAnchor = null
         }
       }
       this.recomputeStationLineMembership()
@@ -587,6 +809,7 @@ export const useProjectStore = defineStore('project', {
           waypoints: [fromStation.lngLat, toStation.lngLat],
           sharedByLineIds: [line.id],
           lengthMeters: haversineDistanceMeters(fromStation.lngLat, toStation.lngLat),
+          isCurved: false,
         }
         this.project.edges.push(edge)
       } else if (!edge.sharedByLineIds.includes(line.id)) {
@@ -599,6 +822,7 @@ export const useProjectStore = defineStore('project', {
 
       this.recomputeStationLineMembership()
       this.selectedEdgeId = edge.id
+      this.selectedEdgeAnchor = null
       this.touchProject('新增线段')
       return edge
     },
@@ -618,6 +842,7 @@ export const useProjectStore = defineStore('project', {
         this.setSelectedStations([stationId])
       }
       this.selectedEdgeId = null
+      this.selectedEdgeAnchor = null
       if (this.mode === 'add-edge') {
         if (!this.pendingEdgeStartStationId) {
           this.pendingEdgeStartStationId = stationId
@@ -641,6 +866,15 @@ export const useProjectStore = defineStore('project', {
       const edgeById = new Map(this.project.edges.map((edge) => [edge.id, edge]))
       if (this.selectedEdgeId && !edgeById.has(this.selectedEdgeId)) {
         this.selectedEdgeId = null
+        this.selectedEdgeAnchor = null
+      }
+      if (this.selectedEdgeAnchor) {
+        const selectedAnchorEdge = edgeById.get(this.selectedEdgeAnchor.edgeId)
+        const waypoints = this.resolveEditableEdgeWaypoints(selectedAnchorEdge)
+        const maxAnchorIndex = waypoints ? waypoints.length - 2 : 0
+        if (!waypoints || maxAnchorIndex < 1 || this.selectedEdgeAnchor.anchorIndex > maxAnchorIndex) {
+          this.selectedEdgeAnchor = null
+        }
       }
 
       for (const line of this.project.lines) {
@@ -653,11 +887,27 @@ export const useProjectStore = defineStore('project', {
       }
 
       for (const station of this.project.stations) {
+        const hadLineMembership = Array.isArray(station.lineIds) && station.lineIds.length > 0
+        const previousUnderConstruction = Boolean(station.underConstruction)
+        const previousProposed = Boolean(station.proposed)
         const lineIds = [...(stationLineSet.get(station.id) || [])]
         station.lineIds = lineIds
         station.isInterchange = lineIds.length > 1
-        station.underConstruction = lineIds.some((lineId) => lineById.get(lineId)?.status === 'construction')
-        station.proposed = lineIds.some((lineId) => lineById.get(lineId)?.status === 'proposed')
+        if (lineIds.length > 0) {
+          station.underConstruction = lineIds.some((lineId) => lineById.get(lineId)?.status === 'construction')
+          station.proposed = lineIds.some((lineId) => lineById.get(lineId)?.status === 'proposed')
+          continue
+        }
+
+        // Preserve explicit status flags for standalone imported stations.
+        // If a station previously had line membership and now has none, clear derived flags.
+        if (hadLineMembership) {
+          station.underConstruction = false
+          station.proposed = false
+        } else {
+          station.underConstruction = previousUnderConstruction
+          station.proposed = previousProposed
+        }
       }
     },
 
@@ -693,6 +943,7 @@ export const useProjectStore = defineStore('project', {
         this.selectedStationId = null
         this.selectedStationIds = []
         this.selectedEdgeId = null
+        this.selectedEdgeAnchor = null
         this.pendingEdgeStartStationId = null
         this.recomputeStationLineMembership()
         this.statusText = `导入完成: ${this.project.lines.length} 条线 / ${this.project.stations.length} 站`
@@ -751,6 +1002,7 @@ export const useProjectStore = defineStore('project', {
       this.selectedStationId = null
       this.selectedStationIds = []
       this.selectedEdgeId = null
+      this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
       this.recomputeStationLineMembership()
       this.statusText = `已加载工程文件: ${parsed.name}`
@@ -825,6 +1077,7 @@ export const useProjectStore = defineStore('project', {
       this.selectedStationId = null
       this.selectedStationIds = []
       this.selectedEdgeId = null
+      this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
       this.recomputeStationLineMembership()
       this.statusText = `已加载工程: ${project.name}`
@@ -856,3 +1109,4 @@ export const useProjectStore = defineStore('project', {
     },
   },
 })
+

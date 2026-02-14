@@ -2,11 +2,100 @@
   font-family: 'Source Han Sans SC', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
   line-height: 1.4;
   font-weight: 400;
-  color: #0f172a;
-  background-color: #f1f5f9;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark;
+
+  --app-bg: #060b14;
+  --app-shell-gradient: linear-gradient(144deg, #0a1323 0%, #0c1628 45%, #101d31 100%);
+  --app-text: #e4edf8;
+  --workspace-bg: #0a1220;
+
+  --toolbar-bg: #0a1220;
+  --toolbar-header-bg: rgba(14, 24, 40, 0.88);
+  --toolbar-border: #27354b;
+  --toolbar-card-bg: #111c2e;
+  --toolbar-card-border: #2a3c55;
+  --toolbar-text: #e5eefb;
+  --toolbar-muted: #9ab2ce;
+  --toolbar-status: #c8f6da;
+  --toolbar-hint: #95c9ff;
+  --toolbar-input-bg: #0b1526;
+  --toolbar-input-border: #334865;
+  --toolbar-input-text: #eff6ff;
+  --toolbar-scrollbar-thumb: #405777;
+  --toolbar-divider: #334865;
+  --toolbar-tab-bg: #0d182b;
+  --toolbar-tab-active-bg: #1f3559;
+  --toolbar-tab-active-border: #4f79b1;
+  --toolbar-tab-active-text: #f8fbff;
+  --toolbar-button-bg: #13243b;
+  --toolbar-button-border: #3b5577;
+  --toolbar-button-text: #e7f0ff;
+  --toolbar-button-hover-border: #7696bf;
+  --toolbar-primary-bg: #1d4ed8;
+  --toolbar-primary-border: #2563eb;
+  --toolbar-danger-bg: #8d2430;
+  --toolbar-danger-border: #b53242;
+  --toolbar-active-bg: #0f5335;
+  --toolbar-active-border: #24c97b;
+  --toolbar-item-bg: #0c1728;
+
+  --workspace-panel-bg: #111a2c;
+  --workspace-panel-border: #2a3a53;
+  --workspace-panel-header-bg: #111b2f;
+  --workspace-panel-header-border: #2a3a53;
+  --workspace-panel-text: #e4edf8;
+  --workspace-panel-muted: #b0c1d6;
+  --workspace-canvas-bg: #0d1729;
+}
+
+:root[data-ui-theme='light'] {
+  color-scheme: light;
+
+  --app-bg: #ecf1f7;
+  --app-shell-gradient: linear-gradient(144deg, #e3ebf4 0%, #edf3f9 48%, #f6f9fc 100%);
+  --app-text: #0f172a;
+  --workspace-bg: #edf3fa;
+
+  --toolbar-bg: #edf3fa;
+  --toolbar-header-bg: rgba(255, 255, 255, 0.9);
+  --toolbar-border: #cfd9e6;
+  --toolbar-card-bg: #f8fbff;
+  --toolbar-card-border: #d3deec;
+  --toolbar-text: #0f1a2e;
+  --toolbar-muted: #54657f;
+  --toolbar-status: #0f6b43;
+  --toolbar-hint: #1d4b88;
+  --toolbar-input-bg: #ffffff;
+  --toolbar-input-border: #bfccdd;
+  --toolbar-input-text: #0f172a;
+  --toolbar-scrollbar-thumb: #a8b6c8;
+  --toolbar-divider: #d2deeb;
+  --toolbar-tab-bg: #ffffff;
+  --toolbar-tab-active-bg: #d7e7fb;
+  --toolbar-tab-active-border: #7aa7de;
+  --toolbar-tab-active-text: #11335d;
+  --toolbar-button-bg: #ffffff;
+  --toolbar-button-border: #b8c8dd;
+  --toolbar-button-text: #1a273a;
+  --toolbar-button-hover-border: #7093bd;
+  --toolbar-primary-bg: #2b67d8;
+  --toolbar-primary-border: #2b67d8;
+  --toolbar-danger-bg: #c94959;
+  --toolbar-danger-border: #bc3348;
+  --toolbar-active-bg: #1b8f5a;
+  --toolbar-active-border: #16784a;
+  --toolbar-item-bg: #ffffff;
+
+  --workspace-panel-bg: #ffffff;
+  --workspace-panel-border: #cfdae7;
+  --workspace-panel-header-bg: #f9fbfe;
+  --workspace-panel-header-border: #d8e2ee;
+  --workspace-panel-text: #0f172a;
+  --workspace-panel-muted: #334155;
+  --workspace-canvas-bg: #ecf1f5;
 }
 
 *,
@@ -18,10 +107,10 @@
 body {
   margin: 0;
   min-width: 320px;
-  background: #f8fafc;
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 #app {
   min-height: 100vh;
 }
-

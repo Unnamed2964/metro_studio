@@ -39,8 +39,9 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   height: 100vh;
   display: grid;
-  grid-template-columns: 360px 1fr;
-  background: linear-gradient(145deg, #e2e8f0, #f8fafc);
+  grid-template-columns: 392px 1fr;
+  background: var(--app-shell-gradient);
+  color: var(--app-text);
 }
 
 .workspace {
@@ -50,12 +51,19 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-snap-type: y mandatory;
+  background: var(--workspace-bg);
 }
 
 .workspace > * {
   min-height: 100vh;
   height: 100vh;
   scroll-snap-align: start;
+}
+
+@media (max-width: 1180px) {
+  .app {
+    grid-template-columns: 352px 1fr;
+  }
 }
 
 @media (max-width: 1060px) {

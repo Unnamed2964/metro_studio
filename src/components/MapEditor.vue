@@ -9,15 +9,20 @@ const mapContainer = ref(null)
 const contextFileInputRef = ref(null)
 let map = null
 let dragState = null
+let anchorDragState = null
 let suppressNextMapClick = false
 let scaleControl = null
 
 const LAYER_EDGES = 'railmap-edges'
 const LAYER_EDGES_HIT = 'railmap-edges-hit'
 const LAYER_EDGES_SELECTED = 'railmap-edges-selected'
+const LAYER_EDGE_ANCHORS = 'railmap-edge-anchors'
+const LAYER_EDGE_ANCHORS_HIT = 'railmap-edge-anchors-hit'
 const LAYER_STATIONS = 'railmap-stations-layer'
 const SOURCE_STATIONS = 'railmap-stations'
 const SOURCE_EDGES = 'railmap-edges'
+const SOURCE_EDGE_ANCHORS = 'railmap-edge-anchors'
+const CURVE_SEGMENTS_PER_SPAN = 14
 const LINE_STATUS_SET = new Set(['open', 'construction', 'proposed'])
 const LINE_STYLE_SET = new Set(['solid', 'dashed', 'dotted'])
 const selectionBox = reactive({
@@ -35,6 +40,7 @@ const contextMenu = reactive({
   lngLat: null,
   stationId: null,
   edgeId: null,
+  anchorIndex: null,
 })
 
 const stationCount = computed(() => store.project?.stations.length || 0)
@@ -52,7 +58,9 @@ const selectedStation = computed(() => {
   if (!store.project || !store.selectedStationId) return null
   return store.project.stations.find((station) => station.id === store.selectedStationId) || null
 })
-const hasSelection = computed(() => store.selectedStationIds.length > 0 || Boolean(store.selectedEdgeId))
+const hasSelection = computed(
+  () => store.selectedStationIds.length > 0 || Boolean(store.selectedEdgeId) || Boolean(store.selectedEdgeAnchor),
+)
 const allLines = computed(() => store.project?.lines || [])
 const selectionBoxStyle = computed(() => {
   const left = Math.min(selectionBox.startX, selectionBox.endX)
@@ -82,18 +90,25 @@ function closeContextMenu() {
   contextMenu.visible = false
   contextMenu.stationId = null
   contextMenu.edgeId = null
+  contextMenu.anchorIndex = null
   contextMenu.lngLat = null
 }
 
 function openContextMenu(event) {
   if (!mapContainer.value) return
   const point = event.point || { x: 0, y: 0 }
+  const anchors = map.queryRenderedFeatures(point, { layers: [LAYER_EDGE_ANCHORS_HIT] })
   const stations = map.queryRenderedFeatures(point, { layers: [LAYER_STATIONS] })
   const edges = map.queryRenderedFeatures(point, { layers: [LAYER_EDGES_HIT] })
 
+  const anchorEdgeId = anchors[0]?.properties?.edgeId || null
+  const anchorIndexRaw = anchors[0]?.properties?.anchorIndex
+  const anchorIndex = Number.isInteger(Number(anchorIndexRaw)) ? Number(anchorIndexRaw) : null
   const stationId = stations[0]?.properties?.id || null
-  const edgeId = edges[0]?.properties?.id || null
-  if (stationId) {
+  const edgeId = anchorEdgeId || edges[0]?.properties?.id || null
+  if (anchorEdgeId && anchorIndex != null) {
+    store.selectEdgeAnchor(anchorEdgeId, anchorIndex)
+  } else if (stationId) {
     store.setSelectedStations([stationId])
   } else if (edgeId) {
     store.selectEdge(edgeId)
@@ -109,6 +124,7 @@ function openContextMenu(event) {
   contextMenu.y = y
   contextMenu.stationId = stationId
   contextMenu.edgeId = edgeId
+  contextMenu.anchorIndex = anchorIndex
   contextMenu.lngLat = [event.lngLat.lng, event.lngLat.lat]
   contextMenu.visible = true
 }
@@ -168,6 +184,25 @@ function deleteSelectedEdgeFromContext() {
   if (!store.selectedEdgeId) return
   if (!window.confirm('确认删除当前选中线段吗？')) return
   store.deleteSelectedEdge()
+  closeContextMenu()
+}
+
+function addEdgeAnchorFromContext() {
+  if (!contextMenu.edgeId || !contextMenu.lngLat) return
+  store.addEdgeAnchor(contextMenu.edgeId, [...contextMenu.lngLat])
+  closeContextMenu()
+}
+
+function removeEdgeAnchorFromContext() {
+  if (!contextMenu.edgeId || contextMenu.anchorIndex == null) return
+  store.removeEdgeAnchor(contextMenu.edgeId, contextMenu.anchorIndex)
+  closeContextMenu()
+}
+
+function clearSelectedEdgeAnchorsFromContext() {
+  if (!store.selectedEdgeId) return
+  if (!window.confirm('确认清空当前线段全部锚点吗？')) return
+  store.clearEdgeAnchors(store.selectedEdgeId)
   closeContextMenu()
 }
 
@@ -694,6 +729,29 @@ function ensureMapLayers() {
     })
   }
 
+  if (!map.getLayer(LAYER_EDGES_SELECTED)) {
+    const selectedLayerConfig = {
+      id: LAYER_EDGES_SELECTED,
+      type: 'line',
+      source: SOURCE_EDGES,
+      filter: ['==', ['get', 'id'], ''],
+      paint: {
+        'line-color': '#F8FAFC',
+        'line-width': 8.5,
+        'line-opacity': 0.96,
+      },
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+    }
+    if (map.getLayer(LAYER_EDGES)) {
+      map.addLayer(selectedLayerConfig, LAYER_EDGES)
+    } else {
+      map.addLayer(selectedLayerConfig)
+    }
+  }
+
   if (!map.getLayer(LAYER_EDGES)) {
     map.addLayer({
       id: LAYER_EDGES,
@@ -719,25 +777,35 @@ function ensureMapLayers() {
     })
   }
 
-  if (!map.getLayer(LAYER_EDGES_SELECTED)) {
+  updateSelectedEdgeFilter()
+
+  if (!map.getLayer(LAYER_EDGE_ANCHORS_HIT)) {
     map.addLayer({
-      id: LAYER_EDGES_SELECTED,
-      type: 'line',
-      source: SOURCE_EDGES,
-      filter: ['==', ['get', 'id'], ''],
+      id: LAYER_EDGE_ANCHORS_HIT,
+      type: 'circle',
+      source: SOURCE_EDGE_ANCHORS,
       paint: {
-        'line-color': '#F8FAFC',
-        'line-width': 8.5,
-        'line-opacity': 0.96,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
+        'circle-radius': 12,
+        'circle-color': '#000000',
+        'circle-opacity': 0.001,
       },
     })
   }
 
-  updateSelectedEdgeFilter()
+  if (!map.getLayer(LAYER_EDGE_ANCHORS)) {
+    map.addLayer({
+      id: LAYER_EDGE_ANCHORS,
+      type: 'circle',
+      source: SOURCE_EDGE_ANCHORS,
+      paint: {
+        'circle-radius': ['case', ['==', ['get', 'isSelected'], true], 6, 5],
+        'circle-color': ['case', ['==', ['get', 'isSelected'], true], '#F97316', '#38BDF8'],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': '#082F49',
+        'circle-opacity': 0.95,
+      },
+    })
+  }
 
   if (!map.getLayer(LAYER_STATIONS)) {
     map.addLayer({
@@ -805,6 +873,13 @@ function ensureSources() {
     })
   }
 
+  if (!map.getSource(SOURCE_EDGE_ANCHORS)) {
+    map.addSource(SOURCE_EDGE_ANCHORS, {
+      type: 'geojson',
+      data: buildEdgeAnchorsGeoJson(),
+    })
+  }
+
   if (!map.getSource('jinan-boundary')) {
     map.addSource('jinan-boundary', {
       type: 'geojson',
@@ -852,6 +927,81 @@ function buildBoundaryGeoJson() {
   }
 }
 
+function cloneLngLat(point) {
+  if (!Array.isArray(point) || point.length !== 2) return null
+  const lng = Number(point[0])
+  const lat = Number(point[1])
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
+  return [lng, lat]
+}
+
+function distanceSquared(a, b) {
+  if (!a || !b) return Number.POSITIVE_INFINITY
+  const dx = a[0] - b[0]
+  const dy = a[1] - b[1]
+  return dx * dx + dy * dy
+}
+
+function resolveEdgeWaypointsForRender(edge, stationMap) {
+  if (!edge) return []
+  const fromStation = stationMap.get(edge.fromStationId)
+  const toStation = stationMap.get(edge.toStationId)
+  const from = cloneLngLat(fromStation?.lngLat)
+  const to = cloneLngLat(toStation?.lngLat)
+  if (!from || !to) return []
+
+  const rawWaypoints =
+    Array.isArray(edge.waypoints) && edge.waypoints.length >= 2
+      ? edge.waypoints.map((point) => cloneLngLat(point)).filter(Boolean)
+      : [from, to]
+  if (rawWaypoints.length < 2) {
+    return [from, to]
+  }
+
+  const directError =
+    distanceSquared(rawWaypoints[0], from) + distanceSquared(rawWaypoints[rawWaypoints.length - 1], to)
+  const reverseError =
+    distanceSquared(rawWaypoints[0], to) + distanceSquared(rawWaypoints[rawWaypoints.length - 1], from)
+  const orderedWaypoints = reverseError < directError ? [...rawWaypoints].reverse() : rawWaypoints
+  orderedWaypoints[0] = from
+  orderedWaypoints[orderedWaypoints.length - 1] = to
+  return orderedWaypoints
+}
+
+function buildCurveFromWaypoints(points, segmentCount = CURVE_SEGMENTS_PER_SPAN) {
+  if (!Array.isArray(points) || points.length < 3) return points || []
+  const result = [points[0]]
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[Math.max(0, i - 1)]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[Math.min(points.length - 1, i + 2)]
+    const [x0, y0] = p0
+    const [x1, y1] = p1
+    const [x2, y2] = p2
+    const [x3, y3] = p3
+    for (let j = 1; j <= segmentCount; j += 1) {
+      const t = j / segmentCount
+      const t2 = t * t
+      const t3 = t2 * t
+      const x =
+        0.5 *
+        ((2 * x1) +
+          (-x0 + x2) * t +
+          (2 * x0 - 5 * x1 + 4 * x2 - x3) * t2 +
+          (-x0 + 3 * x1 - 3 * x2 + x3) * t3)
+      const y =
+        0.5 *
+        ((2 * y1) +
+          (-y0 + y2) * t +
+          (2 * y0 - 5 * y1 + 4 * y2 - y3) * t2 +
+          (-y0 + 3 * y1 - 3 * y2 + y3) * t3)
+      result.push([x, y])
+    }
+  }
+  return result
+}
+
 function buildStationsGeoJson() {
   const stations = store.project?.stations || []
   const selectedStationSet = new Set(store.selectedStationIds || [])
@@ -885,13 +1035,10 @@ function buildEdgesGeoJson() {
     features: edges
       .map((edge) => {
         const line = lines.get(edge.sharedByLineIds[0])
-        const fallback = []
-        const fromStation = stations.get(edge.fromStationId)
-        const toStation = stations.get(edge.toStationId)
-        if (fromStation) fallback.push(fromStation.lngLat)
-        if (toStation) fallback.push(toStation.lngLat)
-        const coordinates = edge.waypoints?.length >= 2 ? edge.waypoints : fallback
-        if (coordinates.length < 2) return null
+        const linearWaypoints = resolveEdgeWaypointsForRender(edge, stations)
+        if (linearWaypoints.length < 2) return null
+        const shouldSmooth = Boolean(edge?.isCurved) && linearWaypoints.length >= 3 && linearWaypoints.length <= 20
+        const coordinates = shouldSmooth ? buildCurveFromWaypoints(linearWaypoints) : linearWaypoints
         return {
           type: 'Feature',
           geometry: {
@@ -903,6 +1050,7 @@ function buildEdgesGeoJson() {
             color: line?.color || '#2563EB',
             lineStyle: line?.style || 'solid',
             sharedCount: edge.sharedByLineIds.length,
+            hasAnchors: Boolean(edge?.isCurved) && linearWaypoints.length > 2,
           },
         }
       })
@@ -910,15 +1058,71 @@ function buildEdgesGeoJson() {
   }
 }
 
+function buildEdgeAnchorsGeoJson() {
+  const selectedEdgeId = store.selectedEdgeId
+  if (!selectedEdgeId) {
+    return {
+      type: 'FeatureCollection',
+      features: [],
+    }
+  }
+  const edge = (store.project?.edges || []).find((item) => item.id === selectedEdgeId)
+  if (!edge) {
+    return {
+      type: 'FeatureCollection',
+      features: [],
+    }
+  }
+  if (!edge.isCurved) {
+    return {
+      type: 'FeatureCollection',
+      features: [],
+    }
+  }
+  const stationMap = new Map((store.project?.stations || []).map((station) => [station.id, station]))
+  const waypoints = resolveEdgeWaypointsForRender(edge, stationMap)
+  if (waypoints.length < 3) {
+    return {
+      type: 'FeatureCollection',
+      features: [],
+    }
+  }
+  const selectedAnchor = store.selectedEdgeAnchor
+  const features = []
+  for (let i = 1; i < waypoints.length - 1; i += 1) {
+    features.push({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: waypoints[i],
+      },
+      properties: {
+        id: `${edge.id}_${i}`,
+        edgeId: edge.id,
+        anchorIndex: i,
+        isSelected: selectedAnchor?.edgeId === edge.id && selectedAnchor?.anchorIndex === i,
+      },
+    })
+  }
+  return {
+    type: 'FeatureCollection',
+    features,
+  }
+}
+
 function updateMapData() {
   if (!map) return
   const stationSource = map.getSource(SOURCE_STATIONS)
   const edgeSource = map.getSource(SOURCE_EDGES)
+  const anchorSource = map.getSource(SOURCE_EDGE_ANCHORS)
   if (stationSource) {
     stationSource.setData(buildStationsGeoJson())
   }
   if (edgeSource) {
     edgeSource.setData(buildEdgesGeoJson())
+  }
+  if (anchorSource) {
+    anchorSource.setData(buildEdgeAnchorsGeoJson())
   }
   updateSelectedEdgeFilter()
 }
@@ -951,6 +1155,16 @@ function handleEdgeClick(event) {
   store.selectEdge(edgeId, { keepStationSelection })
 }
 
+function handleEdgeAnchorClick(event) {
+  closeContextMenu()
+  if (store.mode !== 'select') return
+  const edgeId = event.features?.[0]?.properties?.edgeId
+  const anchorIndexRaw = event.features?.[0]?.properties?.anchorIndex
+  const anchorIndex = Number(anchorIndexRaw)
+  if (!edgeId || !Number.isInteger(anchorIndex)) return
+  store.selectEdgeAnchor(edgeId, anchorIndex)
+}
+
 function handleMapClick(event) {
   closeContextMenu()
   if (!map) return
@@ -958,8 +1172,10 @@ function handleMapClick(event) {
     suppressNextMapClick = false
     return
   }
+  const hitAnchors = map.queryRenderedFeatures(event.point, { layers: [LAYER_EDGE_ANCHORS_HIT] })
   const hitStations = map.queryRenderedFeatures(event.point, { layers: [LAYER_STATIONS] })
   const hitEdges = map.queryRenderedFeatures(event.point, { layers: [LAYER_EDGES_HIT] })
+  if (hitAnchors.length) return
   if (hitStations.length) return
   if (hitEdges.length) return
   if (store.mode === 'add-station') {
@@ -1004,10 +1220,33 @@ function startStationDrag(event) {
   map.dragPan.disable()
 }
 
+function startEdgeAnchorDrag(event) {
+  closeContextMenu()
+  if (store.mode !== 'select') return
+  const edgeId = event.features?.[0]?.properties?.edgeId
+  const anchorIndexRaw = event.features?.[0]?.properties?.anchorIndex
+  const anchorIndex = Number(anchorIndexRaw)
+  if (!edgeId || !Number.isInteger(anchorIndex)) return
+
+  store.selectEdgeAnchor(edgeId, anchorIndex)
+  anchorDragState = {
+    edgeId,
+    anchorIndex,
+  }
+  map.getCanvas().style.cursor = 'grabbing'
+  map.dragPan.disable()
+  suppressNextMapClick = true
+}
+
 function onMouseMove(event) {
   if (selectionBox.active) {
     selectionBox.endX = event.point.x
     selectionBox.endY = event.point.y
+  }
+
+  if (anchorDragState) {
+    store.updateEdgeAnchor(anchorDragState.edgeId, anchorDragState.anchorIndex, [event.lngLat.lng, event.lngLat.lat])
+    return
   }
 
   if (!dragState) return
@@ -1042,10 +1281,17 @@ function stopStationDrag() {
     map.dragPan.enable()
   }
 
-  if (!dragState) return
-  dragState = null
-  map.getCanvas().style.cursor = ''
-  map.dragPan.enable()
+  if (anchorDragState) {
+    anchorDragState = null
+    map.getCanvas().style.cursor = ''
+    map.dragPan.enable()
+  }
+
+  if (dragState) {
+    dragState = null
+    map.getCanvas().style.cursor = ''
+    map.dragPan.enable()
+  }
 }
 
 function startBoxSelection(event) {
@@ -1057,8 +1303,10 @@ function startBoxSelection(event) {
   const modifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
   if (!modifier) return
 
+  const hitAnchors = map.queryRenderedFeatures(event.point, { layers: [LAYER_EDGE_ANCHORS_HIT] })
   const hitStations = map.queryRenderedFeatures(event.point, { layers: [LAYER_STATIONS] })
   const hitEdges = map.queryRenderedFeatures(event.point, { layers: [LAYER_EDGES_HIT] })
+  if (hitAnchors.length) return
   if (hitStations.length) return
   if (hitEdges.length) return
 
@@ -1073,12 +1321,12 @@ function startBoxSelection(event) {
 }
 
 function onInteractiveFeatureEnter() {
-  if (!map || selectionBox.active || dragState) return
+  if (!map || selectionBox.active || dragState || anchorDragState) return
   map.getCanvas().style.cursor = 'pointer'
 }
 
 function onInteractiveFeatureLeave() {
-  if (!map || selectionBox.active || dragState) return
+  if (!map || selectionBox.active || dragState || anchorDragState) return
   map.getCanvas().style.cursor = ''
 }
 
@@ -1101,6 +1349,12 @@ function handleWindowKeyDown(event) {
   }
 
   if (event.key !== 'Delete' && event.key !== 'Backspace') return
+
+  if (store.selectedEdgeAnchor) {
+    event.preventDefault()
+    store.removeSelectedEdgeAnchor()
+    return
+  }
 
   if (store.selectedStationIds.length) {
     event.preventDefault()
@@ -1147,10 +1401,14 @@ onMounted(() => {
     map.on('click', LAYER_STATIONS, handleStationClick)
     map.on('mousedown', LAYER_STATIONS, startStationDrag)
     map.on('click', LAYER_EDGES_HIT, handleEdgeClick)
+    map.on('click', LAYER_EDGE_ANCHORS_HIT, handleEdgeAnchorClick)
+    map.on('mousedown', LAYER_EDGE_ANCHORS_HIT, startEdgeAnchorDrag)
     map.on('mouseenter', LAYER_STATIONS, onInteractiveFeatureEnter)
     map.on('mouseleave', LAYER_STATIONS, onInteractiveFeatureLeave)
     map.on('mouseenter', LAYER_EDGES_HIT, onInteractiveFeatureEnter)
     map.on('mouseleave', LAYER_EDGES_HIT, onInteractiveFeatureLeave)
+    map.on('mouseenter', LAYER_EDGE_ANCHORS_HIT, onInteractiveFeatureEnter)
+    map.on('mouseleave', LAYER_EDGE_ANCHORS_HIT, onInteractiveFeatureLeave)
   })
 
   map.on('click', handleMapClick)
@@ -1180,6 +1438,7 @@ watch(
     selectedStationId: store.selectedStationId,
     selectedStationIds: store.selectedStationIds,
     selectedEdgeId: store.selectedEdgeId,
+    selectedEdgeAnchor: store.selectedEdgeAnchor,
     boundary: store.regionBoundary,
   }),
   () => {
@@ -1226,6 +1485,7 @@ watch(
           <p class="map-editor__context-meta">模式: {{ store.mode }} | 已选: {{ hasSelection ? '是' : '否' }}</p>
           <p v-if="contextMenu.stationId" class="map-editor__context-meta">目标站点: {{ contextMenu.stationId }}</p>
           <p v-if="contextMenu.edgeId" class="map-editor__context-meta">目标线段: {{ contextMenu.edgeId }}</p>
+          <p v-if="contextMenu.anchorIndex != null" class="map-editor__context-meta">目标锚点序号: {{ contextMenu.anchorIndex }}</p>
           <p v-if="contextMenu.lngLat" class="map-editor__context-meta">
             坐标: {{ contextMenu.lngLat[0].toFixed(6) }}, {{ contextMenu.lngLat[1].toFixed(6) }}
           </p>
@@ -1257,6 +1517,13 @@ watch(
             </div>
             <div class="map-editor__context-row">
               <button @click="deleteSelectedEdgeFromContext" :disabled="!store.selectedEdgeId">删除选中线段</button>
+              <button @click="addEdgeAnchorFromContext" :disabled="!contextMenu.edgeId || !contextMenu.lngLat">在线段加锚点</button>
+              <button @click="removeEdgeAnchorFromContext" :disabled="contextMenu.anchorIndex == null || !contextMenu.edgeId">
+                删除锚点
+              </button>
+            </div>
+            <div class="map-editor__context-row">
+              <button @click="clearSelectedEdgeAnchorsFromContext" :disabled="!store.selectedEdgeId">清空当前线段锚点</button>
             </div>
           </div>
 
@@ -1314,16 +1581,16 @@ watch(
         </div>
       </div>
 
-      <p class="map-editor__hint">Shift/Ctrl/⌘ + 拖拽框选 | Delete 删除选中 | Ctrl/Cmd+A 全选站点</p>
+      <p class="map-editor__hint">Shift/Ctrl/⌘ + 拖拽框选 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点</p>
     </div>
   </section>
 </template>
 
 <style scoped>
 .map-editor {
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--workspace-panel-border);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--workspace-panel-bg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1335,18 +1602,21 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--workspace-panel-header-border);
+  background: var(--workspace-panel-header-bg);
+  color: var(--workspace-panel-text);
 }
 
 .map-editor__header h2 {
   margin: 0;
   font-size: 16px;
+  color: var(--workspace-panel-text);
 }
 
 .map-editor__stats {
   display: flex;
   gap: 12px;
-  color: #334155;
+  color: var(--workspace-panel-muted);
   font-size: 12px;
 }
 

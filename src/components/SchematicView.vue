@@ -227,9 +227,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .schematic-view {
-  border: 1px solid #d3dbe2;
+  border: 1px solid var(--workspace-panel-border);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--workspace-panel-bg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -241,26 +241,29 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--workspace-panel-header-border);
+  background: var(--workspace-panel-header-bg);
+  color: var(--workspace-panel-text);
 }
 
 .schematic-view__header h2 {
   margin: 0;
   font-size: 16px;
+  color: var(--workspace-panel-text);
 }
 
 .schematic-view__stats {
   display: flex;
   gap: 10px;
   font-size: 12px;
-  color: #334155;
+  color: var(--workspace-panel-muted);
 }
 
 .schematic-view__canvas {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #eef2f4;
+  background: var(--workspace-canvas-bg);
   user-select: none;
   cursor: default;
 }
