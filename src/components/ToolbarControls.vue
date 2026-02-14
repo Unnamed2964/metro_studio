@@ -4,6 +4,13 @@ import { getDisplayLineName } from '../lib/lineNaming'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
+const props = defineProps({
+  collapsed: {
+    type: Boolean,
+    default: false,
+  },
+})
+const emit = defineEmits(['toggle-collapse'])
 
 const THEME_STORAGE_KEY = 'railmap_ui_theme'
 const TAB_OPTIONS = [
@@ -48,6 +55,10 @@ const selectedStationCount = computed(() => store.selectedStationIds.length)
 const exportStationVisibilityMode = computed({
   get: () => store.exportStationVisibilityMode || 'all',
   set: (value) => store.setExportStationVisibilityMode(value),
+})
+const layoutGeoSeedScale = computed({
+  get: () => Number(store.project?.layoutConfig?.geoSeedScale ?? 6),
+  set: (value) => store.setLayoutGeoSeedScale(value),
 })
 const currentProjectId = computed(() => store.project?.id || '')
 const filteredProjectOptions = computed(() => {
@@ -290,23 +301,36 @@ onMounted(async () => {
 </script>
 
 <template>
-  <aside class="toolbar">
+  <aside class="toolbar" :class="{ 'toolbar--collapsed': props.collapsed }">
     <section class="toolbar__section toolbar__section--header">
-      <div class="toolbar__brand">
-        <h1>RailMap</h1>
-        <p class="toolbar__subtitle">济南地铁图生成与编辑</p>
+      <div class="toolbar__header-top">
+        <div class="toolbar__brand">
+          <h1>{{ props.collapsed ? 'RM' : 'RailMap' }}</h1>
+          <p v-if="!props.collapsed" class="toolbar__subtitle">济南地铁图生成与编辑</p>
+        </div>
+        <button
+          class="toolbar__collapse-btn"
+          type="button"
+          :aria-label="props.collapsed ? '展开侧边栏' : '收起侧边栏'"
+          :title="props.collapsed ? '展开侧边栏' : '收起侧边栏'"
+          @click="emit('toggle-collapse')"
+        >
+          {{ props.collapsed ? '»' : '«' }}
+        </button>
       </div>
 
-      <div class="toolbar__theme-switch" role="group" aria-label="界面主题">
-        <button class="toolbar__theme-btn" :class="{ active: uiTheme === 'light' }" @click="applyUiTheme('light')">日间</button>
-        <button class="toolbar__theme-btn" :class="{ active: uiTheme === 'dark' }" @click="applyUiTheme('dark')">夜间</button>
-      </div>
+      <template v-if="!props.collapsed">
+        <div class="toolbar__theme-switch" role="group" aria-label="界面主题">
+          <button class="toolbar__theme-btn" :class="{ active: uiTheme === 'light' }" @click="applyUiTheme('light')">日间</button>
+          <button class="toolbar__theme-btn" :class="{ active: uiTheme === 'dark' }" @click="applyUiTheme('dark')">夜间</button>
+        </div>
 
-      <p class="toolbar__status">{{ store.statusText }}</p>
-      <p class="toolbar__hint">当前工程 ID: {{ currentProjectId || '-' }}</p>
+        <p class="toolbar__status">{{ store.statusText }}</p>
+        <p class="toolbar__hint">当前工程 ID: {{ currentProjectId || '-' }}</p>
+      </template>
     </section>
 
-    <nav class="toolbar__tabs" aria-label="侧边栏功能选项卡">
+    <nav v-if="!props.collapsed" class="toolbar__tabs" aria-label="侧边栏功能选项卡">
       <button
         v-for="tab in TAB_OPTIONS"
         :key="tab.key"
@@ -318,7 +342,7 @@ onMounted(async () => {
       </button>
     </nav>
 
-    <div class="toolbar__content">
+    <div v-if="!props.collapsed" class="toolbar__content">
       <template v-if="activeTab === 'project'">
         <section class="toolbar__section">
           <h3>工程管理器</h3>
@@ -401,8 +425,13 @@ onMounted(async () => {
             <button class="toolbar__btn" :class="{ active: store.mode === 'add-edge' }" @click="store.setMode('add-edge')">
               拉线
             </button>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'route-draw' }" @click="store.setMode('route-draw')">
+              连续布线
+            </button>
           </div>
-          <p class="toolbar__hint">提示: Shift/Ctrl/⌘ + 拖拽空白区域可框选；Delete 删除，Ctrl/Cmd+A 全选，Esc 清空。</p>
+          <p class="toolbar__hint">
+            提示: 连续布线模式下从首点开始，后续每次点击都会继续连线；Esc 可取消待连接起点。
+          </p>
           <div class="toolbar__row">
             <span class="toolbar__meta">已选站点: {{ selectedStationCount }}</span>
             <span class="toolbar__meta">已选线段: {{ selectedEdge ? 1 : 0 }}</span>
@@ -411,6 +440,20 @@ onMounted(async () => {
             <button class="toolbar__btn" @click="selectAllStations">全选站点</button>
             <button class="toolbar__btn" @click="store.clearSelection()">清空选择</button>
           </div>
+          <label class="toolbar__label">地理种子缩放（geoSeedScale）</label>
+          <div class="toolbar__range-row">
+            <input
+              v-model.number="layoutGeoSeedScale"
+              class="toolbar__range"
+              type="range"
+              min="0.1"
+              max="16"
+              step="0.1"
+              :disabled="!store.project || store.isLayoutRunning"
+            />
+            <span class="toolbar__range-value">{{ layoutGeoSeedScale.toFixed(1) }}</span>
+          </div>
+          <p class="toolbar__hint">值越大，初始地理骨架展开越明显。</p>
           <button
             class="toolbar__btn toolbar__btn--primary"
             :disabled="store.isLayoutRunning || !store.project?.stations?.length"
@@ -554,6 +597,10 @@ onMounted(async () => {
         </section>
       </template>
     </div>
+    <div v-else class="toolbar__collapsed-body">
+      <p class="toolbar__hint">侧栏已收起</p>
+      <button class="toolbar__btn toolbar__btn--small" type="button" @click="emit('toggle-collapse')">展开</button>
+    </div>
   </aside>
 </template>
 
@@ -568,6 +615,17 @@ onMounted(async () => {
   flex-direction: column;
   gap: 10px;
   border-right: 1px solid var(--toolbar-border);
+}
+
+.toolbar--collapsed {
+  align-items: stretch;
+}
+
+.toolbar__header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .toolbar__content {
@@ -609,6 +667,17 @@ onMounted(async () => {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+}
+
+.toolbar__collapse-btn {
+  border: 1px solid var(--toolbar-input-border);
+  color: var(--toolbar-text);
+  background: var(--toolbar-input-bg);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .toolbar__section h1 {
@@ -710,6 +779,24 @@ onMounted(async () => {
   margin-bottom: 6px;
   font-size: 12px;
   color: var(--toolbar-hint);
+}
+
+.toolbar__range-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+.toolbar__range {
+  width: 100%;
+}
+
+.toolbar__range-value {
+  min-width: 34px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--toolbar-text);
 }
 
 .toolbar__row {
@@ -883,6 +970,12 @@ onMounted(async () => {
 
 .hidden {
   display: none;
+}
+
+.toolbar__collapsed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 @media (max-width: 1060px) {

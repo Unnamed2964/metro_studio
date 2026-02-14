@@ -332,8 +332,29 @@ export const useProjectStore = defineStore('project', {
 
     setMode(mode) {
       this.mode = mode
-      if (mode !== 'add-edge') {
+      if (mode !== 'add-edge' && mode !== 'route-draw') {
         this.pendingEdgeStartStationId = null
+      }
+    },
+
+    setLayoutGeoSeedScale(value) {
+      if (!this.project) return
+      const parsed = Number(value)
+      if (!Number.isFinite(parsed)) return
+      const normalized = Math.max(0.1, Math.min(16, parsed))
+      if (!this.project.layoutConfig || typeof this.project.layoutConfig !== 'object') {
+        this.project.layoutConfig = { geoSeedScale: normalized }
+      } else {
+        this.project.layoutConfig.geoSeedScale = normalized
+      }
+      this.touchProject('')
+    },
+
+    cancelPendingEdgeStart() {
+      if (!this.pendingEdgeStartStationId) return
+      this.pendingEdgeStartStationId = null
+      if (this.mode === 'add-edge' || this.mode === 'route-draw') {
+        this.statusText = '已取消待连接起点'
       }
     },
 
@@ -732,6 +753,12 @@ export const useProjectStore = defineStore('project', {
       if (!line) return
 
       const lineSet = new Set([lineId])
+      const affectedStationIdSet = new Set()
+      for (const edge of this.project.edges) {
+        if (!(edge.sharedByLineIds || []).some((id) => lineSet.has(id))) continue
+        affectedStationIdSet.add(edge.fromStationId)
+        affectedStationIdSet.add(edge.toStationId)
+      }
       this.project.lines = this.project.lines.filter((item) => item.id !== lineId)
 
       const nextEdges = []
@@ -766,6 +793,25 @@ export const useProjectStore = defineStore('project', {
         }
       }
       this.recomputeStationLineMembership()
+      const removableStationIdSet = new Set()
+      for (const station of this.project.stations) {
+        if (!affectedStationIdSet.has(station.id)) continue
+        if ((station.lineIds || []).length === 0) {
+          removableStationIdSet.add(station.id)
+        }
+      }
+      if (removableStationIdSet.size) {
+        this.project.stations = this.project.stations.filter((station) => !removableStationIdSet.has(station.id))
+        if (this.selectedStationId && removableStationIdSet.has(this.selectedStationId)) {
+          this.selectedStationId = null
+        }
+        if (this.selectedStationIds.length) {
+          this.selectedStationIds = this.selectedStationIds.filter((id) => !removableStationIdSet.has(id))
+        }
+        if (this.pendingEdgeStartStationId && removableStationIdSet.has(this.pendingEdgeStartStationId)) {
+          this.pendingEdgeStartStationId = null
+        }
+      }
       this.touchProject(`删除线路: ${line.nameZh}`)
     },
 
@@ -856,6 +902,21 @@ export const useProjectStore = defineStore('project', {
         }
         this.addEdgeBetweenStations(this.pendingEdgeStartStationId, stationId)
         this.pendingEdgeStartStationId = null
+        return
+      }
+      if (this.mode === 'route-draw') {
+        if (!this.pendingEdgeStartStationId) {
+          this.pendingEdgeStartStationId = stationId
+          this.statusText = '连续布线已开始：请继续点击下一个点'
+          return
+        }
+        if (this.pendingEdgeStartStationId === stationId) {
+          this.statusText = '已停留当前点，请点击其他点继续布线'
+          return
+        }
+        this.addEdgeBetweenStations(this.pendingEdgeStartStationId, stationId)
+        this.pendingEdgeStartStationId = stationId
+        this.statusText = '已连接并继续布线：请点击下一个点'
       }
     },
 
@@ -960,10 +1021,14 @@ export const useProjectStore = defineStore('project', {
       this.isLayoutRunning = true
       this.statusText = '正在执行自动排版...'
       try {
+        const geoSeedScale = Number(this.project.layoutConfig?.geoSeedScale)
         const result = await optimizeLayoutInWorker({
           stations: this.project.stations,
           edges: this.project.edges,
           lines: this.project.lines,
+          config: {
+            geoSeedScale: Number.isFinite(geoSeedScale) ? geoSeedScale : 6,
+          },
         })
         this.project.stations = result.stations
         this.project.layoutMeta = {

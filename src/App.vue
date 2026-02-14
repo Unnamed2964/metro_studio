@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import MapEditor from './components/MapEditor.vue'
 import SchematicView from './components/SchematicView.vue'
 import ToolbarControls from './components/ToolbarControls.vue'
@@ -7,13 +7,33 @@ import VehicleHudView from './components/VehicleHudView.vue'
 import { useProjectStore } from './stores/projectStore'
 
 const store = useProjectStore()
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'railmap_toolbar_collapsed'
+const sidebarCollapsed = ref(false)
 
 function handleBeforeUnload(event) {
   event.preventDefault()
   event.returnValue = ''
 }
 
+function loadSidebarCollapsedState() {
+  try {
+    sidebarCollapsed.value = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
+  } catch {
+    sidebarCollapsed.value = false
+  }
+}
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed.value ? '1' : '0')
+  } catch {
+    // Ignore unavailable localStorage runtime.
+  }
+}
+
 onMounted(async () => {
+  loadSidebarCollapsedState()
   window.addEventListener('beforeunload', handleBeforeUnload)
   await store.initialize()
 })
@@ -24,8 +44,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="app">
-    <ToolbarControls />
+  <main class="app" :class="{ 'app--sidebar-collapsed': sidebarCollapsed }">
+    <ToolbarControls :collapsed="sidebarCollapsed" @toggle-collapse="toggleSidebar" />
     <section class="workspace">
       <MapEditor />
       <SchematicView />
@@ -39,9 +59,14 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   height: 100vh;
   display: grid;
-  grid-template-columns: 392px 1fr;
+  grid-template-columns: var(--sidebar-width, 392px) 1fr;
   background: var(--app-shell-gradient);
   color: var(--app-text);
+  transition: grid-template-columns 0.2s ease;
+}
+
+.app--sidebar-collapsed {
+  --sidebar-width: 72px;
 }
 
 .workspace {
@@ -62,7 +87,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1180px) {
   .app {
-    grid-template-columns: 352px 1fr;
+    --sidebar-width: 352px;
+  }
+
+  .app--sidebar-collapsed {
+    --sidebar-width: 64px;
   }
 }
 

@@ -966,6 +966,10 @@ function handleStationClick(event) {
   closeContextMenu()
   const stationId = event.features?.[0]?.properties?.id
   if (!stationId) return
+  if (store.mode === 'route-draw') {
+    store.selectStation(stationId)
+    return
+  }
   const mouseEvent = event.originalEvent
   const isMultiModifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
   store.selectStation(stationId, {
@@ -1009,6 +1013,13 @@ function handleMapClick(event) {
   if (hitEdges.length) return
   if (store.mode === 'add-station') {
     store.addStationAt([event.lngLat.lng, event.lngLat.lat])
+    return
+  }
+  if (store.mode === 'route-draw') {
+    const station = store.addStationAt([event.lngLat.lng, event.lngLat.lat])
+    if (station?.id) {
+      store.selectStation(station.id)
+    }
     return
   }
   if (store.mode === 'select') {
@@ -1173,6 +1184,7 @@ function handleWindowKeyDown(event) {
       closeContextMenu()
       return
     }
+    store.cancelPendingEdgeStart()
     store.clearSelection()
     return
   }
@@ -1324,6 +1336,7 @@ watch(
               <button @click="setModeFromContext('select')">选择/拖拽</button>
               <button @click="setModeFromContext('add-station')">点站</button>
               <button @click="setModeFromContext('add-edge')">拉线</button>
+              <button @click="setModeFromContext('route-draw')">连续布线</button>
             </div>
           </div>
 
@@ -1369,7 +1382,9 @@ watch(
         </div>
       </div>
 
-      <p class="map-editor__hint">Shift/Ctrl/⌘ + 拖拽框选 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点</p>
+      <p class="map-editor__hint">
+        Shift/Ctrl/⌘ + 拖拽框选 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Esc 取消待连接起点
+      </p>
     </div>
   </section>
 </template>

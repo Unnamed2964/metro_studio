@@ -55,6 +55,7 @@ export const JINAN_RELATION_ID = 3486449
  * @property {RailLine[]} lines
  * @property {Array<{createdAt: string, score: number, breakdown: Record<string, number>}>} snapshots
  * @property {{stationLabels: Record<string, {dx:number,dy:number,anchor:string}>, edgeDirections: Record<string, number>}} layoutMeta
+ * @property {{geoSeedScale: number}} layoutConfig
  * @property {{createdAt: string, updatedAt: string}} meta
  */
 
@@ -94,6 +95,9 @@ export function createEmptyProject(name = '新建工程') {
       stationLabels: {},
       edgeDirections: {},
     },
+    layoutConfig: {
+      geoSeedScale: 6,
+    },
     meta: {
       createdAt: now,
       updatedAt: now,
@@ -132,6 +136,14 @@ export function normalizeProject(raw) {
                 : {},
           }
         : base.layoutMeta,
+    layoutConfig:
+      raw?.layoutConfig && typeof raw.layoutConfig === 'object'
+        ? {
+            geoSeedScale: Number.isFinite(Number(raw.layoutConfig.geoSeedScale))
+              ? Math.max(0.1, Number(raw.layoutConfig.geoSeedScale))
+              : base.layoutConfig.geoSeedScale,
+          }
+        : base.layoutConfig,
     meta: {
       ...base.meta,
       ...(raw?.meta || {}),

@@ -112,6 +112,19 @@ function toSerializableProject(project) {
       score: toFiniteNumber(snapshot.score, 0),
       breakdown: toSerializableBreakdown(snapshot.breakdown),
     })),
+    layoutMeta: {
+      stationLabels:
+        normalized.layoutMeta && typeof normalized.layoutMeta.stationLabels === 'object'
+          ? JSON.parse(JSON.stringify(normalized.layoutMeta.stationLabels))
+          : {},
+      edgeDirections:
+        normalized.layoutMeta && typeof normalized.layoutMeta.edgeDirections === 'object'
+          ? JSON.parse(JSON.stringify(normalized.layoutMeta.edgeDirections))
+          : {},
+    },
+    layoutConfig: {
+      geoSeedScale: toFiniteNumber(normalized.layoutConfig?.geoSeedScale, 6),
+    },
     meta: {
       createdAt: String(normalized.meta?.createdAt || new Date().toISOString()),
       updatedAt: String(normalized.meta?.updatedAt || new Date().toISOString()),
