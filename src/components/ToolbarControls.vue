@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { getDisplayLineName } from '../lib/lineNaming'
+import { LINE_STYLE_OPTIONS, normalizeLineStyle } from '../lib/lineStyles'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
@@ -14,11 +15,17 @@ const emit = defineEmits(['toggle-collapse'])
 
 const THEME_STORAGE_KEY = 'railmap_ui_theme'
 const TAB_OPTIONS = [
-  { key: 'project', label: '工程' },
-  { key: 'edit', label: '编辑' },
-  { key: 'line', label: '线路' },
-  { key: 'export', label: '导出' },
+  { key: 'project', label: '项目与数据' },
+  { key: 'workflow', label: '绘制流程' },
+  { key: 'object', label: '对象属性' },
+  { key: 'publish', label: '发布导出' },
 ]
+const MODE_LABELS = {
+  select: '选择/拖拽',
+  'add-station': '点站',
+  'add-edge': '拉线',
+  'route-draw': '连续布线',
+}
 
 const activeTab = ref('project')
 const uiTheme = ref('dark')
@@ -97,6 +104,33 @@ const selectedEdgeLines = computed(() => {
   if (!selectedEdge.value || !store.project) return []
   const lineMap = new Map(store.project.lines.map((line) => [line.id, line]))
   return (selectedEdge.value.sharedByLineIds || []).map((lineId) => lineMap.get(lineId)).filter(Boolean)
+})
+const activeModeLabel = computed(() => MODE_LABELS[store.mode] || store.mode)
+const activeObjectLabel = computed(() => {
+  if (store.selectedEdgeAnchor) return '锚点'
+  if (selectedEdge.value) return '线段'
+  if (selectedStationCount.value === 1 && selectedStation.value) return '站点'
+  if (selectedStationCount.value > 1) return `多站点（${selectedStationCount.value}）`
+  if (activeLine.value) return '线路'
+  return '无'
+})
+const contextSummary = computed(() => {
+  if (store.selectedEdgeAnchor) {
+    return `锚点 ${store.selectedEdgeAnchor.anchorIndex}（线段 ${store.selectedEdgeAnchor.edgeId}）`
+  }
+  if (selectedEdge.value) {
+    return `线段 ${selectedEdge.value.id}`
+  }
+  if (selectedStationCount.value === 1 && selectedStation.value) {
+    return selectedStation.value.nameZh || selectedStation.value.id
+  }
+  if (selectedStationCount.value > 1) {
+    return `已选 ${selectedStationCount.value} 个站点`
+  }
+  if (activeLine.value) {
+    return `当前线路：${displayLineName(activeLine.value)}`
+  }
+  return '未选择对象'
 })
 
 function applyUiTheme(theme) {
@@ -279,7 +313,7 @@ watch(
     lineForm.nameEn = line?.nameEn || ''
     lineForm.color = line?.color || '#005BBB'
     lineForm.status = line?.status || 'open'
-    lineForm.style = line?.style || 'solid'
+    lineForm.style = normalizeLineStyle(line?.style)
     lineForm.isLoop = Boolean(line?.isLoop)
   },
   { immediate: true },
@@ -342,10 +376,20 @@ onMounted(async () => {
       </button>
     </nav>
 
+    <section v-if="!props.collapsed" class="toolbar__section toolbar__section--context">
+      <h3>当前上下文</h3>
+      <div class="toolbar__context-grid">
+        <p><span>编辑模式</span><strong>{{ activeModeLabel }}</strong></p>
+        <p><span>对象类型</span><strong>{{ activeObjectLabel }}</strong></p>
+        <p><span>对象摘要</span><strong>{{ contextSummary }}</strong></p>
+      </div>
+    </section>
+
     <div v-if="!props.collapsed" class="toolbar__content">
       <template v-if="activeTab === 'project'">
         <section class="toolbar__section">
-          <h3>工程管理器</h3>
+          <h3>工程管理</h3>
+          <p class="toolbar__section-intro">管理工程生命周期与本地版本。</p>
 
           <label class="toolbar__label">新建工程名</label>
           <input v-model="newProjectName" class="toolbar__input" placeholder="输入新工程名" />
@@ -397,7 +441,8 @@ onMounted(async () => {
         </section>
 
         <section class="toolbar__section">
-          <h3>OSM 导入</h3>
+          <h3>外部数据导入</h3>
+          <p class="toolbar__section-intro">控制 OSM 导入范围并生成当前工程基线。</p>
           <label class="toolbar__checkbox">
             <input v-model="store.includeConstruction" type="checkbox" />
             包含在建线路与车站
@@ -412,9 +457,10 @@ onMounted(async () => {
         </section>
       </template>
 
-      <template v-else-if="activeTab === 'edit'">
+      <template v-else-if="activeTab === 'workflow'">
         <section class="toolbar__section">
-          <h3>编辑模式</h3>
+          <h3>绘制流程</h3>
+          <p class="toolbar__section-intro">先选择编辑模式，再执行选择与排版控制。</p>
           <div class="toolbar__row">
             <button class="toolbar__btn" :class="{ active: store.mode === 'select' }" @click="store.setMode('select')">
               选择/拖拽
@@ -462,9 +508,12 @@ onMounted(async () => {
             {{ store.isLayoutRunning ? '排版中...' : '自动生成官方风' }}
           </button>
         </section>
+      </template>
 
+      <template v-else-if="activeTab === 'object'">
         <section class="toolbar__section">
-          <h3>车站编辑</h3>
+          <h3>站点属性</h3>
+          <p class="toolbar__section-intro">编辑当前选中站点，或对多站点做批量操作。</p>
           <template v-if="selectedStation && selectedStationCount === 1">
             <p class="toolbar__hint">当前站点 ID: {{ selectedStation.id }}</p>
             <input v-model="stationForm.nameZh" class="toolbar__input" placeholder="车站中文名" />
@@ -493,7 +542,8 @@ onMounted(async () => {
         </section>
 
         <section class="toolbar__section">
-          <h3>线段编辑</h3>
+          <h3>线段属性</h3>
+          <p class="toolbar__section-intro">查看线段连接关系和所属线路，执行线段级操作。</p>
           <template v-if="selectedEdge">
             <p class="toolbar__hint">线段 ID: {{ selectedEdge.id }}</p>
             <p class="toolbar__hint">
@@ -515,11 +565,10 @@ onMounted(async () => {
           </template>
           <p v-else class="toolbar__hint">在真实地图中点击线段可选中并删除。</p>
         </section>
-      </template>
 
-      <template v-else-if="activeTab === 'line'">
         <section class="toolbar__section">
-          <h3>线路</h3>
+          <h3>线路属性</h3>
+          <p class="toolbar__section-intro">管理线路对象及其状态、线型、颜色与环线标记。</p>
           <input v-model="newLineZh" class="toolbar__input" placeholder="中文线路名" />
           <input v-model="newLineEn" class="toolbar__input" placeholder="English line name" />
           <input v-model="newLineColor" type="color" class="toolbar__color" />
@@ -530,9 +579,9 @@ onMounted(async () => {
               <option value="proposed">规划</option>
             </select>
             <select v-model="newLineStyle" class="toolbar__select">
-              <option value="solid">实线</option>
-              <option value="dashed">虚线</option>
-              <option value="dotted">点线</option>
+              <option v-for="style in LINE_STYLE_OPTIONS" :key="`new_${style.id}`" :value="style.id">
+                {{ style.label }}
+              </option>
             </select>
           </div>
           <label class="toolbar__checkbox">
@@ -561,9 +610,9 @@ onMounted(async () => {
                 <option value="proposed">规划</option>
               </select>
               <select v-model="lineForm.style" class="toolbar__select">
-                <option value="solid">实线</option>
-                <option value="dashed">虚线</option>
-                <option value="dotted">点线</option>
+                <option v-for="style in LINE_STYLE_OPTIONS" :key="`edit_${style.id}`" :value="style.id">
+                  {{ style.label }}
+                </option>
               </select>
             </div>
             <label class="toolbar__checkbox">
@@ -580,7 +629,8 @@ onMounted(async () => {
 
       <template v-else>
         <section class="toolbar__section">
-          <h3>导出</h3>
+          <h3>发布导出</h3>
+          <p class="toolbar__section-intro">按目标输出格式导出当前工程成果。</p>
           <label class="toolbar__label">车站显示</label>
           <select v-model="exportStationVisibilityMode" class="toolbar__input">
             <option value="interchange">仅显示换乘站</option>
@@ -662,6 +712,10 @@ onMounted(async () => {
   background: var(--toolbar-header-bg);
 }
 
+.toolbar__section--context {
+  padding: 10px 12px;
+}
+
 .toolbar__brand {
   display: flex;
   align-items: baseline;
@@ -720,6 +774,10 @@ onMounted(async () => {
   color: var(--toolbar-status);
   font-size: 12px;
   line-height: 1.45;
+  padding: 8px 10px;
+  border: 1px solid var(--toolbar-card-border);
+  border-radius: 8px;
+  background: var(--toolbar-item-bg);
 }
 
 .toolbar__hint {
@@ -741,10 +799,17 @@ onMounted(async () => {
   color: var(--toolbar-text);
 }
 
+.toolbar__section-intro {
+  margin: -4px 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--toolbar-muted);
+}
+
 .toolbar__tabs {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .toolbar__tab {
@@ -755,13 +820,47 @@ onMounted(async () => {
   padding: 8px 10px;
   cursor: pointer;
   font-size: 12px;
+  line-height: 1.3;
   font-weight: 600;
+  text-align: center;
 }
 
 .toolbar__tab.active {
   background: var(--toolbar-tab-active-bg);
   border-color: var(--toolbar-tab-active-border);
   color: var(--toolbar-tab-active-text);
+}
+
+.toolbar__context-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.toolbar__context-grid p {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 8px;
+  background: var(--toolbar-item-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.toolbar__context-grid span {
+  font-size: 11px;
+  color: var(--toolbar-muted);
+}
+
+.toolbar__context-grid strong {
+  min-width: 0;
+  text-align: right;
+  font-size: 12px;
+  color: var(--toolbar-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .toolbar__input {
@@ -981,10 +1080,6 @@ onMounted(async () => {
 @media (max-width: 1060px) {
   .toolbar {
     padding: 12px;
-  }
-
-  .toolbar__tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

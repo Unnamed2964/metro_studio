@@ -6,6 +6,7 @@ import {
   LAYER_EDGE_ANCHORS,
   LAYER_EDGE_ANCHORS_HIT,
   LAYER_EDGES,
+  LAYER_EDGES_SQUARE,
   LAYER_EDGES_HIT,
   LAYER_EDGES_SELECTED,
   LAYER_STATIONS,
@@ -22,6 +23,7 @@ import {
   sanitizeFileName,
 } from './map-editor/dataBuilders'
 import { buildMapStyle } from './map-editor/mapStyle'
+import { LINE_STYLE_OPTIONS, getLineStyleMap } from '../lib/lineStyles'
 
 const store = useProjectStore()
 const mapContainer = ref(null)
@@ -40,6 +42,32 @@ const selectionBox = reactive({
   endX: 0,
   endY: 0,
 })
+
+const lineStyleIds = LINE_STYLE_OPTIONS.map((item) => item.id)
+const doubleLineStyleIds = lineStyleIds.filter((styleId) => getLineStyleMap(styleId).lineGapWidth > 0)
+const edgeLayerCaps = {
+  nonSquare: 'round',
+  square: 'square',
+}
+
+function buildLineStyleNumericExpression(field) {
+  const expression = ['case']
+  for (const styleId of lineStyleIds) {
+    expression.push(['==', ['get', 'lineStyle'], styleId], getLineStyleMap(styleId)[field])
+  }
+  expression.push(getLineStyleMap('solid')[field])
+  return expression
+}
+
+function buildLineDasharrayExpression() {
+  const expression = ['case']
+  for (const styleId of lineStyleIds) {
+    expression.push(['==', ['get', 'lineStyle'], styleId], ['literal', getLineStyleMap(styleId).dasharray])
+  }
+  expression.push(['literal', getLineStyleMap('solid').dasharray])
+  return expression
+}
+
 const contextMenu = reactive({
   visible: false,
   x: 0,
@@ -509,7 +537,12 @@ function ensureMapLayers() {
       filter: ['==', ['get', 'id'], ''],
       paint: {
         'line-color': '#F8FAFC',
-        'line-width': 8.5,
+        'line-width': [
+          'case',
+          ['in', ['get', 'lineStyle'], ['literal', doubleLineStyleIds]],
+          11,
+          8.5,
+        ],
         'line-opacity': 0.96,
       },
       layout: {
@@ -524,26 +557,37 @@ function ensureMapLayers() {
     }
   }
 
+  const edgePaint = {
+    'line-color': ['coalesce', ['get', 'color'], '#2563EB'],
+    'line-width': buildLineStyleNumericExpression('lineWidth'),
+    'line-gap-width': buildLineStyleNumericExpression('lineGapWidth'),
+    'line-opacity': 0.88,
+    'line-dasharray': buildLineDasharrayExpression(),
+  }
+
   if (!map.getLayer(LAYER_EDGES)) {
     map.addLayer({
       id: LAYER_EDGES,
       type: 'line',
       source: SOURCE_EDGES,
-      paint: {
-        'line-color': ['coalesce', ['get', 'color'], '#2563EB'],
-        'line-width': 5,
-        'line-opacity': 0.88,
-        'line-dasharray': [
-          'case',
-          ['==', ['get', 'lineStyle'], 'dashed'],
-          ['literal', [2.2, 1.5]],
-          ['==', ['get', 'lineStyle'], 'dotted'],
-          ['literal', [0.2, 1.7]],
-          ['literal', [1, 0]],
-        ],
-      },
+      filter: ['!=', ['get', 'lineStyle'], 'double-dotted-square'],
+      paint: edgePaint,
       layout: {
-        'line-cap': 'round',
+        'line-cap': edgeLayerCaps.nonSquare,
+        'line-join': 'round',
+      },
+    })
+  }
+
+  if (!map.getLayer(LAYER_EDGES_SQUARE)) {
+    map.addLayer({
+      id: LAYER_EDGES_SQUARE,
+      type: 'line',
+      source: SOURCE_EDGES,
+      filter: ['==', ['get', 'lineStyle'], 'double-dotted-square'],
+      paint: edgePaint,
+      layout: {
+        'line-cap': edgeLayerCaps.square,
         'line-join': 'round',
       },
     })

@@ -1,15 +1,10 @@
 import { bboxFromXY, buildOctilinearPolyline } from '../geo'
+import { getLineStyleSchematic } from '../lineStyles'
 
 const STATUS_STYLE = {
   open: { opacity: 0.98, width: 8.4 },
   construction: { opacity: 0.74, width: 7.3 },
   proposed: { opacity: 0.58, width: 6.8 },
-}
-
-const LINE_STYLE_VISUAL = {
-  solid: { dasharray: '', lineCap: 'round' },
-  dashed: { dasharray: '14 9', lineCap: 'round' },
-  dotted: { dasharray: '1 8', lineCap: 'round' },
 }
 
 export function buildSchematicRenderModel(project, options = {}) {
@@ -63,20 +58,28 @@ export function buildSchematicRenderModel(project, options = {}) {
     sharedLineIds.forEach((lineId, index) => {
       const line = lineById.get(lineId)
       const statusStyle = STATUS_STYLE[line.status] || STATUS_STYLE.open
-      const lineStyle = LINE_STYLE_VISUAL[line.style] || LINE_STYLE_VISUAL.solid
+      const lineStyle = getLineStyleSchematic(line.style)
       const offset = (index - (sharedLineIds.length - 1) / 2) * laneGap
-      const shifted = basePolyline.map(([x, y]) => [x + nx * offset, y + ny * offset])
-      edgePaths.push({
-        id: `${edge.id}_${lineId}_${index}`,
-        lineId,
-        order: line.order,
-        color: line.color || '#2563EB',
-        width: statusStyle.width,
-        opacity: statusStyle.opacity,
-        dasharray: lineStyle.dasharray,
-        lineCap: lineStyle.lineCap,
-        pathD: polylineToRoundedPath(shifted, cornerRadius),
-        status: line.status || 'open',
+      const trackOffsets = Array.isArray(lineStyle.trackOffsets) && lineStyle.trackOffsets.length
+        ? lineStyle.trackOffsets
+        : [0]
+      const trackWidthScale = Number.isFinite(lineStyle.trackWidthScale) ? lineStyle.trackWidthScale : 1
+      const trackWidth = Math.max(1.8, statusStyle.width * trackWidthScale)
+
+      trackOffsets.forEach((trackOffset, trackIndex) => {
+        const shifted = basePolyline.map(([x, y]) => [x + nx * (offset + trackOffset), y + ny * (offset + trackOffset)])
+        edgePaths.push({
+          id: `${edge.id}_${lineId}_${index}_${trackIndex}`,
+          lineId,
+          order: line.order,
+          color: line.color || '#2563EB',
+          width: trackWidth,
+          opacity: statusStyle.opacity,
+          dasharray: lineStyle.dasharray,
+          lineCap: lineStyle.lineCap,
+          pathD: polylineToRoundedPath(shifted, cornerRadius),
+          status: line.status || 'open',
+        })
       })
     })
   }

@@ -1,4 +1,5 @@
 const LAYER_EDGES = 'railmap-edges'
+const LAYER_EDGES_SQUARE = 'railmap-edges-square'
 const LAYER_EDGES_HIT = 'railmap-edges-hit'
 const LAYER_EDGES_SELECTED = 'railmap-edges-selected'
 const LAYER_EDGE_ANCHORS = 'railmap-edge-anchors'
@@ -13,6 +14,7 @@ const CURVE_SEGMENTS_PER_SPAN = 14
 
 export {
   LAYER_EDGES,
+  LAYER_EDGES_SQUARE,
   LAYER_EDGES_HIT,
   LAYER_EDGES_SELECTED,
   LAYER_EDGE_ANCHORS,

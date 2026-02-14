@@ -1,4 +1,5 @@
 import { CURVE_SEGMENTS_PER_SPAN } from './constants'
+import { normalizeLineStyle } from '../../lib/lineStyles'
 
 function sanitizeFileName(value, fallback = 'railmap') {
   const normalized = String(value || '').trim()
@@ -194,9 +195,9 @@ function buildEdgesGeoJson(project) {
           properties: {
             id: edge.id,
             color: line?.color || '#2563EB',
-            lineStyle: line?.style || 'solid',
+            lineStyle: normalizeLineStyle(line?.style),
             sharedCount: edge.sharedByLineIds.length,
-            hasAnchors: Boolean(edge?.isCurved) && linearWaypoints.length > 2,
+            hasAnchors: linearWaypoints.length > 2,
           },
         }
       })
@@ -212,7 +213,7 @@ function buildEdgeAnchorsGeoJson(project, selectedEdgeId, selectedEdgeAnchor) {
     }
   }
   const edge = (project?.edges || []).find((item) => item.id === selectedEdgeId)
-  if (!edge || !edge.isCurved) {
+  if (!edge) {
     return {
       type: 'FeatureCollection',
       features: [],

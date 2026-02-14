@@ -1,5 +1,6 @@
 import { pickLineColor } from './colors'
 import { createId } from './ids'
+import { normalizeLineStyle } from './lineStyles'
 import { normalizeLineNamesForLoop } from './lineNaming'
 
 export const PROJECT_SCHEMA_VERSION = '1.0.0'
@@ -38,7 +39,7 @@ export const JINAN_RELATION_ID = 3486449
  * @property {string} nameEn
  * @property {string} color
  * @property {('open'|'construction'|'proposed')} status
- * @property {('solid'|'dashed'|'dotted')} style
+ * @property {('solid'|'dashed'|'dotted'|'double-solid'|'double-dashed'|'double-dotted-square')} style
  * @property {boolean} isLoop
  * @property {string[]} edgeIds
  */
@@ -85,7 +86,7 @@ export function createEmptyProject(name = '新建工程') {
         nameEn: 'Manual Line 1',
         color: pickLineColor(0),
         status: 'open',
-        style: 'solid',
+        style: normalizeLineStyle('solid'),
         isLoop: false,
         edgeIds: [],
       },
@@ -187,7 +188,7 @@ export function normalizeProject(raw) {
       nameEn: normalizedNames.nameEn,
       color: line.color || pickLineColor(index),
       status: line.status || 'open',
-      style: line.style || 'solid',
+      style: normalizeLineStyle(line.style),
       isLoop,
       edgeIds: Array.isArray(line.edgeIds) ? line.edgeIds : [],
     }

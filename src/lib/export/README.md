@@ -6,7 +6,7 @@
   - `buildSchematicSvg(project, options)`：生成 SVG 字符串。
     - 基于 `lib/schematic/renderModel.js` 统一渲染模型输出
     - 支持共线偏移、圆角折线、标签布局元数据（无图例/区名/标题文字）
-    - 支持线路线型导出（实线/虚线/点线）
+    - 支持线路线型导出（实线/虚线/点线/双线/双虚线/双方点线）
     - `mirrorVertical=false` 可输出“实际走向”方向，`true` 输出“官方风格”镜像方向
   - `downloadOfficialSchematicPng(project, options)`：导出官方风格图 PNG（Y 轴镜像）。
   - `downloadAllLineHudZip(project, options)`：按所有线路与方向批量渲染车辆 HUD PNG，并 ZIP 打包下载。

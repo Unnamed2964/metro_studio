@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import MapEditor from './components/MapEditor.vue'
 import SchematicView from './components/SchematicView.vue'
 import ToolbarControls from './components/ToolbarControls.vue'
@@ -8,7 +8,29 @@ import { useProjectStore } from './stores/projectStore'
 
 const store = useProjectStore()
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'railmap_toolbar_collapsed'
+const WORKSPACE_VIEW_STORAGE_KEY = 'railmap_workspace_active_view'
+const VIEW_OPTIONS = [
+  {
+    key: 'map',
+    label: '阶段一：网络编辑',
+    description: '在真实地图上完成站点、线段和锚点编辑。',
+  },
+  {
+    key: 'schematic',
+    label: '阶段二：版式校核',
+    description: '检查自动排版结果与可读性评分。',
+  },
+  {
+    key: 'hud',
+    label: '阶段三：车载发布',
+    description: '按线路方向生成车辆 HUD 视图。',
+  },
+]
 const sidebarCollapsed = ref(false)
+const activeWorkspaceView = ref(VIEW_OPTIONS[0].key)
+const activeViewMeta = computed(
+  () => VIEW_OPTIONS.find((item) => item.key === activeWorkspaceView.value) || VIEW_OPTIONS[0],
+)
 
 function handleBeforeUnload(event) {
   event.preventDefault()
@@ -23,6 +45,17 @@ function loadSidebarCollapsedState() {
   }
 }
 
+function loadWorkspaceViewState() {
+  try {
+    const saved = window.localStorage.getItem(WORKSPACE_VIEW_STORAGE_KEY)
+    if (saved && VIEW_OPTIONS.some((item) => item.key === saved)) {
+      activeWorkspaceView.value = saved
+    }
+  } catch {
+    activeWorkspaceView.value = VIEW_OPTIONS[0].key
+  }
+}
+
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
   try {
@@ -32,8 +65,19 @@ function toggleSidebar() {
   }
 }
 
+function setActiveWorkspaceView(viewKey) {
+  if (!VIEW_OPTIONS.some((item) => item.key === viewKey)) return
+  activeWorkspaceView.value = viewKey
+  try {
+    window.localStorage.setItem(WORKSPACE_VIEW_STORAGE_KEY, viewKey)
+  } catch {
+    // Ignore unavailable localStorage runtime.
+  }
+}
+
 onMounted(async () => {
   loadSidebarCollapsedState()
+  loadWorkspaceViewState()
   window.addEventListener('beforeunload', handleBeforeUnload)
   await store.initialize()
 })
@@ -47,9 +91,45 @@ onBeforeUnmount(() => {
   <main class="app" :class="{ 'app--sidebar-collapsed': sidebarCollapsed }">
     <ToolbarControls :collapsed="sidebarCollapsed" @toggle-collapse="toggleSidebar" />
     <section class="workspace">
-      <MapEditor />
-      <SchematicView />
-      <VehicleHudView />
+      <header class="workspace__tabs" aria-label="工作区视图切换">
+        <div class="workspace__tab-list">
+          <button
+            v-for="view in VIEW_OPTIONS"
+            :key="view.key"
+            class="workspace__tab"
+            :class="{ 'workspace__tab--active': activeWorkspaceView === view.key }"
+            type="button"
+            @click="setActiveWorkspaceView(view.key)"
+          >
+            {{ view.label }}
+          </button>
+        </div>
+        <p class="workspace__tab-description">{{ activeViewMeta.description }}</p>
+      </header>
+
+      <div class="workspace__panels">
+        <section
+          class="workspace__panel"
+          :class="{ 'workspace__panel--active': activeWorkspaceView === 'map' }"
+          :aria-hidden="activeWorkspaceView !== 'map'"
+        >
+          <MapEditor />
+        </section>
+        <section
+          class="workspace__panel"
+          :class="{ 'workspace__panel--active': activeWorkspaceView === 'schematic' }"
+          :aria-hidden="activeWorkspaceView !== 'schematic'"
+        >
+          <SchematicView />
+        </section>
+        <section
+          class="workspace__panel"
+          :class="{ 'workspace__panel--active': activeWorkspaceView === 'hud' }"
+          :aria-hidden="activeWorkspaceView !== 'hud'"
+        >
+          <VehicleHudView />
+        </section>
+      </div>
     </section>
   </main>
 </template>
@@ -71,18 +151,70 @@ onBeforeUnmount(() => {
 
 .workspace {
   display: grid;
-  gap: 0;
-  grid-template-rows: repeat(3, minmax(100vh, 100vh));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scroll-snap-type: y mandatory;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  overflow: hidden;
   background: var(--workspace-bg);
 }
 
-.workspace > * {
-  min-height: 100vh;
-  height: 100vh;
-  scroll-snap-align: start;
+.workspace__tabs {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--workspace-panel-header-border);
+  background: var(--workspace-panel-header-bg);
+}
+
+.workspace__tab-list {
+  display: flex;
+  gap: 8px;
+}
+
+.workspace__tab {
+  border: 1px solid var(--workspace-panel-border);
+  background: var(--workspace-panel-bg);
+  color: var(--workspace-panel-text);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.workspace__tab--active {
+  background: var(--toolbar-tab-active-bg);
+  border-color: var(--toolbar-tab-active-border);
+  color: var(--toolbar-tab-active-text);
+}
+
+.workspace__tab-description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--workspace-panel-muted);
+}
+
+.workspace__panels {
+  position: relative;
+  min-height: 0;
+}
+
+.workspace__panel {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.workspace__panel > * {
+  width: 100%;
+  height: 100%;
+}
+
+.workspace__panel--active {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
 }
 
 @media (max-width: 1180px) {
@@ -104,12 +236,7 @@ onBeforeUnmount(() => {
   }
 
   .workspace {
-    grid-template-rows: repeat(3, minmax(100vh, 100vh));
-  }
-
-  .workspace > * {
-    min-height: 100vh;
-    height: 100vh;
+    min-height: calc(100vh - 56px);
   }
 }
 </style>

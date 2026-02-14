@@ -1,6 +1,7 @@
 import { normalizeHexColor, pickLineColor } from '../../../lib/colors'
 import { haversineDistanceMeters } from '../../../lib/geo'
 import { createId } from '../../../lib/ids'
+import { normalizeLineStyle } from '../../../lib/lineStyles'
 import { normalizeLineNamesForLoop } from '../../../lib/lineNaming'
 import {
   applyRenameTemplate,
@@ -17,7 +18,7 @@ const networkEditingActions = {
     const lineIndex = this.project.lines.length
     const safeIsLoop = Boolean(isLoop)
     const normalizedStatus = ['open', 'construction', 'proposed'].includes(status) ? status : 'open'
-    const normalizedStyle = ['solid', 'dashed', 'dotted'].includes(style) ? style : 'solid'
+    const normalizedStyle = normalizeLineStyle(style)
     const normalizedNames = normalizeLineNamesForLoop({
       nameZh: nameZh?.trim() || `手工线路 ${lineIndex + 1}`,
       nameEn: nameEn?.trim() || `Manual Line ${lineIndex + 1}`,
@@ -154,8 +155,8 @@ const networkEditingActions = {
     if (patch.status != null && ['open', 'construction', 'proposed'].includes(patch.status)) {
       next.status = patch.status
     }
-    if (patch.style != null && ['solid', 'dashed', 'dotted'].includes(patch.style)) {
-      next.style = patch.style
+    if (patch.style != null) {
+      next.style = normalizeLineStyle(patch.style)
     }
     if (patch.isLoop != null) {
       next.isLoop = Boolean(patch.isLoop)
