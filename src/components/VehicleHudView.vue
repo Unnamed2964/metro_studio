@@ -2,9 +2,6 @@
 import {
   computed,
   nextTick,
-  onBeforeUnmount,
-  onMounted,
-  reactive,
   ref,
   watch,
 } from "vue";
@@ -13,26 +10,24 @@ import {
   buildVehicleHudRenderModel,
 } from "../lib/hud/renderModel";
 import { useProjectStore } from "../stores/projectStore";
+import { useViewportControl } from "../composables/useViewportControl";
 
 const store = useProjectStore();
 const selectedLineId = ref("");
 const selectedDirectionKey = ref("");
 const svgRef = ref(null);
-const viewport = reactive({
-  scale: 1,
-  tx: 0,
-  ty: 0,
-});
-const panState = reactive({
-  active: false,
-  lastClientX: 0,
-  lastClientY: 0,
-});
+
+const {
+  viewport,
+  panState,
+  viewportTransform,
+  resetViewport,
+  onCanvasWheel,
+  onCanvasMouseDown,
+  onCanvasAuxClick,
+} = useViewportControl(svgRef);
 
 const lineOptions = computed(() => store.project?.lines || []);
-const viewportTransform = computed(
-  () => `translate(${viewport.tx} ${viewport.ty}) scale(${viewport.scale})`,
-);
 
 watch(
   [lineOptions, () => store.activeLineId],
@@ -97,78 +92,6 @@ function formatDirectionOptionLabel(option) {
   return zh || en || String(option?.key || "").trim() || "未命名方向";
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function resetViewport() {
-  viewport.scale = 1;
-  viewport.tx = 0;
-  viewport.ty = 0;
-}
-
-function toSvgPoint(clientX, clientY) {
-  if (!svgRef.value) return null;
-  const ctm = svgRef.value.getScreenCTM();
-  if (!ctm) return null;
-  const point = svgRef.value.createSVGPoint();
-  point.x = clientX;
-  point.y = clientY;
-  return point.matrixTransform(ctm.inverse());
-}
-
-function onCanvasWheel(event) {
-  const focus = toSvgPoint(event.clientX, event.clientY);
-  if (!focus) return;
-
-  const oldScale = viewport.scale;
-  const zoomFactor = Math.exp(-event.deltaY * 0.0017);
-  const nextScale = clamp(oldScale * zoomFactor, 0.32, 6);
-  if (Math.abs(nextScale - oldScale) < 1e-6) return;
-
-  viewport.tx += (oldScale - nextScale) * focus.x;
-  viewport.ty += (oldScale - nextScale) * focus.y;
-  viewport.scale = nextScale;
-}
-
-function onCanvasMouseDown(event) {
-  if (event.button !== 1) return;
-  event.preventDefault();
-  panState.active = true;
-  panState.lastClientX = event.clientX;
-  panState.lastClientY = event.clientY;
-}
-
-function onCanvasAuxClick(event) {
-  if (event.button === 1) {
-    event.preventDefault();
-  }
-}
-
-function endMiddlePan() {
-  panState.active = false;
-}
-
-function onGlobalMouseMove(event) {
-  if (!panState.active) return;
-
-  const previous = toSvgPoint(panState.lastClientX, panState.lastClientY);
-  const current = toSvgPoint(event.clientX, event.clientY);
-  if (previous && current) {
-    viewport.tx += current.x - previous.x;
-    viewport.ty += current.y - previous.y;
-  }
-
-  panState.lastClientX = event.clientX;
-  panState.lastClientY = event.clientY;
-}
-
-function onGlobalMouseUp(event) {
-  if (!panState.active) return;
-  if (event.type === "mouseup" && event.button !== 1) return;
-  endMiddlePan();
-}
-
 watch(
   () => [
     selectedLineId.value,
@@ -182,18 +105,6 @@ watch(
   },
   { immediate: true },
 );
-
-onMounted(() => {
-  window.addEventListener("mousemove", onGlobalMouseMove);
-  window.addEventListener("mouseup", onGlobalMouseUp);
-  window.addEventListener("blur", onGlobalMouseUp);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("mousemove", onGlobalMouseMove);
-  window.removeEventListener("mouseup", onGlobalMouseUp);
-  window.removeEventListener("blur", onGlobalMouseUp);
-});
 </script>
 
 <template>

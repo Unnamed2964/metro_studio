@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useProjectStore } from '../stores/projectStore'
-import { createTimelinePreviewRenderer } from '../lib/timeline/timelinePreviewRenderer'
+import { useTimelinePlayback } from '../composables/useTimelinePlayback'
 import IconBase from './IconBase.vue'
 
 const props = defineProps({
@@ -12,205 +12,31 @@ const store = useProjectStore()
 const containerRef = ref(null)
 const canvasRef = ref(null)
 
-let renderer = null
-let resizeObserver = null
-
 const hasData = computed(() => store.timelineHasData)
-const pseudoMode = ref(false)
-const playbackState = ref('idle')
-const currentYear = ref(null)
-const yearIndex = ref(0)
-const totalYears = ref(0)
-const playbackSpeed = ref(1)
-const isFullscreen = ref(false)
 
-const speedOptions = [0.2, 0.5, 0.8, 1, 1.5, 2, 3, 5]
-
-/** Whether the project has edges (lines with geometry) at all — needed for pseudo mode. */
-const hasEdges = computed(() => (store.project?.edges?.length || 0) > 0)
-
-/** Whether the project has multiple lines with edges — pseudo mode needs at least 1 line with edges. */
-const canUsePseudoMode = computed(() => {
-  if (!store.project) return false
-  const edgeLineIds = new Set()
-  for (const edge of store.project.edges || []) {
-    for (const lid of edge.sharedByLineIds || []) edgeLineIds.add(lid)
-  }
-  return edgeLineIds.size > 0
-})
-
-/** Whether the toolbar should be shown (real data or active pseudo mode). */
-const showToolbar = computed(() => hasData.value || pseudoMode.value)
-
-/** Current year display label — in pseudo mode, show line name from renderer. */
-const currentYearLabel = computed(() => {
-  if (!pseudoMode.value || currentYear.value == null) return currentYear.value
-  const labels = renderer?.lineLabels
-  if (labels && labels.has(currentYear.value)) {
-    return labels.get(currentYear.value).nameZh
-  }
-  return `#${currentYear.value}`
-})
-
-const progressPercent = computed(() => {
-  if (totalYears.value <= 1) return 0
-  return (yearIndex.value / (totalYears.value - 1)) * 100
-})
-
-function createRenderer() {
-  if (!canvasRef.value || !store.project) return
-  if (!hasData.value && !pseudoMode.value) return
-  destroyRenderer()
-
-  renderer = createTimelinePreviewRenderer(canvasRef.value, store.project, {
-    title: store.project.name || 'RailMap',
-    author: '',
-    pseudoMode: pseudoMode.value,
-    onStateChange(state, info) {
-      playbackState.value = state
-      if (info) {
-        currentYear.value = info.year
-        yearIndex.value = info.yearIndex
-        totalYears.value = info.totalYears
-      }
-    },
-    onYearChange(year, idx, total) {
-      currentYear.value = year
-      yearIndex.value = idx
-      totalYears.value = total
-    },
-  })
-
-  renderer.setSpeed(playbackSpeed.value)
-
-  // Initial sizing
-  if (containerRef.value) {
-    const rect = containerRef.value.getBoundingClientRect()
-    if (rect.width > 0 && rect.height > 0) {
-      renderer.resize(rect.width, rect.height)
-    }
-  }
-}
-
-function destroyRenderer() {
-  if (renderer) {
-    renderer.destroy()
-    renderer = null
-  }
-}
-
-function onPlay() {
-  if (!renderer) createRenderer()
-  renderer?.play()
-}
-
-function onPause() {
-  renderer?.pause()
-}
-
-function onStop() {
-  renderer?.stop()
-}
-
-function onSpeedChange(speed) {
-  playbackSpeed.value = speed
-  renderer?.setSpeed(speed)
-}
-
-/** Enter pseudo mode and start playback. */
-function startPseudoPreview() {
-  pseudoMode.value = true
-  destroyRenderer()
-  createRenderer()
-  renderer?.play()
-}
-
-/** Exit pseudo mode and return to normal empty state. */
-function exitPseudoMode() {
-  pseudoMode.value = false
-  destroyRenderer()
-  playbackState.value = 'idle'
-  currentYear.value = null
-  yearIndex.value = 0
-  totalYears.value = 0
-}
-
-async function toggleFullscreen() {
-  if (!containerRef.value) return
-  try {
-    if (!document.fullscreenElement) {
-      await containerRef.value.requestFullscreen()
-    } else {
-      await document.exitFullscreen()
-    }
-  } catch { /* noop */ }
-}
-
-function onFullscreenChange() {
-  isFullscreen.value = !!document.fullscreenElement
-}
-
-function setupResizeObserver() {
-  if (!containerRef.value) return
-  resizeObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) {
-      const { width, height } = entry.contentRect
-      if (width > 0 && height > 0 && renderer) {
-        renderer.resize(width, height)
-      }
-    }
-  })
-  resizeObserver.observe(containerRef.value)
-}
-
-// Pause rAF when view is not active
-watch(
-  () => props.active,
-  (active) => {
-    if (active && (hasData.value || pseudoMode.value)) {
-      if (!renderer) createRenderer()
-    } else if (!active && renderer) {
-      if (playbackState.value !== 'idle') {
-        renderer.stop()
-      }
-    }
-  },
-)
-
-// Rebuild when project data changes
-watch(
-  () => store.project?.edges?.length,
-  () => {
-    if (props.active && renderer) {
-      renderer.rebuild()
-    }
-  },
-)
-
-// When real timeline data appears, exit pseudo mode automatically
-watch(hasData, (has) => {
-  if (has && pseudoMode.value) {
-    pseudoMode.value = false
-    destroyRenderer()
-    createRenderer()
-  }
-})
-
-onMounted(() => {
-  document.addEventListener('fullscreenchange', onFullscreenChange)
-  setupResizeObserver()
-  if (props.active && hasData.value) {
-    createRenderer()
-  }
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('fullscreenchange', onFullscreenChange)
-  if (resizeObserver) {
-    resizeObserver.disconnect()
-    resizeObserver = null
-  }
-  destroyRenderer()
+const {
+  pseudoMode,
+  playbackState,
+  currentYear,
+  totalYears,
+  playbackSpeed,
+  isFullscreen,
+  speedOptions,
+  canUsePseudoMode,
+  showToolbar,
+  currentYearLabel,
+  progressPercent,
+  onPlay,
+  onPause,
+  onStop,
+  onSpeedChange,
+  startPseudoPreview,
+  exitPseudoMode,
+  toggleFullscreen,
+} = useTimelinePlayback(containerRef, canvasRef, {
+  hasData,
+  active: computed(() => props.active),
+  store,
 })
 </script>
 

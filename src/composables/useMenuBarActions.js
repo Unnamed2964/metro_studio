@@ -1,0 +1,225 @@
+import { computed, ref, onMounted } from 'vue'
+import { CITY_PRESETS } from '../lib/osm/cityPresets'
+import {
+  DEFAULT_UI_FONT,
+  DEFAULT_UI_THEME,
+  UI_FONT_OPTIONS,
+  UI_FONT_STORAGE_KEY,
+  UI_THEME_STORAGE_KEY,
+  normalizeUiFont,
+  normalizeUiTheme,
+} from '../lib/uiPreferences'
+
+// ── City preset filtering ──
+
+const CHINESE_CITY_IDS = new Set([
+  'jinan', 'beijing', 'shanghai', 'guangzhou', 'shenzhen', 'chengdu', 'wuhan',
+  'hangzhou', 'nanjing', 'chongqing', 'tianjin', 'suzhou', 'zhengzhou', 'xian',
+  'changsha', 'kunming', 'dalian', 'qingdao', 'shenyang', 'harbin', 'fuzhou',
+  'xiamen', 'hefei', 'nanchang', 'nanning', 'guiyang', 'urumqi', 'lanzhou',
+  'taiyuan', 'shijiazhuang', 'changchun', 'wuxi', 'changzhou', 'xuzhou',
+  'foshan', 'dongguan', 'ningbo', 'wenzhou', 'shaoxing', 'luoyang', 'wuhu',
+  'hongkong', 'taipei',
+])
+
+const CHINESE_CITY_PRESETS = CITY_PRESETS.filter((p) => CHINESE_CITY_IDS.has(p.id))
+const INTERNATIONAL_CITY_PRESETS = CITY_PRESETS.filter((p) => !CHINESE_CITY_IDS.has(p.id))
+
+function buildCityMenuItems(presets, importing) {
+  console.log('[buildCityMenuItems] Presets count:', presets.length, 'importing:', importing)
+  const items = presets.map((p) => ({
+    type: 'item',
+    label: `${p.name} ${p.nameEn}`,
+    action: `importCity_${p.id}`,
+    disabled: importing,
+  }))
+  console.log('[buildCityMenuItems] Generated items:', items.map(i => ({ label: i.label, disabled: i.disabled })))
+  return items
+}
+
+// ── UI theme / font ──
+
+/**
+ * Composable that provides menu structure definitions and action dispatch logic
+ * for the MenuBar component.
+ *
+ * @param {Object} store - The project store instance (from useProjectStore)
+ * @param {Function} emit - The component's emit function
+ * @param {{ fileInputRef: import('vue').Ref }} refs - Refs needed by actions
+ * @returns Menu item computeds, action handler, and UI preference helpers
+ */
+export function useMenuBarActions(store, emit, refs) {
+  const uiTheme = ref(DEFAULT_UI_THEME)
+  const uiFont = ref(DEFAULT_UI_FONT)
+
+  // ── UI preference helpers ──
+
+  function applyUiTheme(theme) {
+    const next = normalizeUiTheme(theme)
+    uiTheme.value = next
+    document.documentElement.setAttribute('data-ui-theme', next)
+    try { window.localStorage.setItem(UI_THEME_STORAGE_KEY, next) } catch { /* noop */ }
+  }
+
+  function applyUiFont(fontId) {
+    const next = normalizeUiFont(fontId)
+    uiFont.value = next
+    document.documentElement.setAttribute('data-ui-font', next)
+    try { window.localStorage.setItem(UI_FONT_STORAGE_KEY, next) } catch { /* noop */ }
+  }
+
+  function restoreUiPreferences() {
+    try {
+      applyUiTheme(window.localStorage.getItem(UI_THEME_STORAGE_KEY) || DEFAULT_UI_THEME)
+      applyUiFont(window.localStorage.getItem(UI_FONT_STORAGE_KEY) || DEFAULT_UI_FONT)
+    } catch {
+      applyUiTheme(DEFAULT_UI_THEME)
+      applyUiFont(DEFAULT_UI_FONT)
+    }
+  }
+
+  // ── Menu structure definitions ──
+
+  const fileMenuItems = computed(() => {
+    const importing = store.isImporting
+    return [
+      { type: 'item', label: '新建工程', action: 'createProject', icon: 'folder' },
+      { type: 'item', label: '打开文件...', action: 'openFile', icon: 'upload' },
+      { type: 'item', label: '打开本地库', action: 'showProjectList', icon: 'folder-open' },
+      { type: 'item', label: '保存文件', action: 'exportFile', icon: 'download' },
+      { type: 'item', label: '存入本地库', action: 'persistToDb', icon: 'save' },
+      { type: 'separator' },
+      { type: 'item', label: '复制当前工程', action: 'duplicateProject', icon: 'copy', disabled: !store.project },
+      { type: 'item', label: '重命名工程', action: 'renameProject', icon: 'edit', disabled: !store.project },
+      { type: 'item', label: '删除当前工程', action: 'deleteProject', icon: 'trash', disabled: !store.project },
+      { type: 'separator' },
+      { type: 'submenu', label: '导入线网', icon: 'route', children: [
+        { type: 'item', label: '导入济南 OSM 线网', action: 'importOsm', icon: 'route', disabled: importing },
+        { type: 'separator' },
+        { type: 'submenu', label: '中国城市', icon: 'git-branch', children: buildCityMenuItems(CHINESE_CITY_PRESETS, importing) },
+        { type: 'submenu', label: '国际城市', icon: 'git-branch', children: buildCityMenuItems(INTERNATIONAL_CITY_PRESETS, importing) },
+      ]},
+      { type: 'separator' },
+      { type: 'item', label: '查看本地库', action: 'showProjectList', icon: 'layers' },
+    ]
+  })
+
+  const editMenuItems = computed(() => [
+    { type: 'item', label: '撤销', action: 'undo', shortcut: 'Ctrl+Z', icon: 'undo', disabled: !store.canUndo },
+    { type: 'item', label: '重做', action: 'redo', shortcut: 'Ctrl+Shift+Z', icon: 'redo', disabled: !store.canRedo },
+    { type: 'separator' },
+    { type: 'item', label: '全选站点', action: 'selectAll', shortcut: 'Ctrl+A', icon: 'check-circle' },
+    { type: 'item', label: '清空选择', action: 'clearSelection', shortcut: 'Esc', icon: 'x-circle' },
+    { type: 'separator' },
+    { type: 'item', label: '删除选中站点', action: 'deleteStations', shortcut: 'Del', icon: 'trash', disabled: !store.selectedStationIds.length },
+    { type: 'item', label: '删除选中线段', action: 'deleteEdges', shortcut: 'Del', icon: 'trash', disabled: !(store.selectedEdgeIds?.length) },
+  ])
+
+  const viewMenuItems = computed(() => [
+    { type: 'submenu', label: '主题', icon: 'palette', children: [
+      { type: 'toggle', label: '日间', checked: uiTheme.value === 'light', action: 'themeLight', icon: 'sun' },
+      { type: 'toggle', label: '夜间', checked: uiTheme.value === 'dark', action: 'themeDark', icon: 'moon' },
+    ]},
+    { type: 'submenu', label: '字体', icon: 'sliders', children: UI_FONT_OPTIONS.map((f) => ({
+      type: 'toggle', label: f.label, checked: uiFont.value === f.id, action: `font_${f.id}`,
+    }))},
+    { type: 'separator' },
+    { type: 'item', label: '自动生成官方风', action: 'runAutoLayout', icon: 'sparkles', disabled: store.isLayoutRunning || !store.project?.stations?.length },
+  ])
+
+  const aiMenuItems = computed(() => [
+    { type: 'separator' },
+    { type: 'item', label: 'AI全自动批量命名', action: 'aiAutoBatchNaming', icon: 'sparkles', disabled: !store.selectedStationIds.length },
+    { type: 'separator' },
+    { type: 'item', label: 'AI翻译选中站英文', action: 'aiTranslateSelected', icon: 'languages', disabled: !store.selectedStationIds.length || store.isStationEnglishRetranslating },
+    { type: 'item', label: '按规范重译全图英文', action: 'aiTranslateAll', icon: 'languages', disabled: !store.project?.stations?.length || store.isStationEnglishRetranslating },
+  ])
+
+  const exportMenuItems = computed(() => [
+    { type: 'item', label: '导出实际走向图 PNG', action: 'exportActualRoute', icon: 'map' },
+    { type: 'item', label: '导出官方风格图 PNG', action: 'exportSchematic', icon: 'layout' },
+    { type: 'item', label: '导出车辆 HUD 打包', action: 'exportHudZip', icon: 'monitor' },
+    { type: 'separator' },
+    { type: 'item', label: '导出时间轴动画', action: 'exportTimeline', icon: 'clock', disabled: !store.timelineHasData },
+    { type: 'separator' },
+    { type: 'submenu', label: '车站显示模式', icon: 'eye', children: [
+      { type: 'toggle', label: '显示所有车站', checked: store.exportStationVisibilityMode === 'all', action: 'stationVisAll', icon: 'eye' },
+      { type: 'toggle', label: '仅显示换乘站', checked: store.exportStationVisibilityMode === 'interchange', action: 'stationVisInterchange', icon: 'eye' },
+      { type: 'toggle', label: '隐藏所有车站', checked: store.exportStationVisibilityMode === 'none', action: 'stationVisNone', icon: 'eye-off' },
+    ]},
+  ])
+
+  const menus = computed(() => [
+    { key: 'file', label: '文件', items: fileMenuItems.value },
+    { key: 'edit', label: '编辑', items: editMenuItems.value },
+    { key: 'view', label: '视图', items: viewMenuItems.value },
+    { key: 'ai', label: 'AI', items: aiMenuItems.value },
+    { key: 'export', label: '导出', items: exportMenuItems.value },
+  ])
+
+  // ── Action dispatch ──
+
+  function handleAction(action) {
+    if (!action) return
+
+    if (action === 'openFile') {
+      refs.fileInputRef.value?.click()
+      return
+    }
+    if (action === 'themeLight') { applyUiTheme('light'); return }
+    if (action === 'themeDark') { applyUiTheme('dark'); return }
+    if (action.startsWith('font_')) { applyUiFont(action.slice(5)); return }
+    if (action.startsWith('importCity_')) { emit('action', action); return }
+    if (action === 'stationVisAll') { store.setExportStationVisibilityMode('all'); return }
+    if (action === 'stationVisInterchange') { store.setExportStationVisibilityMode('interchange'); return }
+    if (action === 'stationVisNone') { store.setExportStationVisibilityMode('none'); return }
+    if (action === 'modeAiAddStation') { store.setMode('ai-add-station'); return }
+    if (action === 'showProjectList') { emit('show-project-list'); return }
+
+    // Simple store actions
+    const simpleActions = {
+      undo: () => store.undo(),
+      redo: () => store.redo(),
+      selectAll: () => store.selectAllStations(),
+      clearSelection: () => store.clearSelection(),
+      deleteStations: () => store.deleteSelectedStations(),
+      deleteEdges: () => store.deleteSelectedEdge(),
+      exportActualRoute: () => store.exportActualRoutePng(),
+      exportSchematic: () => store.exportOfficialSchematicPng(),
+      exportHudZip: () => store.exportAllLineHudZip(),
+      exportTimeline: () => store.exportTimelineVideo(),
+      exportFile: () => store.exportProjectFile(),
+      persistToDb: () => store.persistNow(),
+      runAutoLayout: () => store.runAutoLayout(),
+      aiTranslateSelected: () => store.retranslateSelectedStationEnglishNamesWithAi(),
+      aiTranslateAll: () => store.retranslateAllStationEnglishNamesWithAi(),
+    }
+
+    if (simpleActions[action]) {
+      simpleActions[action]()
+      return
+    }
+
+    // Actions that need prompts or emit to parent
+    emit('action', action)
+  }
+
+  onMounted(() => {
+    restoreUiPreferences()
+  })
+
+  return {
+    uiTheme,
+    uiFont,
+    menus,
+    fileMenuItems,
+    editMenuItems,
+    viewMenuItems,
+    aiMenuItems,
+    exportMenuItems,
+    handleAction,
+    applyUiTheme,
+    applyUiFont,
+    restoreUiPreferences,
+  }
+}

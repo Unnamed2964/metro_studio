@@ -13,7 +13,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:fonts.googleapis.com)",
       "Bash(python3:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(find:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }
