@@ -149,8 +149,25 @@ function buildBoundaryGeoJson(regionBoundary) {
   }
 }
 
-function buildStationsGeoJson(project, selectedStationIds = []) {
-  const stations = project?.stations || []
+function filterEdgesByYear(edges, filterYear) {
+  if (filterYear == null) return edges
+  return edges.filter((edge) => edge.openingYear == null || edge.openingYear <= filterYear)
+}
+
+function filterStationsByVisibleEdges(stations, visibleEdges) {
+  const visibleStationIds = new Set()
+  for (const edge of visibleEdges) {
+    visibleStationIds.add(edge.fromStationId)
+    visibleStationIds.add(edge.toStationId)
+  }
+  return stations.filter((s) => visibleStationIds.has(s.id))
+}
+
+function buildStationsGeoJson(project, selectedStationIds = [], filterYear = null) {
+  const allEdges = project?.edges || []
+  const allStations = project?.stations || []
+  const visibleEdges = filterEdgesByYear(allEdges, filterYear)
+  const stations = filterYear != null ? filterStationsByVisibleEdges(allStations, visibleEdges) : allStations
   const selectedStationSet = new Set(selectedStationIds || [])
   return {
     type: 'FeatureCollection',
@@ -173,9 +190,10 @@ function buildStationsGeoJson(project, selectedStationIds = []) {
   }
 }
 
-function buildEdgesGeoJson(project) {
+function buildEdgesGeoJson(project, filterYear = null) {
   const lines = new Map((project?.lines || []).map((line) => [line.id, line]))
-  const edges = project?.edges || []
+  const allEdges = project?.edges || []
+  const edges = filterEdgesByYear(allEdges, filterYear)
   const stations = new Map((project?.stations || []).map((station) => [station.id, station]))
 
   return {
@@ -260,4 +278,6 @@ export {
   buildStationsGeoJson,
   buildEdgesGeoJson,
   buildEdgeAnchorsGeoJson,
+  filterEdgesByYear,
+  filterStationsByVisibleEdges,
 }

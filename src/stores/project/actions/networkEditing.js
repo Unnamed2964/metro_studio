@@ -20,28 +20,21 @@ import {
 } from '../helpers'
 
 const networkEditingActions = {
-  addLine({ nameZh, nameEn, color, status = 'open', style = 'solid', isLoop = false }) {
+  addLine({ nameZh, nameEn, color, status = 'open', style = 'solid' }) {
     if (!this.project) return null
     const lineIndex = this.project.lines.length
     const existingLineColors = (this.project.lines || []).map((line) => line?.color).filter(Boolean)
     const autoColor = pickDistinctLineColor(existingLineColors, lineIndex)
-    const safeIsLoop = Boolean(isLoop)
     const normalizedStatus = ['open', 'construction', 'proposed'].includes(status) ? status : 'open'
     const normalizedStyle = normalizeLineStyle(style)
-    const normalizedNames = normalizeLineNamesForLoop({
-      nameZh: nameZh?.trim() || `手工线路 ${lineIndex + 1}`,
-      nameEn: nameEn?.trim() || `Manual Line ${lineIndex + 1}`,
-      isLoop: safeIsLoop,
-    })
     const line = {
       id: createId('line'),
       key: `manual_${Date.now()}_${lineIndex}`,
-      nameZh: normalizedNames.nameZh,
-      nameEn: normalizedNames.nameEn,
+      nameZh: nameZh?.trim() || `${lineIndex + 1}号线`,
+      nameEn: nameEn?.trim() || `Line ${lineIndex + 1}`,
       color: normalizeHexColor(color, autoColor || pickLineColor(lineIndex)),
       status: normalizedStatus,
       style: normalizedStyle,
-      isLoop: safeIsLoop,
       edgeIds: [],
     }
     this.project.lines.push(line)
@@ -445,17 +438,6 @@ const networkEditingActions = {
     if (patch.style != null) {
       next.style = normalizeLineStyle(patch.style)
     }
-    if (patch.isLoop != null) {
-      next.isLoop = Boolean(patch.isLoop)
-    }
-    const normalizedNames = normalizeLineNamesForLoop({
-      nameZh: next.nameZh,
-      nameEn: next.nameEn,
-      isLoop: next.isLoop,
-    })
-    next.nameZh = normalizedNames.nameZh || next.nameZh
-    next.nameEn = normalizedNames.nameEn
-
     Object.assign(line, next)
     this.recomputeStationLineMembership()
     this.touchProject(`更新线路: ${line.nameZh}`)
@@ -577,6 +559,24 @@ const networkEditingActions = {
               changed = true
             }
           }
+        }
+      }
+
+      if (patch.openingYear !== undefined) {
+        const prev = edge.openingYear ?? null
+        const next = patch.openingYear
+        if (prev !== next) {
+          edge.openingYear = next
+          changed = true
+        }
+      }
+
+      if (patch.phase !== undefined) {
+        const prev = edge.phase ?? null
+        const next = patch.phase || null
+        if (prev !== next) {
+          edge.phase = next
+          changed = true
         }
       }
 
@@ -939,6 +939,7 @@ const networkEditingActions = {
         sharedByLineIds: [line.id],
         lengthMeters: haversineDistanceMeters(fromStation.lngLat, toStation.lngLat),
         isCurved: false,
+        openingYear: this.currentEditYear,
       }
       this.project.edges.push(edge)
     } else if (!edge.sharedByLineIds.includes(line.id)) {
@@ -955,6 +956,254 @@ const networkEditingActions = {
     this.selectedEdgeAnchor = null
     this.touchProject('新增线段')
     return edge
+  },
+
+
+  moveLineUp(lineId) {
+    if (!this.project) return false
+    const index = this.project.lines.findIndex((l) => l.id === lineId)
+    if (index <= 0) return false
+    const lines = this.project.lines
+    ;[lines[index - 1], lines[index]] = [lines[index], lines[index - 1]]
+    this.touchProject('移动线路顺序')
+    return true
+  },
+
+  moveLineDown(lineId) {
+    if (!this.project) return false
+    const index = this.project.lines.findIndex((l) => l.id === lineId)
+    if (index === -1 || index >= this.project.lines.length - 1) return false
+    const lines = this.project.lines
+    ;[lines[index], lines[index + 1]] = [lines[index + 1], lines[index]]
+    this.touchProject('移动线路顺序')
+    return true
+  },
+
+  splitEdgeAtPoint(edgeId, lngLat) {
+    if (!this.project || !Array.isArray(lngLat) || lngLat.length !== 2) return null
+    const edge = this.project.edges.find((item) => item.id === edgeId)
+    if (!edge) return null
+
+    const fromStation = this.project.stations.find((station) => station.id === edge.fromStationId)
+    const toStation = this.project.stations.find((station) => station.id === edge.toStationId)
+    if (!fromStation || !toStation) return null
+
+    const point = cloneLngLat(lngLat)
+    if (!point) return null
+
+    const resolvedWaypoints = this.resolveEditableEdgeWaypoints(edge)
+    if (!resolvedWaypoints || resolvedWaypoints.length < 2) return null
+
+    const insertIndex = findClosestSegmentInsertionIndex(resolvedWaypoints, point)
+    if (insertIndex < 1 || insertIndex >= resolvedWaypoints.length) return null
+
+    const nextIndex = this.project.stations.length + 1
+    const newStation = {
+      id: createId('station'),
+      nameZh: `新站 ${nextIndex}`,
+      nameEn: `Station ${nextIndex}`,
+      lngLat: [...point],
+      displayPos: estimateDisplayPositionFromLngLat(this.project.stations, point),
+      isInterchange: false,
+      underConstruction: false,
+      proposed: false,
+      lineIds: [...(edge.sharedByLineIds || [])],
+      transferLineIds: [],
+    }
+    this.project.stations.push(newStation)
+
+    const firstEdgeWaypoints = resolvedWaypoints.slice(0, insertIndex + 1)
+    const secondEdgeWaypoints = resolvedWaypoints.slice(insertIndex)
+
+    const firstEdge = {
+      id: createId('edge'),
+      fromStationId: edge.fromStationId,
+      toStationId: newStation.id,
+      waypoints: [...firstEdgeWaypoints],
+      sharedByLineIds: [...(edge.sharedByLineIds || [])],
+      lengthMeters: haversineDistanceMeters(fromStation.lngLat, newStation.lngLat),
+      isCurved: firstEdgeWaypoints.length > 2,
+    }
+
+    const secondEdge = {
+      id: createId('edge'),
+      fromStationId: newStation.id,
+      toStationId: edge.toStationId,
+      waypoints: [...secondEdgeWaypoints],
+      sharedByLineIds: [...(edge.sharedByLineIds || [])],
+      lengthMeters: haversineDistanceMeters(newStation.lngLat, toStation.lngLat),
+      isCurved: secondEdgeWaypoints.length > 2,
+    }
+
+    this.project.edges = this.project.edges.filter((e) => e.id !== edge.id)
+    this.project.edges.push(firstEdge, secondEdge)
+
+    const lineById = new Map(this.project.lines.map((line) => [line.id, line]))
+    for (const line of this.project.lines) {
+      const lineEdgeIds = line.edgeIds || []
+      const edgeIndex = lineEdgeIds.indexOf(edge.id)
+      if (edgeIndex !== -1) {
+        const newEdgeIds = [...lineEdgeIds]
+        newEdgeIds.splice(edgeIndex, 1, firstEdge.id, secondEdge.id)
+        line.edgeIds = newEdgeIds
+      }
+    }
+
+    if (Array.isArray(this.selectedEdgeIds)) {
+      const selectedIndex = this.selectedEdgeIds.indexOf(edge.id)
+      if (selectedIndex !== -1) {
+        const newSelected = [...this.selectedEdgeIds]
+        newSelected.splice(selectedIndex, 1, firstEdge.id)
+        this.selectedEdgeIds = newSelected
+      }
+    }
+    if (this.selectedEdgeId === edge.id) {
+      this.selectedEdgeId = firstEdge.id
+    }
+    this.selectedEdgeAnchor = null
+
+    this.recomputeStationLineMembership()
+    this.touchProject('分割线段: 插入新站')
+    return { station: newStation, edges: [firstEdge, secondEdge] }
+  },
+
+  canMergeEdgesAtStation(stationId) {
+    if (!this.project) return false
+    const station = this.project.stations.find((s) => s.id === stationId)
+    if (!station) return false
+
+    const connectedEdges = (this.project.edges || []).filter(
+      (edge) => edge.fromStationId === stationId || edge.toStationId === stationId
+    )
+
+    if (connectedEdges.length !== 2) return false
+
+    const [edgeA, edgeB] = connectedEdges
+    const lineIdsA = new Set(edgeA.sharedByLineIds || [])
+    const lineIdsB = new Set(edgeB.sharedByLineIds || [])
+
+    for (const lineId of lineIdsA) {
+      if (lineIdsB.has(lineId)) return true
+    }
+
+    return false
+  },
+
+  mergeEdgesAtStation(stationId) {
+    if (!this.project) return false
+    const station = this.project.stations.find((s) => s.id === stationId)
+    if (!station) return false
+
+    const connectedEdges = (this.project.edges || []).filter(
+      (edge) => edge.fromStationId === stationId || edge.toStationId === stationId
+    )
+
+    if (connectedEdges.length !== 2) {
+      this.statusText = '该站点不恰好连接2条线段，无法合并'
+      return false
+    }
+
+    const [edgeA, edgeB] = connectedEdges
+    const sharedLineIds = (edgeA.sharedByLineIds || []).filter((id) => (edgeB.sharedByLineIds || []).includes(id))
+
+    if (sharedLineIds.length === 0) {
+      this.statusText = '相连的两条线段不属于同一线路，无法合并'
+      return false
+    }
+
+    let firstEdge, secondEdge, firstStationId, secondStationId
+    if (edgeA.toStationId === stationId) {
+      firstEdge = edgeA
+      firstStationId = edgeA.fromStationId
+    } else {
+      firstEdge = edgeB
+      firstStationId = edgeB.fromStationId
+    }
+
+    if (edgeB.fromStationId === stationId) {
+      secondEdge = edgeB
+      secondStationId = edgeB.toStationId
+    } else {
+      secondEdge = edgeA
+      secondStationId = edgeA.toStationId
+    }
+
+    const firstStation = this.project.stations.find((s) => s.id === firstStationId)
+    const secondStation = this.project.stations.find((s) => s.id === secondStationId)
+    if (!firstStation || !secondStation) return false
+
+    const firstWaypoints = this.resolveEditableEdgeWaypoints(firstEdge)
+    const secondWaypoints = this.resolveEditableEdgeWaypoints(secondEdge)
+    if (!firstWaypoints || !secondWaypoints) return false
+
+    const mergedWaypoints = [...firstWaypoints.slice(0, -1), ...secondWaypoints.slice(1)]
+
+    const mergedLineIds = [...new Set([...(firstEdge.sharedByLineIds || []), ...(secondEdge.sharedByLineIds || [])])]
+
+    const mergedEdge = {
+      id: createId('edge'),
+      fromStationId: firstStationId,
+      toStationId: secondStationId,
+      waypoints: mergedWaypoints,
+      sharedByLineIds: mergedLineIds,
+      lengthMeters: haversineDistanceMeters(firstStation.lngLat, secondStation.lngLat),
+      isCurved: mergedWaypoints.length > 2,
+    }
+
+    this.project.edges = this.project.edges.filter((e) => e.id !== firstEdge.id && e.id !== secondEdge.id)
+    this.project.edges.push(mergedEdge)
+
+    this.project.stations = this.project.stations.filter((s) => s.id !== stationId)
+    this.project.manualTransfers = (this.project.manualTransfers || []).filter(
+      (t) => t.stationAId !== stationId && t.stationBId !== stationId
+    )
+
+    const lineById = new Map(this.project.lines.map((line) => [line.id, line]))
+    for (const line of this.project.lines) {
+      const lineEdgeIds = line.edgeIds || []
+      const firstIndex = lineEdgeIds.indexOf(firstEdge.id)
+      const secondIndex = lineEdgeIds.indexOf(secondEdge.id)
+      const hasLine = mergedLineIds.includes(line.id)
+
+      if (hasLine && (firstIndex !== -1 || secondIndex !== -1)) {
+        const newEdgeIds = lineEdgeIds.filter((id) => id !== firstEdge.id && id !== secondEdge.id)
+        if (!newEdgeIds.includes(mergedEdge.id)) {
+          const insertPos = Math.max(firstIndex, secondIndex)
+          if (insertPos !== -1) {
+            newEdgeIds.splice(insertPos, 0, mergedEdge.id)
+          } else {
+            newEdgeIds.push(mergedEdge.id)
+          }
+        }
+        line.edgeIds = newEdgeIds
+      } else {
+        line.edgeIds = lineEdgeIds.filter((id) => id !== firstEdge.id && id !== secondEdge.id)
+      }
+    }
+
+    this.project.lines = this.project.lines.filter((line) => line.edgeIds.length > 0)
+    if (!this.project.lines.length) {
+      this.addLine({})
+    }
+    if (!this.project.lines.some((line) => line.id === this.activeLineId)) {
+      this.activeLineId = this.project.lines[0]?.id || null
+    }
+
+    if (this.selectedStationId === stationId) {
+      this.selectedStationId = null
+    }
+    this.selectedStationIds = (this.selectedStationIds || []).filter((id) => id !== stationId)
+
+    const selectedEdges = new Set(this.selectedEdgeIds || [])
+    if (selectedEdges.has(firstEdge.id) || selectedEdges.has(secondEdge.id)) {
+      this.selectedEdgeId = mergedEdge.id
+      this.selectedEdgeIds = [mergedEdge.id]
+    }
+    this.selectedEdgeAnchor = null
+
+    this.recomputeStationLineMembership()
+    this.touchProject('合并相邻线段')
+    return true
   },
 
   recomputeStationLineMembership() {
@@ -1027,6 +1276,11 @@ const networkEditingActions = {
         station.proposed = previousProposed
       }
     }
+  },
+
+  setCurrentEditYear(year) {
+    const normalizedYear = Number.isFinite(year) ? Math.floor(Number(year)) : 2010
+    this.currentEditYear = normalizedYear
   },
 
 }

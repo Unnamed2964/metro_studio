@@ -35,8 +35,8 @@ function isInsideJinan(lngLat) {
 }
 
 async function importJinanMetroFromOsm(options, signal) {
-  const includeConstruction = Boolean(options?.includeConstruction)
-  const includeProposed = Boolean(options?.includeProposed)
+  const includeConstruction = false
+  const includeProposed = false
 
   const queries = [OPEN_ROUTE_QUERY]
   if (includeConstruction) {
@@ -224,13 +224,6 @@ async function importJinanMetroFromOsm(options, signal) {
     stations: merged.stations,
     edges: merged.edges,
     lines: merged.lines,
-    importMeta: {
-      importedAt: new Date().toISOString(),
-      includeConstruction,
-      includeProposed,
-      relationCount: relations.length,
-      mergedStationCount: merged.stations.length,
-    },
   }
 }
 

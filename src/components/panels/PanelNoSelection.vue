@@ -2,6 +2,9 @@
 import { computed, reactive, ref, watch } from 'vue'
 import AccordionSection from '../AccordionSection.vue'
 import IconBase from '../IconBase.vue'
+import TooltipWrapper from '../TooltipWrapper.vue'
+import PanelNetworkStats from './PanelNetworkStats.vue'
+import TimelineEventEditor from '../TimelineEventEditor.vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
 import { LINE_STYLE_OPTIONS, normalizeLineStyle } from '../../lib/lineStyles'
@@ -21,7 +24,6 @@ const lineForm = reactive({
   color: '#005BBB',
   status: 'open',
   style: 'solid',
-  isLoop: false,
 })
 
 const layoutGeoSeedScale = computed({
@@ -45,7 +47,6 @@ function applyLineChanges() {
     color: lineForm.color,
     status: lineForm.status,
     style: lineForm.style,
-    isLoop: lineForm.isLoop,
   })
 }
 
@@ -62,7 +63,6 @@ watch(
     lineForm.color = line?.color || '#005BBB'
     lineForm.status = line?.status || 'open'
     lineForm.style = normalizeLineStyle(line?.style)
-    lineForm.isLoop = Boolean(line?.isLoop)
   },
   { immediate: true },
 )
@@ -70,11 +70,15 @@ watch(
 
 <template>
   <div class="panel-no-sel">
+    <PanelNetworkStats />
+
     <AccordionSection title="线路管理">
-      <button class="pp-btn pp-btn--primary" @click="addLine">
-        <IconBase name="plus-circle" :size="14" />
-        新增线路
-      </button>
+      <TooltipWrapper text="新增线路" placement="bottom">
+        <button class="add-line-btn" @click="addLine">
+          <IconBase name="plus-circle" :size="14" />
+          新增线路
+        </button>
+      </TooltipWrapper>
       <ul class="line-list">
         <li v-for="line in store.project?.lines || []" :key="line.id">
           <button
@@ -104,13 +108,13 @@ watch(
             <option v-for="s in LINE_STYLE_OPTIONS" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
         </div>
-        <label class="pp-checkbox">
-          <input v-model="lineForm.isLoop" type="checkbox" />
-          环线
-        </label>
         <div class="pp-row">
-          <button class="pp-btn pp-btn--primary" @click="applyLineChanges">保存线路</button>
-          <button class="pp-btn pp-btn--danger" @click="deleteActiveLine">删除线路</button>
+          <TooltipWrapper text="保存线路属性" placement="bottom">
+            <button class="pp-btn pp-btn--primary" @click="applyLineChanges">保存线路</button>
+          </TooltipWrapper>
+          <TooltipWrapper text="删除当前线路" placement="bottom">
+            <button class="pp-btn pp-btn--danger" @click="deleteActiveLine">删除线路</button>
+          </TooltipWrapper>
         </div>
       </template>
     </AccordionSection>
@@ -130,13 +134,15 @@ watch(
         <span class="pp-range-value">{{ layoutGeoSeedScale.toFixed(1) }}</span>
       </div>
       <p class="pp-hint">值越大，初始地理骨架展开越明显。</p>
-      <button
-        class="pp-btn pp-btn--primary"
-        :disabled="store.isLayoutRunning || !store.project?.stations?.length"
-        @click="store.runAutoLayout()"
-      >
-        {{ store.isLayoutRunning ? '排版中...' : '自动生成官方风' }}
-      </button>
+      <TooltipWrapper text="自动排版为官方风格" placement="bottom">
+        <button
+          class="pp-btn pp-btn--primary"
+          :disabled="store.isLayoutRunning || !store.project?.stations?.length"
+          @click="store.runAutoLayout()"
+        >
+          {{ store.isLayoutRunning ? '排版中...' : '自动生成官方风' }}
+        </button>
+      </TooltipWrapper>
     </AccordionSection>
 
     <AccordionSection title="全球排名" :default-open="false">
@@ -145,7 +151,13 @@ watch(
       <p v-if="!ranking.loading && ranking.error" class="pp-hint">{{ ranking.error }}</p>
       <p v-else-if="!ranking.loading && comparisonMessage" class="pp-hint">{{ comparisonMessage }}</p>
       <p v-if="timestamp" class="pp-hint">数据时间: {{ timestamp }}</p>
-      <button class="pp-btn pp-btn--small" :disabled="ranking.loading" @click="refreshRanking">刷新排名</button>
+      <TooltipWrapper text="刷新全球排名数据" placement="bottom">
+        <button class="pp-btn pp-btn--small" :disabled="ranking.loading" @click="refreshRanking">刷新排名</button>
+      </TooltipWrapper>
+    </AccordionSection>
+
+    <AccordionSection v-if="store.timelineHasData" title="时间轴事件" :default-open="false">
+      <TimelineEventEditor />
     </AccordionSection>
   </div>
 </template>
@@ -155,6 +167,27 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.add-line-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1.5px dashed var(--toolbar-primary-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--toolbar-primary-bg);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast, 0.1s ease), border-color var(--transition-fast, 0.1s ease);
+}
+
+.add-line-btn:hover {
+  background: rgba(29, 78, 216, 0.08);
+  border-color: var(--toolbar-primary-bg);
 }
 
 .line-list {
@@ -169,24 +202,54 @@ watch(
 }
 
 .line-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 6px 8px;
+  padding: 6px 8px 6px 12px;
   border: 1px solid var(--toolbar-input-border);
   border-radius: 6px;
   background: var(--toolbar-input-bg);
   color: var(--toolbar-text);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: all var(--transition-fast, 0.1s ease);
 }
 
-.line-item:hover { border-color: var(--toolbar-button-hover-border); }
+.line-item:hover {
+  border-color: var(--toolbar-button-hover-border);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.12));
+}
+
+.line-item:hover::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--indicator-width, 2px);
+  height: 16px;
+  background: var(--indicator-color, var(--toolbar-primary-bg));
+  border-radius: 0 1px 1px 0;
+}
+
 .line-item.active {
   background: var(--toolbar-tab-active-bg);
   border-color: var(--toolbar-tab-active-border);
+}
+
+.line-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--indicator-width, 2px);
+  height: 16px;
+  background: var(--indicator-color, var(--toolbar-primary-bg));
+  border-radius: 0 1px 1px 0;
 }
 
 .line-swatch {
@@ -194,6 +257,11 @@ watch(
   height: 12px;
   border-radius: 3px;
   flex-shrink: 0;
+  pointer-events: none;
+}
+
+.line-item > span {
+  pointer-events: none;
 }
 
 .pp-ranking-main {

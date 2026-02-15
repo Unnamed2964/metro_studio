@@ -27,8 +27,12 @@ import { buildMapStyle } from './map-editor/mapStyle'
 import { LINE_STYLE_OPTIONS, getLineStyleMap } from '../lib/lineStyles'
 import { generateStationNameCandidates } from '../lib/ai/stationNaming'
 import { fetchNearbyStationNamingContext, STATION_NAMING_RADIUS_METERS } from '../lib/osm/nearbyStationNamingContext'
+import { useDialog } from '../composables/useDialog.js'
+import TimelineSlider from './TimelineSlider.vue'
+import { createTimelinePlayer } from '../lib/timeline/timelinePlayer.js'
 
 const store = useProjectStore()
+const { confirm, prompt } = useDialog()
 const mapContainer = ref(null)
 const contextMenuRef = ref(null)
 const aiStationMenuRef = ref(null)
@@ -36,12 +40,70 @@ let map = null
 let dragState = null
 let anchorDragState = null
 let suppressNextMapClick = false
+let suppressNextStationClick = false
 let scaleControl = null
 let aiNamingAbortController = null
+let isMapReadyForBoundary = false
 const ROUTE_DRAW_SHORT_DISTANCE_METERS = 500
 const ROUTE_DRAW_LONG_DISTANCE_METERS = 2000
 const ROUTE_DRAW_SHORT_COLOR = '#EF4444'
 const ROUTE_DRAW_LONG_COLOR = '#A855F7'
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
+
+function easeInOutQuart(t) {
+  return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2
+}
+
+function easeInOutQuint(t) {
+  return t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2
+}
+
+// Timeline player
+let timelinePlayer = null
+function ensureTimelinePlayer() {
+  if (timelinePlayer) return timelinePlayer
+  timelinePlayer = createTimelinePlayer({
+    onYearChange(year) {
+      store.setTimelineFilterYear(year)
+    },
+    onStateChange(state) {
+      store.setTimelinePlaybackState(state)
+    },
+    onPlaybackEnd() {
+      store.setTimelinePlaybackState('idle')
+    },
+  })
+  return timelinePlayer
+}
+
+function onTimelineYearChange(year) {
+  store.setTimelineFilterYear(year)
+  if (timelinePlayer) timelinePlayer.seekTo(year)
+}
+
+function onTimelinePlay() {
+  const player = ensureTimelinePlayer()
+  player.setYears(store.timelineYears)
+  player.setSpeed(store.timelinePlayback.speed)
+  player.play(store.timelinePlayback.state === 'idle')
+}
+
+function onTimelinePause() {
+  timelinePlayer?.pause()
+}
+
+function onTimelineStop() {
+  timelinePlayer?.stop()
+  store.setTimelineFilterYear(null)
+}
+
+function onTimelineSpeedChange(speed) {
+  store.setTimelinePlaybackSpeed(speed)
+  if (timelinePlayer) timelinePlayer.setSpeed(speed)
+}
 
 const selectionBox = reactive({
   active: false,
@@ -100,6 +162,13 @@ const aiStationMenu = reactive({
   requestVersion: 0,
 })
 
+const lineSelectionMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  lineOptions: [],
+})
+
 const stationCount = computed(() => store.project?.stations.length || 0)
 const edgeCount = computed(() => store.project?.edges.length || 0)
 const selectedEdgeLabel = computed(() => String(store.selectedEdgeIds?.length || 0))
@@ -110,6 +179,10 @@ const contextMenuStyle = computed(() => ({
 const aiStationMenuStyle = computed(() => ({
   left: `${aiStationMenu.x}px`,
   top: `${aiStationMenu.y}px`,
+}))
+const lineSelectionMenuStyle = computed(() => ({
+  left: `${lineSelectionMenu.x}px`,
+  top: `${lineSelectionMenu.y}px`,
 }))
 const hasSelection = computed(
   () => store.selectedStationIds.length > 0 || (store.selectedEdgeIds?.length || 0) > 0 || Boolean(store.selectedEdgeAnchor),
@@ -192,6 +265,11 @@ function closeAiStationMenu(options = {}) {
   aiStationMenu.stationId = null
 }
 
+function closeLineSelectionMenu() {
+  lineSelectionMenu.visible = false
+  lineSelectionMenu.lineOptions = []
+}
+
 async function adjustContextMenuPosition() {
   await nextTick()
   if (!mapContainer.value || !contextMenuRef.value || !contextMenu.visible) return
@@ -228,6 +306,34 @@ function openAiStationMenu({ x, y, lngLat, stationId }) {
   aiStationMenu.candidates = []
   aiStationMenu.requestVersion += 1
   adjustAiStationMenuPosition()
+}
+
+function openLineSelectionMenu({ x, y, lineOptions }) {
+  closeContextMenu()
+  closeAiStationMenu()
+  lineSelectionMenu.visible = true
+  lineSelectionMenu.x = Number.isFinite(x) ? x : 0
+  lineSelectionMenu.y = Number.isFinite(y) ? y : 0
+  lineSelectionMenu.lineOptions = Array.isArray(lineOptions) ? lineOptions : []
+  adjustLineSelectionMenuPosition()
+}
+
+async function adjustLineSelectionMenuPosition() {
+  await nextTick()
+  if (!mapContainer.value || !lineSelectionMenu.visible) return
+  const menuWidth = 268
+  const menuHeight = Math.min(lineSelectionMenu.lineOptions.length * 60 + 80, 400)
+  const containerRect = mapContainer.value.getBoundingClientRect()
+  const padding = 8
+  const maxX = Math.max(padding, containerRect.width - menuWidth - padding)
+  const maxY = Math.max(padding, containerRect.height - menuHeight - padding)
+  lineSelectionMenu.x = Math.max(padding, Math.min(lineSelectionMenu.x, maxX))
+  lineSelectionMenu.y = Math.max(padding, Math.min(lineSelectionMenu.y, maxY))
+}
+
+function selectLineFromMenu(lineId) {
+  store.selectLine(lineId)
+  closeLineSelectionMenu()
 }
 
 function openContextMenu(event) {
@@ -272,6 +378,11 @@ function onContextOverlayMouseDown(event) {
 function onAiMenuOverlayMouseDown(event) {
   if (event.button !== 0 && event.button !== 2) return
   closeAiStationMenu()
+}
+
+function onLineSelectionMenuOverlayMouseDown(event) {
+  if (event.button !== 0 && event.button !== 2) return
+  closeLineSelectionMenu()
 }
 
 function clearRouteDrawPreview() {
@@ -478,18 +589,19 @@ function removeEdgeAnchorFromContext() {
   closeContextMenu()
 }
 
-function clearContextEdgeAnchorsFromContext() {
+async function clearContextEdgeAnchorsFromContext() {
   if (!contextMenu.edgeId) return
-  if (!window.confirm('确认清空该线段全部锚点吗？')) return
+  const ok = await confirm({ title: '清空锚点', message: '确认清空该线段全部锚点吗？' })
+  if (!ok) return
   store.clearEdgeAnchors(contextMenu.edgeId)
   closeContextMenu()
 }
 
-function renameContextStationFromContext() {
+async function renameContextStationFromContext() {
   if (!contextStation.value) return
-  const nameZh = window.prompt('输入站点中文名', contextStation.value.nameZh || '')
+  const nameZh = await prompt({ title: '站点中文名', message: '输入站点中文名', defaultValue: contextStation.value.nameZh || '', placeholder: '中文名' })
   if (nameZh == null) return
-  const nameEn = window.prompt('输入站点英文名', contextStation.value.nameEn || '')
+  const nameEn = await prompt({ title: '站点英文名', message: '输入站点英文名', defaultValue: contextStation.value.nameEn || '', placeholder: '英文名' })
   if (nameEn == null) return
   store.updateStationName(contextStation.value.id, {
     nameZh,
@@ -498,22 +610,40 @@ function renameContextStationFromContext() {
   closeContextMenu()
 }
 
-function deleteContextStationFromContext() {
+async function deleteContextStationFromContext() {
   if (!contextMenu.stationId) return
-  if (!window.confirm('确认删除该站点吗？')) return
+  const ok = await confirm({ title: '删除站点', message: '确认删除该站点吗？', confirmText: '删除', danger: true })
+  if (!ok) return
   store.setSelectedStations([contextMenu.stationId])
   store.deleteSelectedStations()
   closeContextMenu()
 }
 
-function deleteContextEdgeFromContext() {
+async function deleteContextEdgeFromContext() {
   if (!contextMenu.edgeId) return
-  if (!window.confirm('确认删除该线段吗？')) return
+  const ok = await confirm({ title: '删除线段', message: '确认删除该线段吗？', confirmText: '删除', danger: true })
+  if (!ok) return
   store.selectEdge(contextMenu.edgeId)
   store.deleteSelectedEdge()
   closeContextMenu()
 }
 
+function splitEdgeAtContext() {
+  if (!contextMenu.edgeId || !contextMenu.lngLat) return
+  store.splitEdgeAtPoint(contextMenu.edgeId, [...contextMenu.lngLat])
+  closeContextMenu()
+}
+
+function mergeEdgesAtContextStation() {
+  if (!contextMenu.stationId) return
+  store.mergeEdgesAtStation(contextMenu.stationId)
+  closeContextMenu()
+}
+
+const canMergeAtContextStation = computed(() => {
+  if (!contextMenu.stationId) return false
+  return store.canMergeEdgesAtStation(contextMenu.stationId)
+})
 
 function traceActualExport(step, payload) {
   const suffix = payload == null ? '' : ` ${typeof payload === 'string' ? payload : JSON.stringify(payload)}`
@@ -1019,11 +1149,12 @@ function updateMapData() {
   const stationSource = map.getSource(SOURCE_STATIONS)
   const edgeSource = map.getSource(SOURCE_EDGES)
   const anchorSource = map.getSource(SOURCE_EDGE_ANCHORS)
+  const filterYear = store.timelineFilterYear
   if (stationSource) {
-    stationSource.setData(buildStationsGeoJson(store.project, store.selectedStationIds))
+    stationSource.setData(buildStationsGeoJson(store.project, store.selectedStationIds, filterYear))
   }
   if (edgeSource) {
-    edgeSource.setData(buildEdgesGeoJson(store.project))
+    edgeSource.setData(buildEdgesGeoJson(store.project, filterYear))
   }
   if (anchorSource) {
     anchorSource.setData(buildEdgeAnchorsGeoJson(store.project, store.selectedEdgeId, store.selectedEdgeAnchor))
@@ -1043,9 +1174,67 @@ function handleWindowResize() {
   }
 }
 
+/**
+ * BFS to find the shortest edge path between two stations.
+ * Walks along edges that share at least one common line, returns ordered edge IDs.
+ */
+function findEdgePathBetweenStations(fromStationId, toStationId) {
+  const edges = store.project?.edges
+  if (!edges?.length) return []
+
+  // Build adjacency: stationId → [{ neighborStationId, edgeId, lineIds }]
+  const adj = new Map()
+  for (const edge of edges) {
+    const a = edge.fromStationId
+    const b = edge.toStationId
+    if (!a || !b) continue
+    if (!adj.has(a)) adj.set(a, [])
+    if (!adj.has(b)) adj.set(b, [])
+    adj.get(a).push({ neighbor: b, edgeId: edge.id, lineIds: edge.sharedByLineIds || [] })
+    adj.get(b).push({ neighbor: a, edgeId: edge.id, lineIds: edge.sharedByLineIds || [] })
+  }
+
+  if (!adj.has(fromStationId) || !adj.has(toStationId)) return []
+
+  // BFS — track which lineIds we're following to prefer staying on the same line
+  // Queue entries: { stationId, edgePath: string[], lineIds: Set }
+  const visited = new Set([fromStationId])
+  const queue = [{ stationId: fromStationId, edgePath: [], lineIds: null }]
+  let head = 0
+
+  while (head < queue.length) {
+    const cur = queue[head++]
+    for (const link of adj.get(cur.stationId) || []) {
+      if (visited.has(link.neighbor)) continue
+
+      // If we already have a line context, prefer edges on the same line
+      let commonLines = null
+      if (cur.lineIds) {
+        commonLines = new Set(link.lineIds.filter(lid => cur.lineIds.has(lid)))
+        if (commonLines.size === 0) continue // don't cross to unrelated lines
+      } else {
+        commonLines = new Set(link.lineIds)
+      }
+
+      const newPath = [...cur.edgePath, link.edgeId]
+
+      if (link.neighbor === toStationId) return newPath
+
+      visited.add(link.neighbor)
+      queue.push({ stationId: link.neighbor, edgePath: newPath, lineIds: commonLines })
+    }
+  }
+
+  return []
+}
+
 function handleStationClick(event) {
   closeContextMenu()
   closeAiStationMenu()
+  if (suppressNextStationClick) {
+    suppressNextMapClick = true
+    return
+  }
   suppressNextMapClick = true
   const stationId = event.features?.[0]?.properties?.id
   if (!stationId) return
@@ -1065,6 +1254,7 @@ function handleStationClick(event) {
   }
   const mouseEvent = event.originalEvent
   const isMultiModifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
+
   store.selectStation(stationId, {
     multi: isMultiModifier && store.mode === 'select',
     toggle: isMultiModifier && store.mode === 'select',
@@ -1084,10 +1274,34 @@ function handleEdgeClick(event) {
   if (overlappingStations.length) return
   const edgeId = event.features?.[0]?.properties?.id
   if (!edgeId) return
+  const mouseEvent = event.originalEvent
+  if (mouseEvent?.altKey) {
+    const edge = store.project?.edges?.find((e) => e.id === edgeId)
+    if (!edge?.sharedByLineIds?.length) return
+    if (edge.sharedByLineIds.length === 1) {
+      store.selectLine(edge.sharedByLineIds[0])
+    } else {
+      const lineOptions = edge.sharedByLineIds
+        .map((lineId) => {
+          const line = store.project.lines.find((l) => l.id === lineId)
+          if (!line) return null
+          return {
+            id: line.id,
+            nameZh: line.nameZh,
+            nameEn: line.nameEn,
+            color: line.color,
+          }
+        })
+        .filter(Boolean)
+      if (lineOptions.length) {
+        openLineSelectionMenu({ x: event.point.x, y: event.point.y, lineOptions })
+      }
+    }
+    return
+  }
   if (store.mode !== 'select') {
     store.setMode('select')
   }
-  const mouseEvent = event.originalEvent
   const isMultiModifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
   store.selectEdge(edgeId, {
     multi: isMultiModifier,
@@ -1165,6 +1379,20 @@ function startStationDrag(event) {
   if (!stationId) return
   const mouseEvent = event.originalEvent
   if (mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey) {
+    // Shift+click two stations → select all edges on the path between them
+    if (store.selectedStationIds.length === 1 && store.selectedStationIds[0] !== stationId) {
+      const fromId = store.selectedStationIds[0]
+      const pathEdgeIds = findEdgePathBetweenStations(fromId, stationId)
+      if (pathEdgeIds.length) {
+        store.setSelectedEdges(pathEdgeIds, { keepStations: false })
+        store.setSelectedStations([fromId, stationId], { keepEdges: true })
+        store.statusText = `已选中路径上 ${pathEdgeIds.length} 条线段`
+        suppressNextMapClick = true
+        suppressNextStationClick = true
+        setTimeout(() => { suppressNextStationClick = false }, 0)
+        return
+      }
+    }
     store.selectStation(stationId, { multi: true, toggle: true })
     return
   }
@@ -1399,6 +1627,7 @@ onMounted(() => {
     dragRotate: false,
     touchPitch: false,
     maxPitch: 0,
+    boxZoom: false,
     preserveDrawingBuffer: true,
     attributionControl: true,
   })
@@ -1417,6 +1646,13 @@ onMounted(() => {
     ensureMapLayers()
     updateMapData()
     map.resize()
+    
+    isMapReadyForBoundary = true
+    
+    if (store.regionBoundary) {
+      console.log('[MapEditor on load] Found existing boundary, fitting to it')
+      fitMapToBoundary(store.regionBoundary)
+    }
 
     map.on('click', LAYER_STATIONS, handleStationClick)
     map.on('mousedown', LAYER_STATIONS, startStationDrag)
@@ -1443,11 +1679,14 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  isMapReadyForBoundary = false
   store.unregisterActualRoutePngExporter(exportActualRoutePngFromMap)
   window.removeEventListener('resize', handleWindowResize)
   window.removeEventListener('keydown', handleWindowKeyDown)
   closeContextMenu()
   closeAiStationMenu()
+  timelinePlayer?.destroy()
+  timelinePlayer = null
   scaleControl = null
   if (map) {
     map.remove()
@@ -1484,6 +1723,7 @@ watch(
     selectedEdgeIds: store.selectedEdgeIds,
     selectedEdgeAnchor: store.selectedEdgeAnchor,
     boundary: store.regionBoundary,
+    timelineFilterYear: store.timelineFilterYear,
   }),
   () => {
     if (!map || !map.isStyleLoaded()) return
@@ -1492,6 +1732,192 @@ watch(
     updateMapData()
   },
   { deep: true },
+)
+
+let lastRegionBoundaryHash = null
+
+function computeBoundaryHash(boundary) {
+  try {
+    if (!boundary || !boundary.type) return null
+    
+    const bbox = extractBboxFromGeoJson(boundary)
+    if (!bbox) return null
+    
+    const hash = `${boundary.type}_${bbox.minLng.toFixed(6)}_${bbox.minLat.toFixed(6)}_${bbox.maxLng.toFixed(6)}_${bbox.maxLat.toFixed(6)}`
+    console.log('[computeBoundaryHash] Generated hash:', hash)
+    return hash
+  } catch (error) {
+    console.error('Error computing boundary hash:', error)
+    return null
+  }
+}
+
+function extractBboxFromGeoJson(geoJson) {
+  try {
+    if (!geoJson || !geoJson.type || !geoJson.coordinates) return null
+    
+    const coords = []
+    const geometry = geoJson
+    
+    function flattenPolygon(rings) {
+      if (!Array.isArray(rings)) return
+      for (const ring of rings) {
+        if (!Array.isArray(ring)) continue
+        for (const coord of ring) {
+          if (Array.isArray(coord) && coord.length >= 2) {
+            const [lng, lat] = coord
+            if (Number.isFinite(lng) && Number.isFinite(lat)) {
+              coords.push([lng, lat])
+            }
+          }
+        }
+      }
+    }
+    
+    if (geometry.type === 'Polygon') {
+      flattenPolygon(geometry.coordinates)
+    } else if (geometry.type === 'MultiPolygon') {
+      if (!Array.isArray(geometry.coordinates)) return null
+      for (const polygon of geometry.coordinates) {
+        flattenPolygon(polygon)
+      }
+    } else {
+      return null
+    }
+    
+    if (!coords.length) return null
+    
+    let minLng = Infinity
+    let minLat = Infinity
+    let maxLng = -Infinity
+    let maxLat = -Infinity
+    
+    for (const [lng, lat] of coords) {
+      minLng = Math.min(minLng, lng)
+      minLat = Math.min(minLat, lat)
+      maxLng = Math.max(maxLng, lng)
+      maxLat = Math.max(maxLat, lat)
+    }
+    
+    if (!Number.isFinite(minLng) || !Number.isFinite(minLat) || 
+        !Number.isFinite(maxLng) || !Number.isFinite(maxLat)) {
+      return null
+    }
+    
+    return { minLng, minLat, maxLng, maxLat }
+  } catch (error) {
+    console.error('Error extracting bbox from geojson:', error)
+    return null
+  }
+}
+
+function fitMapToBoundary(boundary) {
+  try {
+    console.log('[fitMapToBoundary] Called with boundary:', boundary)
+    
+    if (!map) {
+      console.log('[fitMapToBoundary] Map is null, returning')
+      return
+    }
+    
+    if (!boundary) {
+      console.log('[fitMapToBoundary] Boundary is null, returning')
+      return
+    }
+    
+    const bbox = extractBboxFromGeoJson(boundary)
+    console.log('[fitMapToBoundary] Extracted bbox:', bbox)
+    
+    if (!bbox) {
+      console.log('[fitMapToBoundary] Failed to extract bbox, returning')
+      return
+    }
+    
+    const lngSpan = Math.abs(bbox.maxLng - bbox.minLng)
+    const latSpan = Math.abs(bbox.maxLat - bbox.minLat)
+    console.log('[fitMapToBoundary] Span:', lngSpan, latSpan)
+    
+    if (lngSpan < 1e-6 && latSpan < 1e-6) {
+      console.log('[fitMapToBoundary] Using easeTo (small span)')
+      map.easeTo({
+        center: [bbox.minLng, bbox.minLat],
+        zoom: Math.max(map.getZoom(), 12),
+        bearing: 0,
+        pitch: 0,
+        duration: 1000,
+        easing: easeInOutCubic,
+      })
+    } else {
+      console.log('[fitMapToBoundary] Using fitBounds')
+      map.fitBounds(
+        [
+          [bbox.minLng, bbox.minLat],
+          [bbox.maxLng, bbox.maxLat],
+        ],
+        {
+          padding: { top: 80, bottom: 80, left: 80, right: 80 },
+          maxZoom: 14,
+          bearing: 0,
+          pitch: 0,
+          duration: 1200,
+          easing: easeInOutCubic,
+        },
+      )
+    }
+    
+    console.log('[fitMapToBoundary] Map fit completed')
+  } catch (error) {
+    console.error('[fitMapToBoundary] Failed to fit map to boundary:', error)
+  }
+}
+
+watch(
+  () => store.regionBoundary,
+  async (newBoundary) => {
+    console.log('[MapEditor watch] regionBoundary changed:', newBoundary)
+    
+    if (!isMapReadyForBoundary) {
+      console.log('[MapEditor watch] Map not ready yet, skipping')
+      return
+    }
+    
+    if (!newBoundary) {
+      console.log('[MapEditor watch] Boundary is null, skipping')
+      return
+    }
+    
+    const boundaryHash = computeBoundaryHash(newBoundary)
+    console.log('[MapEditor watch] boundaryHash:', boundaryHash, 'lastHash:', lastRegionBoundaryHash)
+    
+    if (boundaryHash && boundaryHash !== lastRegionBoundaryHash) {
+      lastRegionBoundaryHash = boundaryHash
+      console.log('[MapEditor watch] Boundary hash changed, will fit map')
+      
+      await nextTick()
+      
+      if (!map.isStyleLoaded()) {
+        console.log('[MapEditor watch] Waiting for map style to load...')
+        await new Promise((resolve) => {
+          const checkInterval = setInterval(() => {
+            if (map.isStyleLoaded()) {
+              clearInterval(checkInterval)
+              resolve()
+            }
+          }, 50)
+          
+          setTimeout(() => {
+            clearInterval(checkInterval)
+            resolve()
+          }, 5000)
+        })
+      }
+      
+      fitMapToBoundary(newBoundary)
+    } else {
+      console.log('[MapEditor watch] Boundary hash unchanged or null, skipping')
+    }
+  },
+  { deep: false },
 )
 </script>
 
@@ -1572,11 +1998,15 @@ watch(
               <button @click="renameContextStationFromContext" :disabled="!contextStation">重命名站点</button>
               <button @click="deleteContextStationFromContext" :disabled="!contextMenu.stationId">删除该站点</button>
             </div>
+            <div class="map-editor__context-row">
+              <button @click="mergeEdgesAtContextStation" :disabled="!canMergeAtContextStation">合并相邻线段</button>
+            </div>
           </div>
 
           <div v-if="contextMenu.targetType === 'edge'" class="map-editor__context-section">
             <p>线段操作</p>
             <div class="map-editor__context-row">
+              <button @click="splitEdgeAtContext" :disabled="!contextMenu.edgeId || !contextMenu.lngLat">在此处插入站点</button>
               <button @click="addEdgeAnchorFromContext" :disabled="!contextMenu.edgeId || !contextMenu.lngLat">在此加锚点</button>
               <button @click="deleteContextEdgeFromContext" :disabled="!contextMenu.edgeId">删除该线段</button>
             </div>
@@ -1641,11 +2071,50 @@ watch(
         </div>
       </div>
 
+      <div
+        v-if="lineSelectionMenu.visible"
+        class="map-editor__context-mask"
+        @mousedown="onLineSelectionMenuOverlayMouseDown"
+        @contextmenu.prevent="onLineSelectionMenuOverlayMouseDown"
+      >
+        <div
+          class="map-editor__line-selection-menu"
+          :style="lineSelectionMenuStyle"
+          @mousedown.stop
+          @contextmenu.prevent
+        >
+          <h3>选择线路</h3>
+          <p class="map-editor__context-meta">该线段被多条线路共享，请选择</p>
+          <div class="map-editor__line-selection-list">
+            <button
+              v-for="option in lineSelectionMenu.lineOptions"
+              :key="option.id"
+              class="map-editor__line-selection-option"
+              @click="selectLineFromMenu(option.id)"
+            >
+              <span class="map-editor__line-selection-color" :style="{ background: option.color }"></span>
+              <span class="map-editor__line-selection-name">{{ option.nameZh }}</span>
+              <span class="map-editor__line-selection-name-en">{{ option.nameEn }}</span>
+            </button>
+          </div>
+          <div class="map-editor__context-row">
+            <button @click="closeLineSelectionMenu()">取消</button>
+          </div>
+        </div>
+      </div>
+
       <p class="map-editor__hint">
-        Shift/Ctrl/⌘ + 拖拽框选站点/线段 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Ctrl/Cmd+Z 撤销 |
+        Shift/Ctrl/⌘ + 拖拽框选站点/线段 | Alt + 点击线段选中整条线路 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Ctrl/Cmd+Z 撤销 |
         Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做 | Esc 取消待连接起点/关闭菜单
       </p>
     </div>
+    <TimelineSlider
+      @year-change="onTimelineYearChange"
+      @play="onTimelinePlay"
+      @pause="onTimelinePause"
+      @stop="onTimelineStop"
+      @speed-change="onTimelineSpeedChange"
+    />
   </section>
 </template>
 
@@ -1845,6 +2314,64 @@ watch(
   font-size: 11px;
   line-height: 1.35;
   color: var(--toolbar-hint);
+}
+
+.map-editor__line-selection-menu {
+  position: absolute;
+  width: 268px;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 12px;
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
+  padding: 10px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+}
+
+.map-editor__line-selection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.map-editor__line-selection-option {
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 8px;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-text);
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.map-editor__line-selection-option:hover {
+  border-color: var(--toolbar-button-hover-border);
+  background: var(--toolbar-button-bg);
+}
+
+.map-editor__line-selection-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.map-editor__line-selection-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.map-editor__line-selection-name-en {
+  font-size: 12px;
+  color: var(--toolbar-muted);
+  margin-left: auto;
 }
 
 .map-editor__hint {

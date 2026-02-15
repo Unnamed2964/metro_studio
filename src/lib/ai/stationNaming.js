@@ -1,7 +1,7 @@
 
 import { postLLMChat } from './openrouterClient'
 
-const DEFAULT_LLM_MODEL = 'gemini-3-flash-preview'
+const DEFAULT_LLM_MODEL = 'gemini-2.5-flash'
 
 const BASIS_OPTIONS = ['①道路', '②地域', '③公共设施', '④其它']
 

@@ -58,6 +58,9 @@ export function getDisplayLineName(line, locale = 'zh') {
   if (!line) return ''
   const raw = locale === 'en' ? cleanInput(line.nameEn) : cleanInput(line.nameZh)
   if (!raw) return ''
-  if (!line.isLoop) return raw
+  const zhName = cleanInput(line.nameZh)
+  const enName = cleanInput(line.nameEn)
+  const isLoopByName = /环/u.test(zhName) || /\b(?:loop|circle)\b/i.test(enName)
+  if (!isLoopByName) return raw
   return stripLoopTerminusSuffix(raw, locale !== 'en')
 }

@@ -117,6 +117,7 @@ export function buildHudLineRoute(project, lineId) {
       stationIds: componentIds,
       isSimpleLoop: false,
       isPartialLoop: false,
+      isClosed: false,
       directionOptions: [],
     }
   }
@@ -131,14 +132,16 @@ export function buildHudLineRoute(project, lineId) {
     if (!componentSet.has(edge.fromStationId) || !componentSet.has(edge.toStationId)) return count
     return count + 1
   }, 0)
-  const isLoopLikeLine = isLoopLineLike(line)
+  const terminals = componentIds.filter((stationId) => (componentAdjacency.get(stationId) || []).length <= 1)
+  const isClosed = terminals.length === 0 && componentIds.length >= 3
+  const isLoopLikeLine = isLoopLineLike(line, isClosed)
   const hasCycle = componentEdgeCount >= componentIds.length
 
   const isCycleCandidate =
-    isLoopLikeLine &&
+    isClosed &&
     componentIds.length >= 3 &&
     componentIds.every((stationId) => (componentAdjacency.get(stationId) || []).length === 2)
-  const isPartialLoop = isLoopLikeLine && hasCycle && !isCycleCandidate
+  const isPartialLoop = isClosed && hasCycle && !isCycleCandidate
 
   if (isCycleCandidate) {
     const cycle = traceCycle(componentAdjacency, stationById)
@@ -152,6 +155,7 @@ export function buildHudLineRoute(project, lineId) {
         stationIds: forward,
         isSimpleLoop: true,
         isPartialLoop: false,
+        isClosed,
         directionOptions: [
           {
             key: `${cycle[0]}::forward`,
@@ -183,6 +187,7 @@ export function buildHudLineRoute(project, lineId) {
       stationIds: componentIds,
       isSimpleLoop: false,
       isPartialLoop: false,
+      isClosed,
       directionOptions: [],
     }
   }
@@ -196,6 +201,7 @@ export function buildHudLineRoute(project, lineId) {
       stationIds: mainPath,
       isSimpleLoop: false,
       isPartialLoop: false,
+      isClosed,
       directionOptions: [],
     }
   }
@@ -212,6 +218,7 @@ export function buildHudLineRoute(project, lineId) {
     stationIds: forward,
     isSimpleLoop: false,
     isPartialLoop,
+    isClosed,
     directionOptions: [
       {
         key: `${forward[0]}->${forward[forward.length - 1]}`,
@@ -261,7 +268,7 @@ export function buildVehicleHudRenderModel(project, options = {}) {
   }
   const isLoopLine =
     stationIds.length >= 3 &&
-    (Boolean(route.isSimpleLoop) || Boolean(route.isPartialLoop) || isLoopLineLike(route.line))
+    (Boolean(route.isSimpleLoop) || Boolean(route.isPartialLoop) || Boolean(route.isClosed))
   if (isLoopLine) {
     return buildLoopHudRenderModel({
       route,
@@ -270,6 +277,7 @@ export function buildVehicleHudRenderModel(project, options = {}) {
       stationById,
       lineById,
       lineId,
+      isClosed: route.isClosed,
     })
   }
 
@@ -345,7 +353,7 @@ export function buildVehicleHudRenderModel(project, options = {}) {
   const terminalNameZh = stationById.get(direction.toStationId)?.nameZh || ''
   const terminalNameEn = stationById.get(direction.toStationId)?.nameEn || ''
   const lineDisplayName = getDisplayLineName(route.line, 'zh') || route.line?.nameZh || ''
-  const headerMeta = buildHudHeaderMeta(route.line, direction, stationById, stationIds)
+  const headerMeta = buildHudHeaderMeta(route.line, route.isClosed, direction, stationById, stationIds)
 
   return {
     ready: true,
@@ -408,7 +416,7 @@ function createEmptyModel(reason) {
   }
 }
 
-function buildLoopHudRenderModel({ route, direction, stationIds, stationById, lineById, lineId }) {
+function buildLoopHudRenderModel({ route, direction, stationIds, stationById, lineById, lineId, isClosed }) {
   const stationCount = stationIds.length
   const topCount = Math.ceil(stationCount / 2)
   const bottomCount = stationCount - topCount
@@ -472,7 +480,7 @@ function buildLoopHudRenderModel({ route, direction, stationIds, stationById, li
   const trackPath = pointsToClosedRoundedPath(points, 18)
   const chevrons = buildChevronMarks(positionedStations, { isLoop: true })
   const lineDisplayName = getDisplayLineName(route.line, 'zh') || route.line?.nameZh || ''
-  const headerMeta = buildHudHeaderMeta(route.line, direction, stationById, stationIds)
+  const headerMeta = buildHudHeaderMeta(route.line, isClosed, direction, stationById, stationIds)
 
   return {
     ready: true,
@@ -532,10 +540,10 @@ function buildStationRender(station, isStart, isEnd, lineId, lineById, position)
   let rowIndex = position.rowIndex
   let labelAnchor = 'start'
   let labelX = position.x
-  let labelBelow = rowIndex === 1
-  let labelY = labelBelow ? position.y + (50 + labelOffset) : position.y - (40 + labelOffset)
-  let labelEnY = labelBelow ? labelY + 22 : labelY + 20
-  let calloutDirection = labelY >= position.y ? -1 : 1
+  let labelBelow = false
+  let labelY = position.y - (40 + labelOffset)
+  let labelEnY = labelY + 20
+  let calloutDirection = 1
   let connectorDotY = position.y + calloutDirection * 30
 
   if (position.layout === 'loop-radial') {
@@ -632,8 +640,8 @@ function estimateHudLineHeaderWidth(lineNameZh) {
   return clamp(Math.round(120 + units * 44), 220, 620)
 }
 
-function buildHudHeaderMeta(line, direction, stationById, stationIds) {
-  const lineBadge = resolveHudLineBadge(line)
+function buildHudHeaderMeta(line, isClosed, direction, stationById, stationIds) {
+  const lineBadge = resolveHudLineBadge(line, isClosed)
   const nextStation = stationById.get(stationIds?.[1])
   const origin = stationById.get(stationIds?.[0])
   const destination = stationById.get(direction?.toStationId)
@@ -641,10 +649,10 @@ function buildHudHeaderMeta(line, direction, stationById, stationIds) {
   const originEn = String(origin?.nameEn || '').trim()
   const destinationZh = String(destination?.nameZh || '').trim()
   const destinationEn = String(destination?.nameEn || '').trim()
-  const routeSpanZh = !isLoopLineLike(line)
+  const routeSpanZh = !isLoopLineLike(line, isClosed)
     ? `${originZh || stationIds?.[0] || ''} >>> ${destinationZh || direction?.toStationId || ''}`.trim()
     : ''
-  const routeSpanEn = !isLoopLineLike(line)
+  const routeSpanEn = !isLoopLineLike(line, isClosed)
     ? `${originEn || originZh || stationIds?.[0] || ''} >>> ${destinationEn || destinationZh || direction?.toStationId || ''}`.trim()
     : ''
   return {
@@ -659,10 +667,10 @@ function buildHudHeaderMeta(line, direction, stationById, stationIds) {
   }
 }
 
-function resolveHudLineBadge(line) {
+function resolveHudLineBadge(line, isClosed) {
   const zhName = String(getDisplayLineName(line, 'zh') || line?.nameZh || '').trim()
   const enName = String(line?.nameEn || '').trim()
-  const isLoop = isLoopLineLike(line)
+  const isLoop = isLoopLineLike(line, isClosed)
   if (isLoop) {
     return {
       zh: '环线',
@@ -682,10 +690,10 @@ function resolveHudLineBadge(line) {
   }
 }
 
-function isLoopLineLike(line) {
+function isLoopLineLike(line, isClosed) {
   const zhName = String(getDisplayLineName(line, 'zh') || line?.nameZh || '').trim()
   const enName = String(line?.nameEn || '').trim()
-  return Boolean(line?.isLoop) || /环线/u.test(zhName) || /\b(?:loop|circle)\b/i.test(enName)
+  return Boolean(isClosed) || /环/u.test(zhName) || /\b(?:loop|circle)\b/i.test(enName)
 }
 
 function extractLineNumber(candidates = []) {

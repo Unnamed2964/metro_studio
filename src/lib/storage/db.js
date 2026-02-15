@@ -64,10 +64,6 @@ function toSerializableProject(project) {
       relationId: toFiniteNumber(normalized.region?.relationId, 0),
     },
     regionBoundary: normalized.regionBoundary ? JSON.parse(JSON.stringify(normalized.regionBoundary)) : null,
-    importConfig: {
-      includeConstruction: Boolean(normalized.importConfig?.includeConstruction),
-      includeProposed: Boolean(normalized.importConfig?.includeProposed),
-    },
     stations: (normalized.stations || []).map((station) => {
       const lngLat = toPoint(station.lngLat, [117, 36.65])
       const displayPos = toPoint(station.displayPos, lngLat)
@@ -101,6 +97,8 @@ function toSerializableProject(project) {
       lineStyleOverride: edge.lineStyleOverride != null ? String(edge.lineStyleOverride) : null,
       lengthMeters: toFiniteNumber(edge.lengthMeters, 0),
       isCurved: Boolean(edge.isCurved),
+      openingYear: edge.openingYear != null ? Number(edge.openingYear) : null,
+      phase: edge.phase || '',
     })),
     lines: (normalized.lines || []).map((line) => ({
       id: String(line.id || ''),

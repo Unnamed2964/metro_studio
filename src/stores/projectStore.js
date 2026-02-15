@@ -5,6 +5,7 @@ import { importLayoutActions } from './project/actions/importLayout'
 import { lifecycleActions } from './project/actions/lifecycle'
 import { networkEditingActions } from './project/actions/networkEditing'
 import { selectionActions } from './project/actions/selection'
+import { timelineActions } from './project/actions/timelineActions'
 
 export const useProjectStore = defineStore('project', {
   state: () => ({
@@ -29,9 +30,13 @@ export const useProjectStore = defineStore('project', {
       percent: 0,
       message: '',
     },
-    includeConstruction: false,
-    includeProposed: false,
     exportStationVisibilityMode: 'all',
+    currentEditYear: 2010,
+    timelineFilterYear: null,
+    timelinePlayback: {
+      state: 'idle',
+      speed: 1,
+    },
     history: {
       past: [],
       future: [],
@@ -81,6 +86,44 @@ export const useProjectStore = defineStore('project', {
     canRedo(state) {
       return (state.history?.future?.length || 0) > 0
     },
+    timelineYears(state) {
+      if (!state.project) return []
+      const years = new Set()
+      for (const edge of state.project.edges) {
+        if (edge.openingYear != null) years.add(edge.openingYear)
+      }
+      return [...years].sort((a, b) => a - b)
+    },
+    timelineYearRange(state) {
+      const years = this.timelineYears
+      if (!years.length) return null
+      return { min: years[0], max: years[years.length - 1] }
+    },
+    timelineHasData(state) {
+      return this.timelineYears.length > 0
+    },
+    timelineStatsAtYear(state) {
+      const filterYear = state.timelineFilterYear
+      if (filterYear == null || !state.project) return null
+      const edges = state.project.edges
+      const visibleEdgeIds = new Set()
+      const visibleStationIds = new Set()
+      const lineIds = new Set()
+      let totalMeters = 0
+      for (const edge of edges) {
+        if (edge.openingYear != null && edge.openingYear > filterYear) continue
+        visibleEdgeIds.add(edge.id)
+        visibleStationIds.add(edge.fromStationId)
+        visibleStationIds.add(edge.toStationId)
+        for (const lid of edge.sharedByLineIds) lineIds.add(lid)
+        totalMeters += edge.lengthMeters || 0
+      }
+      return {
+        lines: lineIds.size,
+        stations: visibleStationIds.size,
+        km: totalMeters / 1000,
+      }
+    },
   },
   actions: {
     ...historyActions,
@@ -89,6 +132,7 @@ export const useProjectStore = defineStore('project', {
     ...networkEditingActions,
     ...importLayoutActions,
     ...exportPersistenceActions,
+    ...timelineActions,
   },
 })
 

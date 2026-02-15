@@ -4,7 +4,7 @@
 
 - `stationNaming.js`
   - 两阶段生成：第一阶段生成中文站名，第二阶段将中文站名翻译为英文
-  - 调用 BLTCY 兼容 Chat Completions（默认模型 `gemini-3-flash-preview`）
+  - 调用 BLTCY 兼容 Chat Completions（默认模型 `gemini-2.5-flash`）
   - 从环境变量读取 API Key：`BLTCY_API_KEY` / `VITE_BLTCY_API_KEY`，并兼容 `LLM_API_KEY` / `VITE_LLM_API_KEY`
   - 第一阶段：将周边 OSM 要素（道路交叉口/道路/地域/设施/建筑）转为自然语言描述，由模型直接选择最合适的一个中文站名
   - 第二阶段：将中文站名独立翻译为英文，遵循拼音+意译规范

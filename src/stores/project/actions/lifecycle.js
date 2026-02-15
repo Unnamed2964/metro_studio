@@ -7,6 +7,7 @@ import {
   loadProjectFromDb,
   setLatestProject,
 } from '../../../lib/storage/db'
+import { validateProject } from '../../../lib/validation'
 
 function resetStationEnglishRetranslateState(store) {
   store.isStationEnglishRetranslating = false
@@ -18,14 +19,39 @@ function resetStationEnglishRetranslateState(store) {
   }
 }
 
+/**
+ * Run validation on the current project and report issues via statusText.
+ * Does NOT auto-repair; only logs and surfaces a summary.
+ * @param {object} store - the Pinia store instance (this)
+ * @param {string} loadLabel - human-readable label for the load source (used in log prefix)
+ */
+function runPostLoadValidation(store, loadLabel) {
+  if (!store.project) return
+  const { issues, isValid } = validateProject(store.project)
+  if (isValid && issues.length === 0) return
+
+  const errors = issues.filter((i) => i.severity === 'error')
+  const warnings = issues.filter((i) => i.severity === 'warning')
+
+  // Log every issue to console for debugging
+  for (const issue of issues) {
+    const logFn = issue.severity === 'error' ? console.error : console.warn
+    logFn(`[validation] ${issue.type}: ${issue.message}`)
+  }
+
+  // Build a concise status summary
+  const parts = []
+  if (errors.length > 0) parts.push(`${errors.length} 个错误`)
+  if (warnings.length > 0) parts.push(`${warnings.length} 个警告`)
+  store.statusText = `${loadLabel} (数据校验: ${parts.join(', ')})`
+}
+
 const lifecycleActions = {
   async initialize() {
     if (this.isInitialized) return
     const latest = await loadLatestProjectFromDb()
     this.project = latest || createEmptyProject('济南地铁图工程')
     this.regionBoundary = this.project.regionBoundary || null
-    this.includeConstruction = Boolean(this.project.importConfig?.includeConstruction)
-    this.includeProposed = Boolean(this.project.importConfig?.includeProposed)
     this.activeLineId = this.project.lines[0]?.id || null
     this.selectedStationId = null
     this.selectedStationIds = []
@@ -35,9 +61,12 @@ const lifecycleActions = {
     this.pendingEdgeStartStationId = null
     resetStationEnglishRetranslateState(this)
     this.isInitialized = true
-    this.statusText = latest ? `已加载最近工程: ${latest.name}` : '已创建新工程'
+    const initLabel = latest ? `已加载最近工程: ${latest.name}` : '已创建新工程'
+    this.statusText = initLabel
     this.resetHistoryBaseline()
-    if (!latest) {
+    if (latest) {
+      runPostLoadValidation(this, initLabel)
+    } else {
       try {
         await this.persistNow()
       } catch (error) {
@@ -58,8 +87,6 @@ const lifecycleActions = {
     this.pendingEdgeStartStationId = null
     resetStationEnglishRetranslateState(this)
     this.regionBoundary = null
-    this.includeConstruction = false
-    this.includeProposed = false
     this.statusText = '已创建空工程'
     this.resetHistoryBaseline()
     await this.persistNow()
@@ -91,8 +118,6 @@ const lifecycleActions = {
 
     this.project = duplicated
     this.regionBoundary = duplicated.regionBoundary || null
-    this.includeConstruction = Boolean(duplicated.importConfig?.includeConstruction)
-    this.includeProposed = Boolean(duplicated.importConfig?.includeProposed)
     this.activeLineId = duplicated.lines[0]?.id || null
     this.mode = 'select'
     this.selectedStationId = null
@@ -120,8 +145,6 @@ const lifecycleActions = {
     if (!projects.length) {
       this.project = createEmptyProject('济南地铁图工程')
       this.regionBoundary = this.project.regionBoundary || null
-      this.includeConstruction = false
-      this.includeProposed = false
       this.activeLineId = this.project.lines[0]?.id || null
       this.mode = 'select'
       this.selectedStationId = null
@@ -141,8 +164,6 @@ const lifecycleActions = {
       const fallback = projects[0]
       this.project = fallback
       this.regionBoundary = fallback.regionBoundary || null
-      this.includeConstruction = Boolean(fallback.importConfig?.includeConstruction)
-      this.includeProposed = Boolean(fallback.importConfig?.includeProposed)
       this.activeLineId = fallback.lines[0]?.id || null
       this.mode = 'select'
       this.selectedStationId = null
@@ -153,9 +174,11 @@ const lifecycleActions = {
       this.pendingEdgeStartStationId = null
       resetStationEnglishRetranslateState(this)
       this.recomputeStationLineMembership()
-      this.statusText = `已删除工程，已加载: ${fallback.name}`
+      const fallbackLabel = `已删除工程，已加载: ${fallback.name}`
+      this.statusText = fallbackLabel
       this.resetHistoryBaseline()
       await setLatestProject(fallback.id)
+      runPostLoadValidation(this, fallbackLabel)
       return true
     }
 
@@ -169,8 +192,6 @@ const lifecycleActions = {
     if (!project) return
     this.project = project
     this.regionBoundary = project.regionBoundary || null
-    this.includeConstruction = Boolean(project.importConfig?.includeConstruction)
-    this.includeProposed = Boolean(project.importConfig?.includeProposed)
     this.activeLineId = project.lines[0]?.id || null
     this.selectedStationId = null
     this.selectedStationIds = []
@@ -180,9 +201,11 @@ const lifecycleActions = {
     this.pendingEdgeStartStationId = null
     resetStationEnglishRetranslateState(this)
     this.recomputeStationLineMembership()
-    this.statusText = `已加载工程: ${project.name}`
+    const loadLabel = `已加载工程: ${project.name}`
+    this.statusText = loadLabel
     this.resetHistoryBaseline()
     await setLatestProject(project.id)
+    runPostLoadValidation(this, loadLabel)
   },
 
   async listProjects() {

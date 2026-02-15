@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useProjectStore } from '../../stores/projectStore'
+import TooltipWrapper from '../TooltipWrapper.vue'
 
 const store = useProjectStore()
 
@@ -17,7 +18,9 @@ function deleteAnchor() {
     <p class="pp-hint">锚点索引: {{ anchor.anchorIndex }}</p>
     <p class="pp-hint">所属线段: {{ anchor.edgeId }}</p>
     <div class="pp-row">
-      <button class="pp-btn pp-btn--danger" @click="deleteAnchor">删除锚点</button>
+      <TooltipWrapper text="删除锚点" placement="bottom">
+        <button class="pp-btn pp-btn--danger" @click="deleteAnchor">删除锚点</button>
+      </TooltipWrapper>
     </div>
   </div>
 </template>

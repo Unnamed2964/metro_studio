@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, provide, ref } from 'vue'
 import IconSprite from './components/IconSprite.vue'
 import MenuBar from './components/MenuBar.vue'
 import ToolStrip from './components/ToolStrip.vue'
@@ -7,14 +7,32 @@ import PropertiesPanel from './components/PropertiesPanel.vue'
 import MapEditor from './components/MapEditor.vue'
 import SchematicView from './components/SchematicView.vue'
 import VehicleHudView from './components/VehicleHudView.vue'
+import TimelinePreviewView from './components/TimelinePreviewView.vue'
+import ErrorBoundary from './components/ErrorBoundary.vue'
 import StatusBar from './components/StatusBar.vue'
 import ProjectListDialog from './components/ProjectListDialog.vue'
+import ToastContainer from './components/ToastContainer.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
+import PromptDialog from './components/PromptDialog.vue'
 import { useProjectStore } from './stores/projectStore'
+import { useAutoSave } from './composables/useAutoSave'
+import { useDialog } from './composables/useDialog.js'
 
 const store = useProjectStore()
+const { saveState, lastSavedAt, saveNow } = useAutoSave()
+const { confirm, prompt } = useDialog()
+
+provide('autoSaveSaveState', saveState)
+provide('autoSaveLastSavedAt', lastSavedAt)
+provide('autoSaveSaveNow', saveNow)
+
+const stationRenameTrigger = ref(0)
+provide('stationRenameTrigger', stationRenameTrigger)
+
 const WORKSPACE_VIEW_STORAGE_KEY = 'railmap_workspace_active_view'
 const activeView = ref('map')
 const projectListVisible = ref(false)
+const globalFileInputRef = ref(null)
 
 function handleBeforeUnload(event) {
   event.preventDefault()
@@ -24,7 +42,7 @@ function handleBeforeUnload(event) {
 function loadWorkspaceViewState() {
   try {
     const saved = window.localStorage.getItem(WORKSPACE_VIEW_STORAGE_KEY)
-    if (saved && ['map', 'schematic', 'hud'].includes(saved)) {
+    if (saved && ['map', 'schematic', 'hud', 'preview'].includes(saved)) {
       activeView.value = saved
     }
   } catch {
@@ -33,7 +51,7 @@ function loadWorkspaceViewState() {
 }
 
 function setActiveView(viewKey) {
-  if (!['map', 'schematic', 'hud'].includes(viewKey)) return
+  if (!['map', 'schematic', 'hud', 'preview'].includes(viewKey)) return
   activeView.value = viewKey
   try {
     window.localStorage.setItem(WORKSPACE_VIEW_STORAGE_KEY, viewKey)
@@ -41,34 +59,47 @@ function setActiveView(viewKey) {
 }
 
 function handleMenuAction(action) {
+  console.log('[handleMenuAction] Action triggered:', action)
+  
   if (!action) return
 
   const actionMap = {
     createProject: async () => {
-      const name = window.prompt('新工程名称', '新建工程')
+      const name = await prompt({ title: '新建工程', message: '请输入工程名称', defaultValue: '新建工程', placeholder: '工程名称' })
       if (name === null) return
       await store.createNewProject(name.trim() || '新建工程')
     },
     duplicateProject: async () => {
       if (!store.project) return
-      const name = window.prompt('副本名称', `${store.project.name} 副本`)
+      const name = await prompt({ title: '复制工程', message: '请输入副本名称', defaultValue: `${store.project.name} 副本`, placeholder: '副本名称' })
       if (name === null) return
       await store.duplicateCurrentProject(name.trim() || `${store.project.name} 副本`)
     },
     renameProject: async () => {
       if (!store.project) return
-      const name = window.prompt('新名称', store.project.name)
+      const name = await prompt({ title: '重命名工程', message: '请输入新名称', defaultValue: store.project.name, placeholder: '工程名称' })
       if (name === null) return
       await store.renameCurrentProject(name.trim() || store.project.name)
     },
     deleteProject: async () => {
       if (!store.project) return
-      if (!window.confirm(`确认删除工程「${store.project.name}」吗？此操作不可撤销。`)) return
+      const ok = await confirm({ title: '删除工程', message: `确认删除工程「${store.project.name}」吗？此操作不可撤销。`, confirmText: '删除', danger: true })
+      if (!ok) return
       await store.deleteProjectById(store.project.id)
     },
-    importOsm: () => store.importJinanNetwork(),
-    aiBatchNaming: () => { /* handled in PanelStationMulti */ },
+    importOsm: () => {
+      console.log('[handleMenuAction] Calling importJinanNetwork')
+      store.importJinanNetwork()
+    },
     aiAutoBatchNaming: () => { /* handled in PanelStationMulti */ },
+  }
+
+  if (action.startsWith('importCity_')) {
+    const cityId = action.slice('importCity_'.length)
+    console.log('[handleMenuAction] Detected importCity action, cityId:', cityId)
+    console.log('[handleMenuAction] Calling store.importCityNetwork')
+    store.importCityNetwork(cityId)
+    return
   }
 
   if (actionMap[action]) {
@@ -76,14 +107,99 @@ function handleMenuAction(action) {
   }
 }
 
+function isTextInputTarget(target) {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  const tag = target.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select'
+}
+
+async function onGlobalFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  try {
+    await store.importProjectFile(file)
+  } catch (error) {
+    store.statusText = `加载工程失败: ${error.message || '未知错误'}`
+  } finally {
+    event.target.value = ''
+  }
+}
+
+function handleGlobalKeyDown(event) {
+  const key = event.key.toLowerCase()
+  const ctrl = event.ctrlKey || event.metaKey
+  const shift = event.shiftKey
+  const inTextInput = isTextInputTarget(event.target)
+
+  // Ctrl+Shift+S: Export project file (check before Ctrl+S)
+  if (ctrl && shift && key === 's') {
+    event.preventDefault()
+    store.exportProjectFile()
+    return
+  }
+
+  // Ctrl+S: Save to local DB
+  if (ctrl && !shift && key === 's') {
+    event.preventDefault()
+    store.persistNow().then(() => {
+      store.statusText = '已保存到本地库'
+    }).catch(() => {})
+    return
+  }
+
+  // Ctrl+N: Create new project
+  if (ctrl && !shift && key === 'n') {
+    event.preventDefault()
+    handleMenuAction('createProject')
+    return
+  }
+
+  // Ctrl+O: Open/import project file
+  if (ctrl && !shift && key === 'o') {
+    event.preventDefault()
+    globalFileInputRef.value?.click()
+    return
+  }
+
+  // Ctrl+E: Export schematic PNG
+  if (ctrl && !shift && key === 'e') {
+    event.preventDefault()
+    store.exportOfficialSchematicPng()
+    return
+  }
+
+  // Everything below should not fire when typing in inputs
+  if (inTextInput) return
+
+  // 1/2/3: Switch views (main keyboard only, not numpad)
+  if (!ctrl && !shift && !event.altKey) {
+    if (key === '1') { setActiveView('map'); return }
+    if (key === '2') { setActiveView('schematic'); return }
+    if (key === '3') { setActiveView('hud'); return }
+    if (key === '4') { setActiveView('preview'); return }
+  }
+
+  // F2: Rename selected station
+  if (event.key === 'F2' && !ctrl && !shift) {
+    if (store.selectedStationIds.length === 1) {
+      event.preventDefault()
+      stationRenameTrigger.value += 1
+    }
+    return
+  }
+}
+
 onMounted(async () => {
   loadWorkspaceViewState()
   window.addEventListener('beforeunload', handleBeforeUnload)
+  window.addEventListener('keydown', handleGlobalKeyDown)
   await store.initialize()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
+  window.removeEventListener('keydown', handleGlobalKeyDown)
 })
 </script>
 
@@ -111,21 +227,28 @@ onBeforeUnmount(() => {
           :class="{ 'app__panel--active': activeView === 'map' }"
           :aria-hidden="activeView !== 'map'"
         >
-          <MapEditor />
+          <ErrorBoundary><MapEditor /></ErrorBoundary>
         </section>
         <section
           class="app__panel"
           :class="{ 'app__panel--active': activeView === 'schematic' }"
           :aria-hidden="activeView !== 'schematic'"
         >
-          <SchematicView />
+          <ErrorBoundary><SchematicView /></ErrorBoundary>
         </section>
         <section
           class="app__panel"
           :class="{ 'app__panel--active': activeView === 'hud' }"
           :aria-hidden="activeView !== 'hud'"
         >
-          <VehicleHudView />
+          <ErrorBoundary><VehicleHudView /></ErrorBoundary>
+        </section>
+        <section
+          class="app__panel"
+          :class="{ 'app__panel--active': activeView === 'preview' }"
+          :aria-hidden="activeView !== 'preview'"
+        >
+          <ErrorBoundary><TimelinePreviewView :active="activeView === 'preview'" /></ErrorBoundary>
         </section>
       </div>
       <PropertiesPanel />
@@ -133,6 +256,16 @@ onBeforeUnmount(() => {
     <StatusBar />
   </main>
   <ProjectListDialog :visible="projectListVisible" @close="projectListVisible = false" />
+  <ToastContainer />
+  <ConfirmDialog />
+  <PromptDialog />
+  <input
+    ref="globalFileInputRef"
+    type="file"
+    accept=".json,.railmap.json"
+    style="display: none"
+    @change="onGlobalFileSelected"
+  />
 </template>
 
 <style scoped>

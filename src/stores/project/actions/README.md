@@ -15,6 +15,9 @@
   - 支持线段批量属性编辑（所属线、线型覆盖、曲线/直线切换）
   - 手动换乘关系编辑（两站绑定/解绑为换乘，不改原始线网拓扑）
   - 线路线型写入前统一归一化（支持单线/双线/虚线/点线等样式）
+  - 线段分割（`splitEdgeAtPoint`）：在线段指定点插入新站点并分割为两条边，保留原线路分配
+  - 线段合并（`mergeEdgesAtStation`）：合并站点处恰好连接的两条同线路边为一条边并删除中间站点
+  - 合并校验（`canMergeEdgesAtStation`）：检查站点是否恰好连接两条同线路边，返回布尔值用于UI状态
 - `history.js`
   - 编辑历史记录（快照栈、连续编辑合并、撤销/重做）
   - 状态恢复时同步恢复选择态与当前模式
@@ -23,6 +26,10 @@
 - `exportPersistence.js`
   - 工程文件导入导出、PNG/HUD 导出、持久化节流、真实地图导出器注册
   - 通过 `touchProject()` 接入历史记录写入
+- `timelineActions.js`
+  - 时间轴动画相关 action（年份筛选、播放状态、播放速度、事件增删）
+  - `setTimelineFilterYear` / `setTimelinePlaybackState` / `setTimelinePlaybackSpeed` 为瞬态 UI 状态，不写历史
+  - `addTimelineEvent` / `removeTimelineEvent` 修改项目数据，通过 `touchProject()` 接入历史记录
 
 说明：
 

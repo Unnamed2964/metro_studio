@@ -31,6 +31,8 @@ export const JINAN_RELATION_ID = 3486449
  * @property {('solid'|'dashed'|'dotted'|'double-solid'|'double-dashed'|'double-dotted-square') | null} lineStyleOverride
  * @property {number} lengthMeters
  * @property {boolean} isCurved
+ * @property {number|null} openingYear
+ * @property {string} phase
  */
 
 /**
@@ -52,7 +54,6 @@ export const JINAN_RELATION_ID = 3486449
  * @property {string} projectVersion
  * @property {string} name
  * @property {{id: string, name: string, relationId: number}} region
- * @property {{includeConstruction: boolean, includeProposed: boolean}} importConfig
  * @property {RailStation[]} stations
  * @property {Array<{id: string, stationAId: string, stationBId: string}>} manualTransfers
  * @property {RailEdge[]} edges
@@ -61,6 +62,7 @@ export const JINAN_RELATION_ID = 3486449
  * @property {{stationLabels: Record<string, {dx:number,dy:number,anchor:string}>, edgeDirections: Record<string, number>}} layoutMeta
  * @property {{geoSeedScale: number}} layoutConfig
  * @property {{createdAt: string, updatedAt: string}} meta
+ * @property {Array<{year: number, description: string}>} timelineEvents
  */
 
 export function createEmptyProject(name = '新建工程') {
@@ -75,10 +77,6 @@ export function createEmptyProject(name = '新建工程') {
       relationId: JINAN_RELATION_ID,
     },
     regionBoundary: null,
-    importConfig: {
-      includeConstruction: false,
-      includeProposed: false,
-    },
     stations: [],
     manualTransfers: [],
     edges: [],
@@ -86,8 +84,8 @@ export function createEmptyProject(name = '新建工程') {
       {
         id: createId('line'),
         key: 'manual-line-1',
-        nameZh: '手工线路 1',
-        nameEn: 'Manual Line 1',
+        nameZh: '1号线',
+        nameEn: 'Line 1',
         color: pickLineColor(0),
         status: 'open',
         style: normalizeLineStyle('solid'),
@@ -103,6 +101,7 @@ export function createEmptyProject(name = '新建工程') {
     layoutConfig: {
       geoSeedScale: 6,
     },
+    timelineEvents: [],
     meta: {
       createdAt: now,
       updatedAt: now,
@@ -120,10 +119,6 @@ export function normalizeProject(raw) {
       ...(raw?.region || {}),
     },
     regionBoundary: raw?.regionBoundary || base.regionBoundary,
-    importConfig: {
-      ...base.importConfig,
-      ...(raw?.importConfig || {}),
-    },
     stations: Array.isArray(raw?.stations) ? raw.stations : [],
     manualTransfers: Array.isArray(raw?.manualTransfers) ? raw.manualTransfers : [],
     edges: Array.isArray(raw?.edges) ? raw.edges : [],
@@ -150,6 +145,11 @@ export function normalizeProject(raw) {
               : base.layoutConfig.geoSeedScale,
           }
         : base.layoutConfig,
+    timelineEvents: Array.isArray(raw?.timelineEvents)
+      ? raw.timelineEvents
+          .filter((e) => e && Number.isFinite(e.year) && typeof e.description === 'string')
+          .map((e) => ({ year: e.year, description: e.description }))
+      : [],
     meta: {
       ...base.meta,
       ...(raw?.meta || {}),
@@ -199,6 +199,8 @@ export function normalizeProject(raw) {
     lineStyleOverride: edge.lineStyleOverride != null ? normalizeLineStyle(edge.lineStyleOverride) : null,
     lengthMeters: Number(edge.lengthMeters || 0),
     isCurved: Boolean(edge.isCurved),
+    openingYear: edge.openingYear ?? null,
+    phase: edge.phase || '',
   }))
 
   merged.lines = merged.lines.map((line, index) => {

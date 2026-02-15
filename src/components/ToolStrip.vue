@@ -37,7 +37,6 @@ const tools = [
           @click="emit('set-mode', tool.mode)"
         >
           <IconBase :name="tool.icon" :size="18" />
-          <span class="tool-strip__label">{{ tool.label }}</span>
         </button>
       </TooltipWrapper>
     </div>
@@ -53,7 +52,6 @@ const tools = [
           @click="emit('undo')"
         >
           <IconBase name="undo" :size="18" />
-          <span class="tool-strip__label">撤销</span>
         </button>
       </TooltipWrapper>
       <TooltipWrapper text="重做" shortcut="Ctrl+Shift+Z" placement="right" :delay="300">
@@ -64,7 +62,6 @@ const tools = [
           @click="emit('redo')"
         >
           <IconBase name="redo" :size="18" />
-          <span class="tool-strip__label">重做</span>
         </button>
       </TooltipWrapper>
     </div>
@@ -73,7 +70,7 @@ const tools = [
 
 <style scoped>
 .tool-strip {
-  width: 80px;
+  width: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -103,7 +100,7 @@ const tools = [
 }
 
 .tool-strip__divider {
-  width: 48px;
+  width: 20px;
   height: 1px;
   margin: 8px 0;
   background: var(--toolbar-divider);
@@ -111,41 +108,44 @@ const tools = [
 }
 
 .tool-strip__btn {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 100%;
-  padding: 8px 4px 6px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-md, 8px);
   background: transparent;
   color: var(--toolbar-muted);
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease);
 }
 
 .tool-strip__btn:hover:not(:disabled) {
-  background: var(--toolbar-button-bg);
-  border-color: var(--toolbar-button-border);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--toolbar-text);
 }
 
 .tool-strip__btn--active {
-  background: var(--toolbar-tab-active-bg);
-  border-color: var(--toolbar-tab-active-border);
   color: var(--toolbar-tab-active-text);
+  background: transparent;
+}
+
+.tool-strip__btn--active::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--indicator-width, 2px);
+  height: 20px;
+  background: var(--indicator-color, var(--toolbar-primary-bg));
+  border-radius: 0 1px 1px 0;
 }
 
 .tool-strip__btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-.tool-strip__label {
-  font-size: 10px;
-  line-height: 1;
-  white-space: nowrap;
 }
 </style>

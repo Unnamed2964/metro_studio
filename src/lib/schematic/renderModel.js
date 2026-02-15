@@ -9,8 +9,17 @@ const STATUS_STYLE = {
 }
 
 export function buildSchematicRenderModel(project, options = {}) {
-  const stations = project?.stations || []
-  const edges = project?.edges || []
+  const filterYear = options.filterYear ?? null
+  const allEdges = project?.edges || []
+  const edges = filterYear != null
+    ? allEdges.filter((e) => e.openingYear == null || e.openingYear <= filterYear)
+    : allEdges
+  const visibleStationIds = filterYear != null
+    ? new Set(edges.flatMap((e) => [e.fromStationId, e.toStationId]))
+    : null
+  const stations = visibleStationIds
+    ? (project?.stations || []).filter((s) => visibleStationIds.has(s.id))
+    : (project?.stations || [])
   const lines = project?.lines || []
   const layoutMeta = project?.layoutMeta || {}
   const lineById = new Map(lines.map((line, index) => [line.id, { ...line, order: index }]))

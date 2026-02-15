@@ -124,6 +124,26 @@ const selectionActions = {
     this.statusText = `已全选 ${this.selectedStationIds.length} 个站点`
   },
 
+  selectLine(lineId) {
+    if (!this.project) return
+    const line = this.project.lines.find((l) => l.id === lineId)
+    if (!line) return
+    if (!Array.isArray(line.edgeIds) || !line.edgeIds.length) {
+      this.statusText = `线路 ${line.nameZh} 无线段`
+      return
+    }
+    const edgeIdSet = new Set(line.edgeIds)
+    const stationIdSet = new Set()
+    for (const edge of this.project.edges || []) {
+      if (!edgeIdSet.has(edge.id)) continue
+      if (edge.fromStationId) stationIdSet.add(edge.fromStationId)
+      if (edge.toStationId) stationIdSet.add(edge.toStationId)
+    }
+    this.setSelectedEdges([...line.edgeIds], { keepStations: false })
+    this.setSelectedStations([...stationIdSet], { keepEdges: true, keepPrimary: true })
+    this.statusText = `已选中 ${line.nameZh}: ${line.edgeIds.length} 条线段, ${stationIdSet.size} 个站点`
+  },
+
   selectStation(stationId, options = {}) {
     const multi = Boolean(options.multi || options.toggle)
     const toggle = Boolean(options.toggle)

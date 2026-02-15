@@ -1,6 +1,6 @@
 import { postLLMChat } from "./openrouterClient";
 
-const DEFAULT_LLM_MODEL = "gemini-3-flash-preview";
+const DEFAULT_LLM_MODEL = "gemini-2.5-flash";
 const TRANSLATION_BATCH_SIZE = 18;
 
 const STATION_TRANSLATION_SCHEMA = {

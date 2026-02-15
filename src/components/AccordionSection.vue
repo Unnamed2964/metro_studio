@@ -35,12 +35,8 @@ function toggle() {
       :aria-expanded="isOpen"
       @click="toggle"
     >
+      <span class="accordion__triangle" :class="{ 'accordion__triangle--open': isOpen }" />
       <h3 class="accordion__title">{{ title }}</h3>
-      <IconBase
-        :name="isOpen ? 'chevron-up' : 'chevron-down'"
-        :size="16"
-        class="accordion__icon"
-      />
     </button>
     <div v-if="isOpen" class="accordion__content">
       <slot />
@@ -57,33 +53,51 @@ function toggle() {
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--toolbar-input-border);
-  border-radius: 8px;
-  background: var(--toolbar-card-bg);
+  padding: 8px 2px;
+  border: none;
+  border-bottom: 1px solid var(--toolbar-divider);
+  border-radius: 0;
+  background: transparent;
   color: var(--toolbar-text);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color var(--transition-fast, 0.1s ease);
 }
 
 .accordion__header:hover {
-  border-color: var(--toolbar-button-hover-border);
-  background: var(--toolbar-button-bg);
+  color: var(--toolbar-tab-active-text);
+}
+
+.accordion__triangle {
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--toolbar-muted);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  flex-shrink: 0;
+  transition: transform var(--transition-normal, 0.15s ease);
+}
+
+.accordion__triangle--open {
+  transform: rotate(90deg);
+}
+
+.accordion__header:hover .accordion__triangle {
+  border-left-color: var(--toolbar-text);
 }
 
 .accordion__title {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--toolbar-muted);
 }
 
-.accordion__icon {
-  flex-shrink: 0;
-  color: var(--toolbar-muted);
-  transition: transform 0.2s ease;
+.accordion__header:hover .accordion__title {
+  color: var(--toolbar-text);
 }
 
 .accordion__content {
@@ -94,11 +108,11 @@ function toggle() {
 @keyframes accordion-slide-down {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    max-height: 0;
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    max-height: 500px;
   }
 }
 </style>

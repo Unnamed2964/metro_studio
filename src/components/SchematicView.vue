@@ -2,6 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { buildSchematicRenderModel } from '../lib/schematic/renderModel'
 import { useProjectStore } from '../stores/projectStore'
+import TimelineSlider from './TimelineSlider.vue'
+import { createTimelinePlayer } from '../lib/timeline/timelinePlayer.js'
 
 const store = useProjectStore()
 const svgRef = ref(null)
@@ -21,7 +23,12 @@ const latestSnapshot = computed(() => {
   return snapshots.length ? snapshots[snapshots.length - 1] : null
 })
 
-const renderModel = computed(() => buildSchematicRenderModel(store.project, { mirrorVertical: true }))
+const renderModel = computed(() =>
+  buildSchematicRenderModel(store.project, {
+    mirrorVertical: true,
+    filterYear: store.timelineFilterYear,
+  }),
+)
 const viewportTransform = computed(() => `translate(${viewport.tx} ${viewport.ty}) scale(${viewport.scale})`)
 
 function clamp(value, min, max) {
@@ -96,6 +103,50 @@ function onGlobalMouseUp(event) {
   endMiddlePan()
 }
 
+// Timeline player
+let timelinePlayer = null
+function ensureTimelinePlayer() {
+  if (timelinePlayer) return timelinePlayer
+  timelinePlayer = createTimelinePlayer({
+    onYearChange(year) {
+      store.setTimelineFilterYear(year)
+    },
+    onStateChange(state) {
+      store.setTimelinePlaybackState(state)
+    },
+    onPlaybackEnd() {
+      store.setTimelinePlaybackState('idle')
+    },
+  })
+  return timelinePlayer
+}
+
+function onTimelineYearChange(year) {
+  store.setTimelineFilterYear(year)
+  if (timelinePlayer) timelinePlayer.seekTo(year)
+}
+
+function onTimelinePlay() {
+  const player = ensureTimelinePlayer()
+  player.setYears(store.timelineYears)
+  player.setSpeed(store.timelinePlayback.speed)
+  player.play(store.timelinePlayback.state === 'idle')
+}
+
+function onTimelinePause() {
+  timelinePlayer?.pause()
+}
+
+function onTimelineStop() {
+  timelinePlayer?.stop()
+  store.setTimelineFilterYear(null)
+}
+
+function onTimelineSpeedChange(speed) {
+  store.setTimelinePlaybackSpeed(speed)
+  if (timelinePlayer) timelinePlayer.setSpeed(speed)
+}
+
 watch(
   () => [store.project?.id || '', renderModel.value.width, renderModel.value.height],
   async () => {
@@ -115,6 +166,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onGlobalMouseMove)
   window.removeEventListener('mouseup', onGlobalMouseUp)
   window.removeEventListener('blur', onGlobalMouseUp)
+  timelinePlayer?.destroy()
+  timelinePlayer = null
 })
 </script>
 
@@ -292,6 +345,14 @@ onBeforeUnmount(() => {
         </g>
       </svg>
     </div>
+
+    <TimelineSlider
+      @year-change="onTimelineYearChange"
+      @play="onTimelinePlay"
+      @pause="onTimelinePause"
+      @stop="onTimelineStop"
+      @speed-change="onTimelineSpeedChange"
+    />
   </section>
 </template>
 
@@ -396,5 +457,4 @@ onBeforeUnmount(() => {
   letter-spacing: 0.02em;
   font-family: 'DIN Alternate', 'Bahnschrift', 'Roboto Condensed', 'Arial Narrow', sans-serif;
 }
-
 </style>

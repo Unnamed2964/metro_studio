@@ -18,8 +18,10 @@ import {
   normalizeUiTheme,
 } from '../lib/uiPreferences'
 import { useProjectStore } from '../stores/projectStore'
+import { useDialog } from '../composables/useDialog.js'
 
 const store = useProjectStore()
+const { confirm } = useDialog()
 const props = defineProps({
   collapsed: {
     type: Boolean,
@@ -75,29 +77,48 @@ const lineForm = reactive({
   color: '#005BBB',
   status: 'open',
   style: 'solid',
-  isLoop: false,
 })
 const edgeBatchForm = reactive({
   targetLineId: '',
   lineStyle: '',
   curveMode: 'keep',
 })
+const editYearInput = ref(store.currentEditYear)
+const MIN_YEAR = 1900
+const MAX_YEAR = 2100
+const YEAR_STEP = 1
+
+watch(() => store.currentEditYear, (newYear) => {
+  editYearInput.value = newYear
+})
+
+function normalizeEditYear(year) {
+  const num = Number.isFinite(year) ? Math.floor(Number(year)) : 2010
+  return Math.max(MIN_YEAR, Math.min(MAX_YEAR, num))
+}
+
+function onEditYearInput(event) {
+  const rawValue = event.target.value
+  const year = normalizeEditYear(rawValue)
+  store.setCurrentEditYear(year)
+  editYearInput.value = year
+}
+
+function incrementEditYear() {
+  const nextYear = normalizeEditYear(store.currentEditYear + YEAR_STEP)
+  store.setCurrentEditYear(nextYear)
+  editYearInput.value = nextYear
+}
+
+function decrementEditYear() {
+  const nextYear = normalizeEditYear(store.currentEditYear - YEAR_STEP)
+  store.setCurrentEditYear(nextYear)
+  editYearInput.value = nextYear
+}
+
 const AI_AUTO_CONTEXT_CONCURRENCY = 10
 const AI_AUTO_MODEL_BATCH_SIZE = 16
 const AI_AUTO_MODEL_BATCH_CONCURRENCY = 3
-const aiBatchNaming = reactive({
-  active: false,
-  phase: 'idle',
-  generating: false,
-  stationIds: [],
-  stationEntries: [],
-  currentIndex: 0,
-  error: '',
-  prefetchedCount: 0,
-  prefetchFailedCount: 0,
-  appliedCount: 0,
-  skippedCount: 0,
-})
 const aiAutoBatchNaming = reactive({
   active: false,
   running: false,
@@ -117,7 +138,6 @@ const worldMetroRanking = reactive({
   entries: [],
 })
 let worldMetroRankingAbortController = null
-let aiBatchNamingAbortController = null
 let aiAutoBatchNamingAbortController = null
 
 const selectedStationCount = computed(() => store.selectedStationIds.length)
@@ -126,33 +146,6 @@ const selectedStationsInOrder = computed(() => {
   const stationMap = new Map(store.project.stations.map((station) => [station.id, station]))
   return (store.selectedStationIds || []).map((id) => stationMap.get(id)).filter(Boolean)
 })
-const aiBatchCurrentStation = computed(() => {
-  if (!aiBatchNaming.active || !store.project) return null
-  const stationId = aiBatchNaming.stationIds[aiBatchNaming.currentIndex]
-  if (!stationId) return null
-  return store.project.stations.find((station) => station.id === stationId) || null
-})
-const aiBatchCurrentEntry = computed(() => {
-  if (!aiBatchNaming.active) return null
-  const stationId = aiBatchNaming.stationIds[aiBatchNaming.currentIndex]
-  if (!stationId) return null
-  return aiBatchNaming.stationEntries.find((entry) => entry.stationId === stationId) || null
-})
-const aiBatchCurrentCandidates = computed(() => (Array.isArray(aiBatchCurrentEntry.value?.candidates) ? aiBatchCurrentEntry.value.candidates : []))
-const aiBatchCurrentError = computed(() => String(aiBatchCurrentEntry.value?.error || '').trim())
-const aiBatchTotal = computed(() => aiBatchNaming.stationIds.length)
-const aiBatchPrefetchPercent = computed(() => {
-  const total = aiBatchTotal.value
-  if (!total) return 0
-  return Math.round((aiBatchNaming.prefetchedCount / total) * 100)
-})
-const aiBatchPercent = computed(() => {
-  const total = aiBatchTotal.value
-  if (!total) return 0
-  const finished = aiBatchNaming.appliedCount + aiBatchNaming.skippedCount
-  return Math.round((finished / total) * 100)
-})
-const aiBatchProgressPercent = computed(() => (aiBatchNaming.phase === 'prefetch' ? aiBatchPrefetchPercent.value : aiBatchPercent.value))
 const aiAutoBatchTotal = computed(() => aiAutoBatchNaming.stationIds.length)
 const aiAutoBatchPercent = computed(() => {
   const total = aiAutoBatchTotal.value
@@ -425,7 +418,8 @@ async function duplicateCurrentProject() {
 async function deleteProject(projectId) {
   const target = projectOptions.value.find((project) => project.id === projectId)
   const targetName = target?.name || projectId
-  if (!window.confirm(`确认删除工程「${targetName}」吗？此操作不可撤销。`)) return
+  const ok = await confirm({ title: '删除工程', message: `确认删除工程「${targetName}」吗？此操作不可撤销。`, confirmText: '删除', danger: true })
+  if (!ok) return
   await store.deleteProjectById(projectId)
   projectRenameName.value = store.project?.name || ''
   await refreshProjectOptions()
@@ -462,12 +456,6 @@ function isAbortError(error) {
   return error?.name === 'AbortError' || message.includes('aborted') || message.includes('abort')
 }
 
-function abortAiBatchNamingRequest() {
-  if (!aiBatchNamingAbortController) return
-  aiBatchNamingAbortController.abort(new Error('aborted'))
-  aiBatchNamingAbortController = null
-}
-
 function abortAiAutoBatchNamingRequest() {
   if (!aiAutoBatchNamingAbortController) return
   aiAutoBatchNamingAbortController.abort(new Error('aborted'))
@@ -477,11 +465,6 @@ function abortAiAutoBatchNamingRequest() {
 function findStationById(stationId) {
   if (!store.project || !stationId) return null
   return store.project.stations.find((station) => station.id === stationId) || null
-}
-
-function findAiBatchEntry(stationId) {
-  if (!stationId) return null
-  return aiBatchNaming.stationEntries.find((entry) => entry.stationId === stationId) || null
 }
 
 function buildStationDisplayName(stationId) {
@@ -513,21 +496,6 @@ function appendAiAutoBatchFailure(stationId, message, failedStationIds, failedIt
   }
 }
 
-function resetAiBatchNamingState() {
-  abortAiBatchNamingRequest()
-  aiBatchNaming.active = false
-  aiBatchNaming.phase = 'idle'
-  aiBatchNaming.generating = false
-  aiBatchNaming.stationIds = []
-  aiBatchNaming.stationEntries = []
-  aiBatchNaming.currentIndex = 0
-  aiBatchNaming.error = ''
-  aiBatchNaming.prefetchedCount = 0
-  aiBatchNaming.prefetchFailedCount = 0
-  aiBatchNaming.appliedCount = 0
-  aiBatchNaming.skippedCount = 0
-}
-
 function resetAiAutoBatchNamingState() {
   abortAiAutoBatchNamingRequest()
   aiAutoBatchNaming.active = false
@@ -540,143 +508,6 @@ function resetAiAutoBatchNamingState() {
   aiAutoBatchNaming.failedCount = 0
   aiAutoBatchNaming.appliedCount = 0
   aiAutoBatchNaming.error = ''
-}
-
-async function requestAiBatchCandidatesForStation(stationId, { signal, strictModel = false } = {}) {
-  const station = findStationById(stationId)
-  if (!station || !Array.isArray(station.lngLat)) {
-    throw new Error('当前站点不存在或坐标无效')
-  }
-  const context = await fetchNearbyStationNamingContext(station.lngLat, {
-    radiusMeters: STATION_NAMING_RADIUS_METERS,
-    signal,
-  })
-  const candidates = await generateStationNameCandidates({
-    context,
-    lngLat: station.lngLat,
-    signal,
-    strictModel,
-  })
-  if (!Array.isArray(candidates) || !candidates.length) {
-    throw new Error('未生成候选站名')
-  }
-  return {
-    station,
-    candidates,
-  }
-}
-
-async function prefetchAiBatchCandidatesForSelection() {
-  const total = aiBatchNaming.stationIds.length
-  if (!total) return
-
-  abortAiBatchNamingRequest()
-  const controller = new AbortController()
-  aiBatchNamingAbortController = controller
-
-  aiBatchNaming.phase = 'prefetch'
-  aiBatchNaming.generating = true
-  aiBatchNaming.error = ''
-  aiBatchNaming.prefetchedCount = 0
-  aiBatchNaming.prefetchFailedCount = 0
-  store.statusText = `AI批量命名：正在为 ${total} 个站点批量生成候选...`
-
-  try {
-    for (let index = 0; index < total; index += 1) {
-      if (controller.signal.aborted) return
-      const stationId = aiBatchNaming.stationIds[index]
-      const entry = findAiBatchEntry(stationId)
-      if (entry) {
-        entry.status = 'pending'
-        entry.error = ''
-        entry.candidates = []
-      }
-      try {
-        const { station, candidates } = await requestAiBatchCandidatesForStation(stationId, {
-          signal: controller.signal,
-        })
-        if (controller.signal.aborted) return
-        if (entry) {
-          entry.status = 'ready'
-          entry.error = ''
-          entry.candidates = candidates
-        }
-        const displayName = station.nameZh || station.id
-        store.statusText = `AI批量命名：候选生成 ${aiBatchNaming.prefetchedCount + 1}/${total} · ${displayName}`
-      } catch (error) {
-        if (controller.signal.aborted || isAbortError(error)) return
-        const message = String(error?.message || '生成失败')
-        if (entry) {
-          entry.status = 'failed'
-          entry.error = message
-          entry.candidates = []
-        }
-        aiBatchNaming.prefetchFailedCount += 1
-      } finally {
-        if (!controller.signal.aborted) {
-          aiBatchNaming.prefetchedCount += 1
-        }
-      }
-    }
-  } finally {
-    if (aiBatchNamingAbortController === controller) {
-      aiBatchNamingAbortController = null
-    }
-    if (controller.signal.aborted) return
-    aiBatchNaming.generating = false
-    aiBatchNaming.phase = 'select'
-  }
-
-  const successCount = aiBatchNaming.stationEntries.filter((entry) => entry.status === 'ready' && entry.candidates.length > 0).length
-  if (!successCount) {
-    aiBatchNaming.error = '所有站点候选生成失败，请重试或结束批量命名'
-    store.statusText = 'AI批量命名：候选已全部生成，但均失败'
-    return
-  }
-  aiBatchNaming.error = ''
-  store.statusText = `AI批量命名：候选已全部生成，成功 ${successCount}/${total}，请逐站选择`
-}
-
-function moveToNextAiBatchStation() {
-  aiBatchNaming.currentIndex += 1
-  if (aiBatchNaming.currentIndex >= aiBatchNaming.stationIds.length) {
-    const total = aiBatchNaming.stationIds.length
-    const applied = aiBatchNaming.appliedCount
-    const skipped = aiBatchNaming.skippedCount
-    store.statusText = `AI批量命名完成：已应用 ${applied}/${total}，跳过 ${skipped}`
-    resetAiBatchNamingState()
-    return
-  }
-  const station = aiBatchCurrentStation.value
-  const entry = aiBatchCurrentEntry.value
-  if (!station) return
-  if (entry?.status === 'ready' && aiBatchCurrentCandidates.value.length) {
-    store.statusText = `AI批量命名：请为 ${station.nameZh || station.id} 选择候选站名`
-    return
-  }
-  store.statusText = `AI批量命名：${station.nameZh || station.id} 暂无可用候选，请重试或跳过`
-}
-
-async function startAiBatchNamingForSelectedStations() {
-  const selected = selectedStationsInOrder.value
-  if (!selected.length) return
-  aiBatchNaming.active = true
-  aiBatchNaming.phase = 'prefetch'
-  aiBatchNaming.generating = false
-  aiBatchNaming.stationIds = selected.map((station) => station.id)
-  aiBatchNaming.stationEntries = aiBatchNaming.stationIds.map((stationId) => ({
-    stationId,
-    status: 'pending',
-    candidates: [],
-    error: '',
-  }))
-  aiBatchNaming.currentIndex = 0
-  aiBatchNaming.error = ''
-  aiBatchNaming.prefetchedCount = 0
-  aiBatchNaming.prefetchFailedCount = 0
-  aiBatchNaming.appliedCount = 0
-  aiBatchNaming.skippedCount = 0
-  await prefetchAiBatchCandidatesForSelection()
 }
 
 async function runAiAutoBatchNamingByStationIds(stationIds, options = {}) {
@@ -866,67 +697,6 @@ function cancelAiAutoBatchNaming() {
   resetAiAutoBatchNamingState()
 }
 
-async function retryAiBatchCurrentStation() {
-  if (!aiBatchNaming.active || aiBatchNaming.phase !== 'select' || aiBatchNaming.generating) return
-  const station = aiBatchCurrentStation.value
-  if (!station) return
-  const entry = findAiBatchEntry(station.id)
-  if (!entry) return
-
-  abortAiBatchNamingRequest()
-  const controller = new AbortController()
-  aiBatchNamingAbortController = controller
-  aiBatchNaming.generating = true
-  aiBatchNaming.error = ''
-  entry.status = 'pending'
-  entry.error = ''
-  entry.candidates = []
-
-  try {
-    const { candidates } = await requestAiBatchCandidatesForStation(station.id, { signal: controller.signal })
-    if (controller.signal.aborted) return
-    entry.status = 'ready'
-    entry.error = ''
-    entry.candidates = candidates
-    store.statusText = `AI批量命名：已为 ${station.nameZh || station.id} 生成 ${candidates.length} 个候选`
-  } catch (error) {
-    if (controller.signal.aborted || isAbortError(error)) return
-    const message = String(error?.message || '生成失败')
-    entry.status = 'failed'
-    entry.error = message
-    entry.candidates = []
-    aiBatchNaming.error = message
-    store.statusText = `AI批量命名失败: ${message}`
-  } finally {
-    if (aiBatchNamingAbortController === controller) {
-      aiBatchNamingAbortController = null
-    }
-    aiBatchNaming.generating = false
-  }
-}
-
-function skipAiBatchCurrentStation() {
-  if (!aiBatchNaming.active || aiBatchNaming.phase !== 'select' || aiBatchNaming.generating) return
-  aiBatchNaming.skippedCount += 1
-  moveToNextAiBatchStation()
-}
-
-function applyAiBatchCandidate(candidate) {
-  if (!candidate || !aiBatchCurrentStation.value || aiBatchNaming.phase !== 'select' || aiBatchNaming.generating) return
-  const station = aiBatchCurrentStation.value
-  store.updateStationName(station.id, {
-    nameZh: candidate.nameZh,
-    nameEn: candidate.nameEn,
-  })
-  aiBatchNaming.appliedCount += 1
-  moveToNextAiBatchStation()
-}
-
-function cancelAiBatchNaming() {
-  resetAiBatchNamingState()
-  store.statusText = '已取消 AI 批量命名'
-}
-
 async function retranslateAllStationEnglishNames() {
   await store.retranslateAllStationEnglishNamesWithAi()
 }
@@ -951,7 +721,6 @@ function applyLineChanges() {
     color: lineForm.color,
     status: lineForm.status,
     style: lineForm.style,
-    isLoop: lineForm.isLoop,
   })
 }
 
@@ -1041,7 +810,6 @@ watch(
     lineForm.color = line?.color || '#005BBB'
     lineForm.status = line?.status || 'open'
     lineForm.style = normalizeLineStyle(line?.style)
-    lineForm.isLoop = Boolean(line?.isLoop)
   },
   { immediate: true },
 )
@@ -1144,6 +912,40 @@ onBeforeUnmount(() => {
           </section>
         </div>
 
+        <div class="toolbar__edit-year-section">
+          <label class="toolbar__label toolbar__label--compact">新线建设年份</label>
+          <div class="toolbar__year-selector">
+            <button
+              class="toolbar__year-btn"
+              :disabled="store.currentEditYear <= MIN_YEAR"
+              @click="decrementEditYear"
+              aria-label="减少年份"
+              title="减少年份"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              class="toolbar__year-input"
+              :value="editYearInput"
+              @input="onEditYearInput"
+              :min="MIN_YEAR"
+              :max="MAX_YEAR"
+              step="1"
+            />
+            <button
+              class="toolbar__year-btn"
+              :disabled="store.currentEditYear >= MAX_YEAR"
+              @click="incrementEditYear"
+              aria-label="增加年份"
+              title="增加年份"
+            >
+              +
+            </button>
+          </div>
+          <p class="toolbar__hint toolbar__hint--year">新放置的线将使用此年份</p>
+        </div>
+
         <p class="toolbar__status">{{ store.statusText }}</p>
         <p class="toolbar__hint">当前工程 ID: {{ currentProjectId || '-' }}</p>
       </template>
@@ -1224,22 +1026,6 @@ onBeforeUnmount(() => {
               </div>
             </li>
           </ul>
-        </section>
-
-        <section class="toolbar__section">
-          <h3>外部数据导入</h3>
-          <p class="toolbar__section-intro">控制 OSM 导入范围，并以当前工程为模板新建导入工程（不会覆盖当前工程）。</p>
-          <label class="toolbar__checkbox">
-            <input v-model="store.includeConstruction" type="checkbox" />
-            包含在建线路与车站
-          </label>
-          <label class="toolbar__checkbox">
-            <input v-model="store.includeProposed" type="checkbox" />
-            包含规划线路与车站
-          </label>
-          <button class="toolbar__btn toolbar__btn--primary" :disabled="store.isImporting" @click="importFromOsm">
-            {{ store.isImporting ? '导入中...' : '导入济南 OSM 线网' }}
-          </button>
         </section>
       </template>
 
@@ -1371,18 +1157,11 @@ onBeforeUnmount(() => {
             <p class="toolbar__hint">已选 {{ selectedStationCount }} 个站点，可用模板批量重命名（`{n}` 为序号）。</p>
             <div class="toolbar__row">
               <button
-                class="toolbar__btn"
-                :disabled="store.isStationEnglishRetranslating || aiBatchNaming.generating || aiBatchNaming.active || aiAutoBatchNaming.active"
-                @click="startAiBatchNamingForSelectedStations"
-              >
-                AI批量命名（先批量生成后点选）
-              </button>
-              <button
                 class="toolbar__btn toolbar__btn--primary"
-                :disabled="store.isStationEnglishRetranslating || aiBatchNaming.active || aiBatchNaming.generating || aiAutoBatchNaming.active"
+                :disabled="store.isStationEnglishRetranslating || aiAutoBatchNaming.active"
                 @click="startAiAutoBatchNamingForSelectedStations"
               >
-                AI全自动批量命名（不筛选）
+                AI全自动批量命名
               </button>
             </div>
             <input v-model="stationBatchForm.zhTemplate" class="toolbar__input" placeholder="中文模板，例如：站点 {n}" />
@@ -1396,57 +1175,6 @@ onBeforeUnmount(() => {
             <div class="toolbar__row">
               <button class="toolbar__btn toolbar__btn--primary" @click="applyBatchStationRename">批量重命名</button>
               <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedStations">删除选中站点</button>
-            </div>
-            <div v-if="aiBatchNaming.active" class="toolbar__progress">
-              <div class="toolbar__progress-head">
-                <span>
-                  <template v-if="aiBatchNaming.phase === 'prefetch'">
-                    候选预生成 {{ aiBatchNaming.prefetchedCount }}/{{ aiBatchTotal }}
-                  </template>
-                  <template v-else>
-                    逐站命名 {{ Math.min(aiBatchNaming.currentIndex + 1, aiBatchTotal) }}/{{ aiBatchTotal }}
-                    {{ aiBatchCurrentStation ? `· ${aiBatchCurrentStation.nameZh || aiBatchCurrentStation.id}` : '' }}
-                  </template>
-                </span>
-                <strong>{{ aiBatchProgressPercent }}%</strong>
-              </div>
-              <div class="toolbar__progress-track">
-                <div class="toolbar__progress-fill" :style="{ width: `${aiBatchProgressPercent}%` }"></div>
-              </div>
-              <p v-if="aiBatchNaming.phase === 'prefetch'" class="toolbar__hint">
-                已成功 {{ Math.max(0, aiBatchNaming.prefetchedCount - aiBatchNaming.prefetchFailedCount) }}，失败 {{ aiBatchNaming.prefetchFailedCount }}
-              </p>
-              <p v-else class="toolbar__hint">已应用 {{ aiBatchNaming.appliedCount }}，已跳过 {{ aiBatchNaming.skippedCount }}</p>
-              <p v-if="aiBatchNaming.generating && aiBatchNaming.phase === 'prefetch'" class="toolbar__hint">正在批量生成全部站点候选...</p>
-              <p v-if="aiBatchNaming.generating && aiBatchNaming.phase === 'select'" class="toolbar__hint">正在重试当前站候选...</p>
-              <p v-if="aiBatchNaming.error" class="toolbar__hint">{{ aiBatchNaming.error }}</p>
-              <p v-if="aiBatchNaming.phase === 'select' && aiBatchCurrentError" class="toolbar__hint">{{ aiBatchCurrentError }}</p>
-
-              <div v-if="aiBatchNaming.phase === 'select' && !aiBatchNaming.generating && aiBatchCurrentCandidates.length" class="toolbar__ai-candidates">
-                <button
-                  v-for="candidate in aiBatchCurrentCandidates"
-                  :key="`${candidate.nameZh}__${candidate.nameEn}`"
-                  class="toolbar__ai-candidate-btn"
-                  @click="applyAiBatchCandidate(candidate)"
-                >
-                  <strong>{{ candidate.nameZh }}</strong>
-                  <span>{{ candidate.nameEn }}</span>
-                  <small>{{ candidate.basis }} · {{ candidate.reason }}</small>
-                </button>
-              </div>
-
-              <div class="toolbar__row" v-if="aiBatchNaming.phase === 'select'">
-                <button class="toolbar__btn" :disabled="aiBatchNaming.generating" @click="retryAiBatchCurrentStation">重试当前站</button>
-                <button class="toolbar__btn" :disabled="aiBatchNaming.generating" @click="skipAiBatchCurrentStation">跳过当前站</button>
-                <button class="toolbar__btn toolbar__btn--danger" :disabled="aiBatchNaming.generating" @click="cancelAiBatchNaming">
-                  结束批量命名
-                </button>
-              </div>
-              <div class="toolbar__row" v-else>
-                <button class="toolbar__btn toolbar__btn--danger" :disabled="!aiBatchNaming.generating" @click="cancelAiBatchNaming">
-                  取消预生成
-                </button>
-              </div>
             </div>
             <div v-if="aiAutoBatchNaming.active" class="toolbar__progress">
               <div class="toolbar__progress-head">
@@ -1590,10 +1318,6 @@ onBeforeUnmount(() => {
                 </option>
               </select>
             </div>
-            <label class="toolbar__checkbox">
-              <input v-model="lineForm.isLoop" type="checkbox" />
-              环线（不显示从哪到哪）
-            </label>
             <div class="toolbar__row">
               <button class="toolbar__btn toolbar__btn--primary" @click="applyLineChanges">保存线路</button>
               <button class="toolbar__btn toolbar__btn--danger" @click="deleteActiveLine">删除线路</button>
@@ -1810,7 +1534,7 @@ onBeforeUnmount(() => {
 }
 
 .toolbar__hint {
-  margin: 8px 0 0;
+  margin: 8px 0 10px;
   color: var(--toolbar-hint);
   font-size: 12px;
   line-height: 1.45;
@@ -2224,6 +1948,83 @@ onBeforeUnmount(() => {
 
 .hidden {
   display: none;
+}
+
+.toolbar__edit-year-section {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--toolbar-card-border);
+  background: var(--toolbar-item-bg);
+  border-radius: 8px;
+}
+
+.toolbar__year-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.toolbar__year-btn {
+  border: 1px solid var(--toolbar-input-border);
+  color: var(--toolbar-text);
+  background: var(--toolbar-input-bg);
+  border-radius: 7px;
+  width: 28px;
+  height: 28px;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.toolbar__year-btn:hover:not(:disabled) {
+  border-color: var(--toolbar-button-hover-border);
+  background: var(--toolbar-button-bg);
+}
+
+.toolbar__year-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar__year-input {
+  flex: 1;
+  min-width: 60px;
+  max-width: 90px;
+  padding: 6px 8px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 7px;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1;
+}
+
+.toolbar__year-input:focus {
+  outline: none;
+  border-color: var(--toolbar-active-border);
+}
+
+.toolbar__year-input::-webkit-inner-spin-button,
+.toolbar__year-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.toolbar__hint--year {
+  margin-top: 6px;
+  margin-bottom: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--toolbar-hint);
 }
 
 .toolbar__collapsed-body {

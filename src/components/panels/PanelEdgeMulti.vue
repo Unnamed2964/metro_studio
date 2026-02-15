@@ -3,6 +3,7 @@ import { computed, reactive, watch } from 'vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
 import { LINE_STYLE_OPTIONS } from '../../lib/lineStyles'
+import TooltipWrapper from '../TooltipWrapper.vue'
 
 const store = useProjectStore()
 
@@ -13,10 +14,12 @@ const edgeBatchForm = reactive({
   targetLineId: '',
   lineStyle: '',
   curveMode: 'keep',
+  openingYear: '',
+  phase: '',
 })
 
 const canApplyBatch = computed(
-  () => selectedEdgeCount.value > 0 && (Boolean(edgeBatchForm.targetLineId) || Boolean(edgeBatchForm.lineStyle) || edgeBatchForm.curveMode !== 'keep'),
+  () => selectedEdgeCount.value > 0 && (Boolean(edgeBatchForm.targetLineId) || Boolean(edgeBatchForm.lineStyle) || edgeBatchForm.curveMode !== 'keep' || edgeBatchForm.openingYear !== '' || edgeBatchForm.phase !== ''),
 )
 
 function displayLineName(line) {
@@ -32,6 +35,11 @@ function applyBatch() {
   if (edgeBatchForm.lineStyle) patch.lineStyle = edgeBatchForm.lineStyle
   if (edgeBatchForm.curveMode === 'curved') patch.isCurved = true
   else if (edgeBatchForm.curveMode === 'straight') patch.isCurved = false
+  if (edgeBatchForm.openingYear !== '') {
+    const parsed = Number(edgeBatchForm.openingYear)
+    patch.openingYear = Number.isFinite(parsed) && Number.isInteger(parsed) ? parsed : null
+  }
+  if (edgeBatchForm.phase !== '') patch.phase = edgeBatchForm.phase
 
   if (!Object.keys(patch).length) {
     store.statusText = '请先选择至少一个批量变更项'
@@ -50,6 +58,8 @@ function resetBatchForm() {
   edgeBatchForm.targetLineId = ''
   edgeBatchForm.lineStyle = ''
   edgeBatchForm.curveMode = 'keep'
+  edgeBatchForm.openingYear = ''
+  edgeBatchForm.phase = ''
 }
 
 watch(
@@ -102,10 +112,37 @@ watch(
       <option value="straight">设为直线（清锚点）</option>
     </select>
 
+    <div class="pp-divider" />
+
+    <label class="pp-label">开通年份（批量）</label>
+    <input
+      v-model="edgeBatchForm.openingYear"
+      type="number"
+      class="pp-input"
+      placeholder="开通年份"
+      min="1900"
+      max="2100"
+      step="1"
+    />
+
+    <label class="pp-label">分期标签（批量）</label>
+    <input
+      v-model="edgeBatchForm.phase"
+      type="text"
+      class="pp-input"
+      placeholder="分期标签，如：一期"
+    />
+
     <div class="pp-row">
-      <button class="pp-btn pp-btn--primary" :disabled="!canApplyBatch" @click="applyBatch">应用批量属性</button>
-      <button class="pp-btn" @click="resetBatchForm">重置</button>
-      <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedEdge()">删除选中线段</button>
+      <TooltipWrapper text="应用批量属性" placement="bottom">
+        <button class="pp-btn pp-btn--primary" :disabled="!canApplyBatch" @click="applyBatch">应用批量属性</button>
+      </TooltipWrapper>
+      <TooltipWrapper text="重置" placement="bottom">
+        <button class="pp-btn" @click="resetBatchForm">重置</button>
+      </TooltipWrapper>
+      <TooltipWrapper text="删除选中线段" placement="bottom">
+        <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedEdge()">删除选中线段</button>
+      </TooltipWrapper>
     </div>
   </div>
 </template>

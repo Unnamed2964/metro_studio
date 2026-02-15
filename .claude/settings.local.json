@@ -6,7 +6,9 @@
       "Bash(/c/Users/Ame/Documents/Projects/railmap/add-claude-code-context-menu.reg:*)",
       "Bash(iconv:*)",
       "WebSearch",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run dev)"
     ]
   }
 }

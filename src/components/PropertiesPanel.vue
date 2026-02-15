@@ -1,7 +1,9 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useProjectStore } from '../stores/projectStore'
 import { usePanelResize } from '../composables/usePanelResize'
+import IconBase from './IconBase.vue'
+import TooltipWrapper from './TooltipWrapper.vue'
 import PanelNoSelection from './panels/PanelNoSelection.vue'
 import PanelStationSingle from './panels/PanelStationSingle.vue'
 import PanelStationMulti from './panels/PanelStationMulti.vue'
@@ -11,6 +13,7 @@ import PanelAnchor from './panels/PanelAnchor.vue'
 
 const store = useProjectStore()
 const { width, onPointerDown } = usePanelResize()
+const collapsed = ref(false)
 
 const selectedStationCount = computed(() => store.selectedStationIds.length)
 const selectedEdgeCount = computed(() => store.selectedEdgeIds.length)
@@ -39,15 +42,38 @@ const panelTitle = computed(() => {
     default: return '属性'
   }
 })
+
+const panelIcon = computed(() => {
+  switch (panelType.value) {
+    case 'anchor': return 'anchor'
+    case 'edge-multi':
+    case 'edge-single': return 'git-branch'
+    case 'station-single':
+    case 'station-multi': return 'map-pin'
+    default: return 'settings'
+  }
+})
+
+function toggleCollapse() {
+  collapsed.value = !collapsed.value
+}
 </script>
 
 <template>
-  <aside class="properties-panel" :style="{ width: `${width}px` }">
-    <div class="properties-panel__resize-handle" @pointerdown="onPointerDown" />
+  <aside class="properties-panel" :class="{ 'properties-panel--collapsed': collapsed }" :style="collapsed ? {} : { width: `${width}px` }">
+    <div v-if="!collapsed" class="properties-panel__resize-handle" @pointerdown="onPointerDown" />
     <div class="properties-panel__header">
-      <span class="properties-panel__title">{{ panelTitle }}</span>
+      <template v-if="!collapsed">
+        <IconBase :name="panelIcon" :size="14" class="properties-panel__header-icon" />
+        <span class="properties-panel__title">{{ panelTitle }}</span>
+      </template>
+      <TooltipWrapper :text="collapsed ? '展开面板' : '折叠面板'" placement="left">
+        <button class="properties-panel__collapse-btn" type="button" @click="toggleCollapse">
+          <IconBase :name="collapsed ? 'chevron-left' : 'chevron-right'" :size="14" />
+        </button>
+      </TooltipWrapper>
     </div>
-    <div class="properties-panel__body">
+    <div v-if="!collapsed" class="properties-panel__body">
       <PanelAnchor v-if="panelType === 'anchor'" />
       <PanelEdgeMulti v-else-if="panelType === 'edge-multi'" />
       <PanelEdgeSingle v-else-if="panelType === 'edge-single'" />
@@ -67,6 +93,11 @@ const panelTitle = computed(() => {
   border-left: 1px solid var(--toolbar-border);
   overflow: hidden;
   flex-shrink: 0;
+  transition: width var(--transition-slow, 0.25s ease);
+}
+
+.properties-panel--collapsed {
+  width: 40px;
 }
 
 .properties-panel__resize-handle {
@@ -88,16 +119,45 @@ const panelTitle = computed(() => {
 .properties-panel__header {
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--toolbar-border);
   background: var(--toolbar-header-bg);
   flex-shrink: 0;
 }
 
+.properties-panel__header-icon {
+  flex-shrink: 0;
+  color: var(--toolbar-muted);
+}
+
 .properties-panel__title {
   font-size: 13px;
   font-weight: 600;
   color: var(--toolbar-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.properties-panel__collapse-btn {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--toolbar-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-sm, 4px);
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease);
+}
+
+.properties-panel__collapse-btn:hover {
+  color: var(--toolbar-text);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .properties-panel__body {

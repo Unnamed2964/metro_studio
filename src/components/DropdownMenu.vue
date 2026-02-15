@@ -15,6 +15,10 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  isSubmenu: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['select', 'close'])
@@ -37,14 +41,27 @@ function positionMenu() {
   const menuRect = menu.getBoundingClientRect()
   const padding = 4
 
-  let left = rect.left
-  let top = rect.bottom + 2
+  let left, top
+
+  if (props.isSubmenu) {
+    // Submenu: appear to the right of the parent item
+    left = rect.left
+    top = rect.top
+    // If overflows right, flip to left side
+    if (left + menuRect.width > window.innerWidth - padding) {
+      left = rect.right - menuRect.width
+    }
+  } else {
+    // Top-level menu: appear below the anchor
+    left = rect.left
+    top = rect.bottom + 2
+  }
 
   if (left + menuRect.width > window.innerWidth - padding) {
     left = Math.max(padding, window.innerWidth - menuRect.width - padding)
   }
   if (top + menuRect.height > window.innerHeight - padding) {
-    top = Math.max(padding, rect.top - menuRect.height - 2)
+    top = Math.max(padding, window.innerHeight - menuRect.height - padding)
   }
 
   menu.style.left = `${left}px`
@@ -58,30 +75,23 @@ function onItemClick(item) {
   emit('select', item)
 }
 
-function onItemMouseEnter(index) {
+function onItemMouseEnter(event, index) {
   focusedIndex.value = index
   const item = props.items[index]
   if (item?.type === 'submenu') {
     submenuOpenIndex.value = index
-    nextTick(positionSubmenu)
+    const itemRect = event.currentTarget.getBoundingClientRect()
+    const menuRect = menuRef.value?.getBoundingClientRect()
+    if (menuRect) {
+      submenuRect.value = {
+        left: menuRect.right - 2,
+        top: itemRect.top,
+        bottom: itemRect.bottom,
+        right: menuRect.right,
+      }
+    }
   } else {
     submenuOpenIndex.value = -1
-  }
-}
-
-function positionSubmenu() {
-  if (submenuOpenIndex.value < 0 || !menuRef.value) return
-  const menuEl = menuRef.value
-  const itemEls = menuEl.querySelectorAll('.dropdown-menu__item')
-  const itemEl = itemEls[submenuOpenIndex.value]
-  if (!itemEl) return
-  const itemRect = itemEl.getBoundingClientRect()
-  const menuRect = menuEl.getBoundingClientRect()
-  submenuRect.value = {
-    left: menuRect.right - 2,
-    top: itemRect.top,
-    bottom: itemRect.bottom,
-    right: menuRect.right,
   }
 }
 
@@ -157,44 +167,44 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="dropdown-menu__backdrop" @mousedown.self="emit('close')">
-      <div ref="menuRef" class="dropdown-menu" role="menu">
-        <template v-for="(item, index) in items" :key="index">
-          <div v-if="item.type === 'separator'" class="dropdown-menu__separator" role="separator" />
-          <div
-            v-else
-            class="dropdown-menu__item"
-            :class="{
-              'dropdown-menu__item--disabled': item.disabled,
-              'dropdown-menu__item--focused': focusedIndex === index,
-              'dropdown-menu__item--toggle': item.type === 'toggle',
-              'dropdown-menu__item--submenu': item.type === 'submenu',
-            }"
-            role="menuitem"
-            :aria-disabled="item.disabled || undefined"
-            @click.stop="onItemClick(item)"
-            @mouseenter="onItemMouseEnter(index)"
-          >
-            <span v-if="item.type === 'toggle'" class="dropdown-menu__check">
-              <IconBase v-if="item.checked" name="check" :size="14" />
-            </span>
-            <IconBase v-if="item.icon" :name="item.icon" :size="14" class="dropdown-menu__icon" />
-            <span class="dropdown-menu__label">{{ item.label }}</span>
-            <span v-if="item.shortcut" class="dropdown-menu__shortcut">{{ item.shortcut }}</span>
-            <span v-if="item.type === 'submenu'" class="dropdown-menu__arrow">
-              <IconBase name="chevron-right" :size="12" />
-            </span>
-          </div>
-          <DropdownMenu
-            v-if="item.type === 'submenu' && submenuOpenIndex === index && submenuRect"
-            :items="item.children || []"
-            :visible="true"
-            :anchor-rect="submenuRect"
-            @select="onSubmenuSelect"
-            @close="submenuOpenIndex = -1"
-          />
-        </template>
-      </div>
+    <div v-if="visible && !isSubmenu" class="dropdown-menu__backdrop" @mousedown.self="emit('close')" />
+    <div v-if="visible" ref="menuRef" class="dropdown-menu" role="menu">
+      <template v-for="(item, index) in items" :key="index">
+        <div v-if="item.type === 'separator'" class="dropdown-menu__separator" role="separator" />
+        <div
+          v-else
+          class="dropdown-menu__item"
+          :class="{
+            'dropdown-menu__item--disabled': item.disabled,
+            'dropdown-menu__item--focused': focusedIndex === index,
+            'dropdown-menu__item--toggle': item.type === 'toggle',
+            'dropdown-menu__item--submenu': item.type === 'submenu',
+          }"
+          role="menuitem"
+          :aria-disabled="item.disabled || undefined"
+          @click.stop="onItemClick(item)"
+          @mouseenter="onItemMouseEnter($event, index)"
+        >
+          <span v-if="item.type === 'toggle'" class="dropdown-menu__check">
+            <IconBase v-if="item.checked" name="check" :size="14" class="dropdown-menu__check-icon" />
+          </span>
+          <IconBase v-if="item.icon" :name="item.icon" :size="14" class="dropdown-menu__icon" />
+          <span class="dropdown-menu__label">{{ item.label }}</span>
+          <kbd v-if="item.shortcut" class="dropdown-menu__shortcut">{{ item.shortcut }}</kbd>
+          <span v-if="item.type === 'submenu'" class="dropdown-menu__arrow">
+            <IconBase name="chevron-right" :size="12" />
+          </span>
+        </div>
+        <DropdownMenu
+          v-if="item.type === 'submenu' && submenuOpenIndex === index && submenuRect"
+          :items="item.children || []"
+          :visible="true"
+          :anchor-rect="submenuRect"
+          :is-submenu="true"
+          @select="onSubmenuSelect"
+          @close="submenuOpenIndex = -1"
+        />
+      </template>
     </div>
   </Teleport>
 </template>
@@ -212,35 +222,62 @@ onBeforeUnmount(() => {
   max-width: 320px;
   max-height: calc(100vh - 16px);
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 4px;
   background: var(--toolbar-card-bg);
   border: 1px solid var(--toolbar-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   z-index: 9001;
+  animation: dropdown-enter 0.15s ease-out;
+}
+
+@keyframes dropdown-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dropdown-menu__separator {
   height: 1px;
-  margin: 4px 8px;
+  margin: 4px 12px;
   background: var(--toolbar-divider);
 }
 
 .dropdown-menu__item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 6px 12px 6px 14px;
   font-size: 12px;
   color: var(--toolbar-text);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.1s ease;
+  border-radius: 6px;
+  transition: background-color var(--transition-fast, 0.1s ease);
 }
 
 .dropdown-menu__item--focused,
 .dropdown-menu__item:hover:not(.dropdown-menu__item--disabled) {
   background: var(--toolbar-tab-active-bg);
+}
+
+.dropdown-menu__item--focused::before,
+.dropdown-menu__item:hover:not(.dropdown-menu__item--disabled)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--indicator-width, 2px);
+  height: 16px;
+  background: var(--indicator-color, var(--toolbar-primary-bg));
+  border-radius: 0 1px 1px 0;
 }
 
 .dropdown-menu__item--disabled {
@@ -257,9 +294,19 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.dropdown-menu__check-icon {
+  color: var(--indicator-color, var(--toolbar-primary-bg));
+}
+
 .dropdown-menu__icon {
   flex-shrink: 0;
   color: var(--toolbar-muted);
+  transition: color var(--transition-fast, 0.1s ease);
+}
+
+.dropdown-menu__item--focused .dropdown-menu__icon,
+.dropdown-menu__item:hover:not(.dropdown-menu__item--disabled) .dropdown-menu__icon {
+  color: var(--toolbar-text);
 }
 
 .dropdown-menu__label {
@@ -270,14 +317,36 @@ onBeforeUnmount(() => {
 .dropdown-menu__shortcut {
   margin-left: auto;
   padding-left: 24px;
-  font-size: 11px;
+  font-size: 10px;
+  font-family: inherit;
   color: var(--toolbar-muted);
   flex-shrink: 0;
+  background: var(--toolbar-input-bg);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--toolbar-divider);
+  line-height: 1.5;
 }
 
 .dropdown-menu__arrow {
   margin-left: auto;
   color: var(--toolbar-muted);
   flex-shrink: 0;
+}
+
+/* Submenu entry animation */
+.dropdown-menu .dropdown-menu {
+  animation: submenu-enter 0.15s ease-out;
+}
+
+@keyframes submenu-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 </style>
