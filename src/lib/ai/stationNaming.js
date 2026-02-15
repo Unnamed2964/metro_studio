@@ -1,8 +1,21 @@
 import { postOpenRouterChat } from './openrouterClient'
 
-const DEFAULT_OPENROUTER_MODEL = 'claude-haiku-4-5-20251001'
+const DEFAULT_OPENROUTER_MODEL = 'gemini-3-flash-preview'
 
 const BASIS_OPTIONS = ['①道路', '②地域', '③公共设施', '④其它']
+
+const STATION_NAME_CANDIDATE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    evidenceId: { type: 'string', minLength: 1, maxLength: 48 },
+    nameZh: { type: 'string', minLength: 1, maxLength: 64 },
+    nameEn: { type: 'string', minLength: 1, maxLength: 96 },
+    basis: { type: 'string', enum: BASIS_OPTIONS },
+    reason: { type: 'string', minLength: 1, maxLength: 220 },
+  },
+  required: ['evidenceId', 'nameZh', 'nameEn', 'basis', 'reason'],
+}
 
 const STATION_NAME_RESPONSE_SCHEMA = {
   type: 'object',
@@ -11,22 +24,35 @@ const STATION_NAME_RESPONSE_SCHEMA = {
     candidates: {
       type: 'array',
       minItems: 0,
-      maxItems: 5,
+      items: STATION_NAME_CANDIDATE_SCHEMA,
+    },
+  },
+  required: ['candidates'],
+}
+
+const STATION_NAME_BATCH_RESPONSE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    stations: {
+      type: 'array',
+      minItems: 0,
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          evidenceId: { type: 'string', minLength: 1, maxLength: 48 },
-          nameZh: { type: 'string', minLength: 1, maxLength: 64 },
-          nameEn: { type: 'string', minLength: 1, maxLength: 96 },
-          basis: { type: 'string', enum: BASIS_OPTIONS },
-          reason: { type: 'string', minLength: 1, maxLength: 220 },
+          stationId: { type: 'string', minLength: 1, maxLength: 128 },
+          candidates: {
+            type: 'array',
+            minItems: 0,
+            items: STATION_NAME_CANDIDATE_SCHEMA,
+          },
         },
-        required: ['evidenceId', 'nameZh', 'nameEn', 'basis', 'reason'],
+        required: ['stationId', 'candidates'],
       },
     },
   },
-  required: ['candidates'],
+  required: ['stations'],
 }
 
 const CHINESE_NAMING_STANDARD = `轨道交通车站名称按以下条件综合考虑：
@@ -150,7 +176,6 @@ function prioritizeIntersectionEvidenceItems(items) {
       if (Math.abs(distanceDelta) > 1e-6) return distanceDelta
       return String(a?.nameZh || '').localeCompare(String(b?.nameZh || ''), 'zh-Hans-CN')
     })
-    .slice(0, 10)
 }
 
 function shouldEnforceIntersectionPriority(intersections) {
@@ -165,67 +190,53 @@ function shouldEnforceIntersectionPriority(intersections) {
 }
 
 function prioritizeRoadEvidenceItems(items) {
-  const roads = (Array.isArray(items) ? items : []).filter((item) => String(item?.nameZh || '').trim())
-  if (!roads.length) return []
-
-  const hasNearbyMajorRoad = roads.some(
-    (road) => toFiniteNumber(road?.importance, 0) >= 0.9 && toFiniteNumber(road?.distanceMeters, 9999) <= 240,
-  )
-
-  const filtered = hasNearbyMajorRoad
-    ? roads.filter((road) => {
-        const importance = toFiniteNumber(road?.importance, 0)
-        const distance = toFiniteNumber(road?.distanceMeters, 9999)
-        if (importance >= 0.84) return true
-        return distance <= 42
-      })
-    : roads
-
-  return filtered.slice(0, 12)
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => String(item?.nameZh || '').trim())
+    .sort((a, b) => {
+      const scoreDelta = toFiniteNumber(b?.score, 0) - toFiniteNumber(a?.score, 0)
+      if (Math.abs(scoreDelta) > 1e-6) return scoreDelta
+      const distanceDelta = toFiniteNumber(a?.distanceMeters, 0) - toFiniteNumber(b?.distanceMeters, 0)
+      if (Math.abs(distanceDelta) > 1e-6) return distanceDelta
+      return String(a?.nameZh || '').localeCompare(String(b?.nameZh || ''), 'zh-Hans-CN')
+    })
 }
 
 function buildEvidenceListFromContext(context) {
   const prioritizedIntersectionItems = prioritizeIntersectionEvidenceItems(context?.intersections)
   const enforceIntersectionPriority = shouldEnforceIntersectionPriority(prioritizedIntersectionItems)
-  const categories = [
-    { key: 'intersections', limit: 10 },
-    { key: 'roads', limit: 18 },
-    { key: 'areas', limit: 14 },
-    { key: 'facilities', limit: 20 },
-    { key: 'buildings', limit: 20 },
-  ]
+  const categories = ['intersections', 'roads', 'areas', 'facilities', 'buildings']
 
   const evidences = []
   let sequence = 1
   const prioritizedRoadItems = prioritizeRoadEvidenceItems(context?.roads)
 
   for (const category of categories) {
-    if (enforceIntersectionPriority && category.key === 'roads') continue
     const sourceItems =
-      category.key === 'intersections'
+      category === 'intersections'
         ? prioritizedIntersectionItems
-        : category.key === 'roads'
+        : category === 'roads'
           ? prioritizedRoadItems
-          : Array.isArray(context?.[category.key])
-            ? context[category.key]
+          : Array.isArray(context?.[category])
+            ? context[category]
             : []
-    const items = sourceItems.slice(0, category.limit)
-    for (const item of items) {
-      if (isDisallowedNamingEvidence(item, category.key)) continue
+    for (const item of sourceItems) {
+      if (isDisallowedNamingEvidence(item, category)) continue
       const nameZh = String(item?.nameZh || '').trim()
       if (!nameZh) continue
       const evidenceId = `ev_${String(sequence).padStart(3, '0')}`
       sequence += 1
       evidences.push({
         evidenceId,
-        category: category.key,
-        basis: resolveBasisByCategory(category.key),
+        category,
+        basis: resolveBasisByCategory(category),
         nameZh,
         nameEn: String(item?.nameEn || '').trim(),
         type: String(item?.type || '').trim(),
         distanceMeters: Math.round(toFiniteNumber(item?.distanceMeters, 0)),
         importance: toFiniteNumber(item?.importance, 0),
         score: toFiniteNumber(item?.score, 0),
+        source: String(item?.source || '').trim(),
+        meta: item?.meta && typeof item.meta === 'object' ? { ...item.meta } : null,
       })
     }
   }
@@ -301,12 +312,16 @@ function projectContextForModel(context, lngLat, evidences) {
     },
     evidences: evidences.map((item) => ({
       evidenceId: item.evidenceId,
+      category: item.category,
       basis: item.basis,
       nameZh: item.nameZh,
       nameEn: item.nameEn,
       type: item.type,
       distanceMeters: item.distanceMeters,
+      importance: item.importance,
       score: item.score,
+      source: item.source,
+      meta: item.meta,
     })),
   }
 }
@@ -347,6 +362,30 @@ function extractCandidatesFromChatResponse(payload) {
   return []
 }
 
+function extractBatchStationResultsFromChatResponse(payload) {
+  const content = payload?.choices?.[0]?.message?.content
+  if (content && typeof content === 'object') {
+    if (Array.isArray(content)) {
+      const joined = content
+        .map((part) => {
+          if (typeof part === 'string') return part
+          return String(part?.text || '')
+        })
+        .join('')
+      const parsed = extractJsonObject(joined)
+      return parsed && Array.isArray(parsed.stations) ? parsed.stations : []
+    }
+    return Array.isArray(content.stations) ? content.stations : []
+  }
+  if (typeof content === 'string') {
+    const parsed = extractJsonObject(content)
+    if (parsed && Array.isArray(parsed.stations)) {
+      return parsed.stations
+    }
+  }
+  return []
+}
+
 function isResponseFormatError(error) {
   const text = String(error?.message || '').toLowerCase()
   return text.includes('response_format') || text.includes('json_schema') || text.includes('structured')
@@ -365,7 +404,13 @@ async function postOpenRouterChatWithFallback(payload, signal) {
   }
 }
 
-export async function generateStationNameCandidates({ context, lngLat, model = DEFAULT_OPENROUTER_MODEL, signal } = {}) {
+export async function generateStationNameCandidates({
+  context,
+  lngLat,
+  model = DEFAULT_OPENROUTER_MODEL,
+  signal,
+  strictModel = false,
+} = {}) {
   if (!context || typeof context !== 'object') {
     throw new Error('缺少周边命名上下文')
   }
@@ -385,7 +430,7 @@ export async function generateStationNameCandidates({ context, lngLat, model = D
     '优先使用片区名、立交桥、道路交叉口、主干路等导向性更强的名称。',
     '若 evidence 中存在主干路/次干路（高 importance 道路），优先考虑其作为道路命名依据，不要优先选择居住小路或服务道路。',
     enforceIntersectionPriority
-      ? '当前证据显示站位处于强交叉口场景：①道路类候选只能使用 intersections 证据，严禁用单一道路证据命名。'
+      ? '当前证据显示站位处于强交叉口场景：请优先给出基于 intersections 的道路候选，同时完整评估其余 evidence。'
       : '若证据中存在道路交叉口（intersections），优先使用交叉口证据作为①道路候选，不要忽略交汇关系。',
     '如果无法给出充分 grounded 的候选，可以少给，绝不编造。',
     '严格遵守以下中文标准：',
@@ -393,7 +438,7 @@ export async function generateStationNameCandidates({ context, lngLat, model = D
     '严格遵守以下英文标准：',
     ENGLISH_NAMING_STANDARD,
     '输出约束：',
-    '1) 仅输出 JSON；2) candidates 最多 5 条；3) 候选中英文名称均需互不重复；4) basis 仅可取 ①道路/②地域/③公共设施/④其它；5) 不得出现训练记忆中的外部知名站名；6) nameEn 末尾严禁出现 Station/Metro Station/Subway Station；7) 公共机构必须意译通名（医院/学校/政府机构等）。',
+    '1) 仅输出 JSON；2) 候选中英文名称均需互不重复；3) basis 仅可取 ①道路/②地域/③公共设施/④其它；4) 不得出现训练记忆中的外部知名站名；5) nameEn 末尾严禁出现 Station/Metro Station/Subway Station；6) 公共机构必须意译通名（医院/学校/政府机构等）。',
   ].join('\n')
 
   const payload = {
@@ -419,7 +464,7 @@ export async function generateStationNameCandidates({ context, lngLat, model = D
         content: JSON.stringify(
           {
             task: '请根据输入 evidence 生成 grounded 的地铁车站命名候选。',
-            output: '返回 candidates 数组，每项含 evidenceId/nameZh/nameEn/basis/reason。',
+            output: '返回完整 candidates 数组，每项含 evidenceId/nameZh/nameEn/basis/reason，除去无法自洽的候选。',
             context: modelInput,
           },
           null,
@@ -435,14 +480,178 @@ export async function generateStationNameCandidates({ context, lngLat, model = D
     rawCandidates.map((item) => normalizeCandidate(item, evidenceById)).filter(Boolean),
   )
 
-  const fallbackCandidates = buildFallbackCandidatesFromEvidence(evidences)
-  const merged = dedupeCandidates([...groundedModelCandidates, ...fallbackCandidates]).slice(0, 5)
+  if (strictModel) {
+    if (!groundedModelCandidates.length) {
+      throw new Error('AI 未返回可用候选')
+    }
+    return groundedModelCandidates.map(({ evidenceId, ...rest }) => rest)
+  }
 
-  if (merged.length < 5) {
-    throw new Error('周边命名要素不足，无法生成 5 个候选站名')
+  const fallbackCandidates = buildFallbackCandidatesFromEvidence(evidences)
+  const merged = dedupeCandidates([...groundedModelCandidates, ...fallbackCandidates])
+
+  if (!merged.length) {
+    throw new Error('周边命名要素不足，无法生成候选站名')
   }
 
   return merged.map(({ evidenceId, ...rest }) => rest)
+}
+
+export async function generateStationNameCandidatesBatch({
+  stations,
+  model = DEFAULT_OPENROUTER_MODEL,
+  signal,
+  strictModel = false,
+} = {}) {
+  const stationItems = Array.isArray(stations) ? stations : []
+  if (!stationItems.length) return []
+
+  const preparedStations = []
+  const immediateFailures = []
+  const seenStationIds = new Set()
+
+  for (const item of stationItems) {
+    const stationId = String(item?.stationId || '').trim()
+    if (!stationId || seenStationIds.has(stationId)) continue
+    seenStationIds.add(stationId)
+
+    const context = item?.context
+    if (!context || typeof context !== 'object') {
+      immediateFailures.push({
+        stationId,
+        candidates: [],
+        error: '缺少周边命名上下文',
+      })
+      continue
+    }
+
+    const { evidences, enforceIntersectionPriority } = buildEvidenceListFromContext(context)
+    if (!evidences.length) {
+      immediateFailures.push({
+        stationId,
+        candidates: [],
+        error: '周边命名要素不足，无法生成候选站名',
+      })
+      continue
+    }
+
+    preparedStations.push({
+      stationId,
+      lngLat: Array.isArray(item?.lngLat) ? item.lngLat : context.center || [0, 0],
+      context,
+      evidences,
+      enforceIntersectionPriority,
+      evidenceById: buildEvidenceMap(evidences),
+    })
+  }
+
+  if (!preparedStations.length) return immediateFailures
+
+  const systemPrompt = [
+    '你是轨道交通车站命名评审助手。',
+    '你将收到多个 station 的 evidence 集合，请按 stationId 分别给出 grounded 候选。',
+    '你只能从对应 station 的 evidence 列表中选择命名依据，禁止输出 evidence 列表之外的任何地名或设施名。',
+    '每个候选必须绑定一个 evidenceId，且 nameZh 必须与该 evidence 的 nameZh 对应。nameZh 末尾禁止出现“站/车站/地铁站”。',
+    '严禁使用小区/社区/家园/花园/公寓等居住区名称命名。',
+    '优先使用片区名、立交桥、道路交叉口、主干路等导向性更强的名称。',
+    '若证据中存在主干路/次干路（高 importance 道路），优先考虑其作为道路命名依据，不要优先选择居住小路或服务道路。',
+    '如果无法给出充分 grounded 的候选，可以少给，绝不编造。',
+    '严格遵守以下中文标准：',
+    CHINESE_NAMING_STANDARD,
+    '严格遵守以下英文标准：',
+    ENGLISH_NAMING_STANDARD,
+    '输出约束：',
+    '1) 仅输出 JSON；2) 输出对象字段为 stations；3) 每项必须含 stationId 与 candidates；4) basis 仅可取 ①道路/②地域/③公共设施/④其它；5) nameEn 末尾严禁出现 Station/Metro Station/Subway Station；6) 公共机构必须意译通名（医院/学校/政府机构等）。',
+  ].join('\n')
+
+  const modelInput = preparedStations.map((item) => ({
+    stationId: item.stationId,
+    enforceIntersectionPriority: item.enforceIntersectionPriority,
+    context: projectContextForModel(item.context, item.lngLat, item.evidences),
+  }))
+
+  const payload = {
+    model,
+    stream: false,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'station_name_batch_candidates',
+        strict: true,
+        schema: STATION_NAME_BATCH_RESPONSE_SCHEMA,
+      },
+    },
+    temperature: 0.1,
+    top_p: 0.8,
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+      {
+        role: 'user',
+        content: JSON.stringify(
+          {
+            task: '请基于每个 station 的证据集合分别生成 grounded 车站命名候选。',
+            output: '返回 stations 数组。每项必须包含 stationId 与 candidates（含 evidenceId/nameZh/nameEn/basis/reason）。',
+            stations: modelInput,
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  }
+
+  const responsePayload = await postOpenRouterChatWithFallback(payload, signal)
+  const rawStationResults = extractBatchStationResultsFromChatResponse(responsePayload)
+  const rawMap = new Map()
+  for (const rawItem of rawStationResults) {
+    const stationId = String(rawItem?.stationId || '').trim()
+    if (!stationId || rawMap.has(stationId)) continue
+    const rawCandidates = Array.isArray(rawItem?.candidates) ? rawItem.candidates : []
+    rawMap.set(stationId, rawCandidates)
+  }
+
+  const normalizedResults = preparedStations.map((item) => {
+    const rawCandidates = rawMap.get(item.stationId) || []
+    const groundedModelCandidates = dedupeCandidates(
+      rawCandidates.map((candidate) => normalizeCandidate(candidate, item.evidenceById)).filter(Boolean),
+    )
+
+    if (strictModel) {
+      if (!groundedModelCandidates.length) {
+        return {
+          stationId: item.stationId,
+          candidates: [],
+          error: 'AI 未返回可用候选',
+        }
+      }
+      return {
+        stationId: item.stationId,
+        candidates: groundedModelCandidates.map(({ evidenceId, ...rest }) => rest),
+        error: '',
+      }
+    }
+
+    const fallbackCandidates = buildFallbackCandidatesFromEvidence(item.evidences)
+    const merged = dedupeCandidates([...groundedModelCandidates, ...fallbackCandidates])
+    if (!merged.length) {
+      return {
+        stationId: item.stationId,
+        candidates: [],
+        error: '周边命名要素不足，无法生成候选站名',
+      }
+    }
+
+    return {
+      stationId: item.stationId,
+      candidates: merged.map(({ evidenceId, ...rest }) => rest),
+      error: '',
+    }
+  })
+
+  return [...normalizedResults, ...immediateFailures]
 }
 
 export { DEFAULT_OPENROUTER_MODEL }

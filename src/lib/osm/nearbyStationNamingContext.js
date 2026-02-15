@@ -1,7 +1,7 @@
 import { haversineDistanceMeters } from '../geo'
 import { postOverpassQuery } from './overpassClient'
 
-const DEFAULT_RADIUS_METERS = 300
+const DEFAULT_RADIUS_METERS = 150
 const MIN_RADIUS_METERS = 60
 const MAX_RADIUS_METERS = 800
 
@@ -74,14 +74,6 @@ const LANDUSE_IMPORTANCE = {
   residential: 0.72,
   industrial: 0.7,
   civic: 0.78,
-}
-
-const CATEGORY_LIMITS = {
-  intersections: 10,
-  roads: 18,
-  areas: 14,
-  facilities: 20,
-  buildings: 20,
 }
 
 function clamp(value, min, max) {
@@ -190,17 +182,39 @@ function resolveRoadType(tags) {
 function resolveAreaType(tags) {
   const place = String(tags?.place || '').trim().toLowerCase()
   if (PLACE_IMPORTANCE[place] != null) {
-    return { type: `地域:${place}`, importance: PLACE_IMPORTANCE[place] }
+    return {
+      type: `地域:${place}`,
+      importance: PLACE_IMPORTANCE[place],
+      meta: {
+        areaKind: 'place',
+        place,
+      },
+    }
   }
   const boundary = String(tags?.boundary || '').trim().toLowerCase()
   if (boundary === 'administrative') {
     const adminLevel = toFiniteNumber(tags?.admin_level, 10)
     const importance = clamp(1 - (Math.max(2, adminLevel) - 2) * 0.06, 0.6, 0.95)
-    return { type: `行政区:${Math.round(adminLevel)}`, importance }
+    return {
+      type: `行政区:${Math.round(adminLevel)}`,
+      importance,
+      meta: {
+        areaKind: 'administrative',
+        boundary,
+        adminLevel: Math.round(adminLevel),
+      },
+    }
   }
   const landuse = String(tags?.landuse || '').trim().toLowerCase()
   if (LANDUSE_IMPORTANCE[landuse] != null) {
-    return { type: `片区:${landuse}`, importance: LANDUSE_IMPORTANCE[landuse] }
+    return {
+      type: `片区:${landuse}`,
+      importance: LANDUSE_IMPORTANCE[landuse],
+      meta: {
+        areaKind: 'landuse',
+        landuse,
+      },
+    }
   }
   return null
 }
@@ -208,31 +222,80 @@ function resolveAreaType(tags) {
 function resolveFacilityType(tags) {
   const amenity = String(tags?.amenity || '').trim().toLowerCase()
   if (amenity) {
-    return { type: `公共设施:${amenity}`, importance: FACILITY_IMPORTANCE[amenity] ?? 0.76 }
+    return {
+      type: `公共设施:${amenity}`,
+      importance: FACILITY_IMPORTANCE[amenity] ?? 0.76,
+      meta: {
+        facilityKind: 'amenity',
+        amenity,
+      },
+    }
   }
   const tourism = String(tags?.tourism || '').trim().toLowerCase()
   if (tourism) {
-    return { type: `公共设施:${tourism}`, importance: FACILITY_IMPORTANCE[tourism] ?? 0.75 }
+    return {
+      type: `公共设施:${tourism}`,
+      importance: FACILITY_IMPORTANCE[tourism] ?? 0.75,
+      meta: {
+        facilityKind: 'tourism',
+        tourism,
+      },
+    }
   }
   const leisure = String(tags?.leisure || '').trim().toLowerCase()
   if (leisure) {
-    return { type: `公共设施:${leisure}`, importance: FACILITY_IMPORTANCE[leisure] ?? 0.74 }
+    return {
+      type: `公共设施:${leisure}`,
+      importance: FACILITY_IMPORTANCE[leisure] ?? 0.74,
+      meta: {
+        facilityKind: 'leisure',
+        leisure,
+      },
+    }
   }
   const publicTransport = String(tags?.public_transport || '').trim().toLowerCase()
   if (publicTransport) {
-    return { type: `交通设施:${publicTransport}`, importance: FACILITY_IMPORTANCE[publicTransport] ?? 0.78 }
+    return {
+      type: `交通设施:${publicTransport}`,
+      importance: FACILITY_IMPORTANCE[publicTransport] ?? 0.78,
+      meta: {
+        facilityKind: 'public_transport',
+        publicTransport,
+      },
+    }
   }
   const railway = String(tags?.railway || '').trim().toLowerCase()
   if (railway === 'station' || railway === 'halt') {
-    return { type: `交通设施:${railway}`, importance: FACILITY_IMPORTANCE.station }
+    return {
+      type: `交通设施:${railway}`,
+      importance: FACILITY_IMPORTANCE.station,
+      meta: {
+        facilityKind: 'railway',
+        railway,
+      },
+    }
   }
   const shop = String(tags?.shop || '').trim().toLowerCase()
   if (shop) {
-    return { type: `商业设施:${shop}`, importance: FACILITY_IMPORTANCE.shopping_centre ?? 0.72 }
+    return {
+      type: `商业设施:${shop}`,
+      importance: FACILITY_IMPORTANCE.shopping_centre ?? 0.72,
+      meta: {
+        facilityKind: 'shop',
+        shop,
+      },
+    }
   }
   const office = String(tags?.office || '').trim().toLowerCase()
   if (office) {
-    return { type: `机构:${office}`, importance: FACILITY_IMPORTANCE[office] ?? 0.72 }
+    return {
+      type: `机构:${office}`,
+      importance: FACILITY_IMPORTANCE[office] ?? 0.72,
+      meta: {
+        facilityKind: 'office',
+        office,
+      },
+    }
   }
   return null
 }
@@ -244,10 +307,16 @@ function resolveBuildingType(tags) {
   if (building === 'transportation' || building === 'station') importance = 0.84
   if (building === 'commercial' || building === 'retail') importance = 0.78
   if (building === 'hospital' || building === 'university' || building === 'civic') importance = 0.88
-  return { type: `建筑:${building}`, importance }
+  return {
+    type: `建筑:${building}`,
+    importance,
+    meta: {
+      building,
+    },
+  }
 }
 
-function toScoredRecord({ entryType, nameZh, nameEn, distanceMeters, importance, type, element }) {
+function toScoredRecord({ entryType, nameZh, nameEn, distanceMeters, importance, type, element, meta = null }) {
   const distanceScore = clamp(1 - distanceMeters / (MAX_RADIUS_METERS * 1.2), 0, 1)
   const score =
     entryType === 'road'
@@ -264,6 +333,7 @@ function toScoredRecord({ entryType, nameZh, nameEn, distanceMeters, importance,
     osmType: String(element?.type || ''),
     osmId: element?.id,
     geometry: Array.isArray(element?.geometry) ? element.geometry : null,
+    meta: meta && typeof meta === 'object' ? { ...meta } : null,
   }
 }
 
@@ -376,7 +446,6 @@ function detectRoadIntersections(roadRecords, centerLngLat, radiusMeters) {
       if (Math.abs(a.distanceMeters - b.distanceMeters) > 1e-6) return a.distanceMeters - b.distanceMeters
       return a.nameZh.localeCompare(b.nameZh, 'zh-Hans-CN')
     })
-    .slice(0, CATEGORY_LIMITS.intersections)
 }
 
 function rebalanceRoadRecords(records, radiusMeters) {
@@ -427,14 +496,13 @@ function upsertByName(bucket, record) {
   }
 }
 
-function sortAndProjectRecords(records, limit) {
+function sortAndProjectRecords(records) {
   return [...records]
     .sort((a, b) => {
       if (Math.abs(b.score - a.score) > 1e-6) return b.score - a.score
       if (Math.abs(a.distanceMeters - b.distanceMeters) > 1e-6) return a.distanceMeters - b.distanceMeters
       return String(a.nameZh).localeCompare(String(b.nameZh), 'zh-Hans-CN')
     })
-    .slice(0, limit)
     .map((record) => ({
       nameZh: record.nameZh,
       nameEn: record.nameEn,
@@ -443,6 +511,7 @@ function sortAndProjectRecords(records, limit) {
       importance: round(record.importance, 3),
       score: round(record.score, 3),
       source: `${record.osmType}/${record.osmId}`,
+      meta: record.meta || null,
     }))
 }
 
@@ -502,6 +571,10 @@ export async function fetchNearbyStationNamingContext(lngLat, options = {}) {
         importance: ROAD_IMPORTANCE[roadType],
         type: ROAD_LABEL[roadType] || `道路:${roadType}`,
         element,
+        meta: {
+          roadClass: roadType,
+          roadClassLabel: ROAD_LABEL[roadType] || `道路:${roadType}`,
+        },
       }),
     )
   }
@@ -531,6 +604,7 @@ export async function fetchNearbyStationNamingContext(lngLat, options = {}) {
           importance: area.importance,
           type: area.type,
           element,
+          meta: area.meta || null,
         }),
       )
     }
@@ -547,6 +621,7 @@ export async function fetchNearbyStationNamingContext(lngLat, options = {}) {
           importance: facility.importance,
           type: facility.type,
           element,
+          meta: facility.meta || null,
         }),
       )
     }
@@ -563,6 +638,7 @@ export async function fetchNearbyStationNamingContext(lngLat, options = {}) {
           importance: building.importance,
           type: building.type,
           element,
+          meta: building.meta || null,
         }),
       )
     }
@@ -577,10 +653,10 @@ export async function fetchNearbyStationNamingContext(lngLat, options = {}) {
     radiusMeters,
     rawFeatureCount: elements.length + roadElements.length,
     intersections,
-    roads: sortAndProjectRecords(roadRecords, CATEGORY_LIMITS.roads),
-    areas: sortAndProjectRecords([...areas.values()], CATEGORY_LIMITS.areas),
-    facilities: sortAndProjectRecords([...facilities.values()], CATEGORY_LIMITS.facilities),
-    buildings: sortAndProjectRecords([...buildings.values()], CATEGORY_LIMITS.buildings),
+    roads: sortAndProjectRecords(roadRecords),
+    areas: sortAndProjectRecords([...areas.values()]),
+    facilities: sortAndProjectRecords([...facilities.values()]),
+    buildings: sortAndProjectRecords([...buildings.values()]),
   }
 }
 

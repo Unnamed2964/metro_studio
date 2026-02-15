@@ -1,4 +1,4 @@
-import { normalizeHexColor, pickLineColor } from '../../../lib/colors'
+import { normalizeHexColor, pickDistinctLineColor, pickLineColor } from '../../../lib/colors'
 import { haversineDistanceMeters } from '../../../lib/geo'
 import { createId } from '../../../lib/ids'
 import { retranslateStationEnglishNames } from '../../../lib/ai/stationEnTranslator'
@@ -23,6 +23,8 @@ const networkEditingActions = {
   addLine({ nameZh, nameEn, color, status = 'open', style = 'solid', isLoop = false }) {
     if (!this.project) return null
     const lineIndex = this.project.lines.length
+    const existingLineColors = (this.project.lines || []).map((line) => line?.color).filter(Boolean)
+    const autoColor = pickDistinctLineColor(existingLineColors, lineIndex)
     const safeIsLoop = Boolean(isLoop)
     const normalizedStatus = ['open', 'construction', 'proposed'].includes(status) ? status : 'open'
     const normalizedStyle = normalizeLineStyle(style)
@@ -36,7 +38,7 @@ const networkEditingActions = {
       key: `manual_${Date.now()}_${lineIndex}`,
       nameZh: normalizedNames.nameZh,
       nameEn: normalizedNames.nameEn,
-      color: normalizeHexColor(color, pickLineColor(lineIndex)),
+      color: normalizeHexColor(color, autoColor || pickLineColor(lineIndex)),
       status: normalizedStatus,
       style: normalizedStyle,
       isLoop: safeIsLoop,
@@ -118,6 +120,46 @@ const networkEditingActions = {
     station.nameZh = String(nameZh || '').trim() || station.nameZh
     station.nameEn = String(nameEn || '').trim()
     this.touchProject(`更新站名: ${station.nameZh}`)
+  },
+
+  updateStationNamesBatch(updates = [], options = {}) {
+    if (!this.project) return { updatedCount: 0, total: 0 }
+    const items = Array.isArray(updates) ? updates : []
+    if (!items.length) return { updatedCount: 0, total: 0 }
+
+    const stationById = new Map((this.project.stations || []).map((station) => [station.id, station]))
+    let updatedCount = 0
+
+    for (const update of items) {
+      const stationId = String(update?.stationId || '').trim()
+      if (!stationId) continue
+      const station = stationById.get(stationId)
+      if (!station) continue
+
+      const nextZh = String(update?.nameZh || '').trim()
+      const nextEn = String(update?.nameEn || '').trim()
+
+      let changed = false
+      if (nextZh && nextZh !== station.nameZh) {
+        station.nameZh = nextZh
+        changed = true
+      }
+      if (nextEn && nextEn !== station.nameEn) {
+        station.nameEn = nextEn
+        changed = true
+      }
+      if (changed) updatedCount += 1
+    }
+
+    if (updatedCount > 0) {
+      const reason = String(options?.reason || '').trim()
+      this.touchProject(reason || `批量更新站名: ${updatedCount} 站`)
+    }
+
+    return {
+      updatedCount,
+      total: items.length,
+    }
   },
 
   renameSelectedStationsByTemplate({ zhTemplate, enTemplate, startIndex = 1 } = {}) {

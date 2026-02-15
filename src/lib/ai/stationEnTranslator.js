@@ -1,6 +1,6 @@
 import { postOpenRouterChat } from './openrouterClient'
 
-const DEFAULT_OPENROUTER_MODEL = 'claude-haiku-4-5-20251001'
+const DEFAULT_OPENROUTER_MODEL = 'gemini-3-flash-preview'
 const TRANSLATION_BATCH_SIZE = 18
 
 const STATION_TRANSLATION_SCHEMA = {

@@ -1,4 +1,4 @@
-import { bboxFromXY, buildOctilinearPolyline } from '../geo'
+import { bboxFromXY, buildOctilinearPolyline, segmentIntersects } from '../geo'
 import { getLineStyleSchematic } from '../lineStyles'
 import { getDisplayLineName } from '../lineNaming'
 
@@ -107,7 +107,7 @@ export function buildSchematicRenderModel(project, options = {}) {
     }
   })
 
-  const lineLabels = buildLineLabels(lines, edges, stationById, toCanvas)
+  const lineLabels = buildLineLabels(lines, edges, stationById, toCanvas, layoutMeta, mirrorVertical)
 
   return {
     width,
@@ -126,8 +126,92 @@ export function buildSchematicRenderModel(project, options = {}) {
   }
 }
 
-function buildLineLabels(lines, edges, stationById, toCanvas) {
+function buildLineLabels(lines, edges, stationById, toCanvas, layoutMeta, mirrorVertical) {
+  const stationLabels = layoutMeta?.stationLabels || {}
+
+  // --- Collect all obstacles for collision testing ---
+  const obstacleRects = [] // { x, y, w, h } axis-aligned boxes
+  const obstacleSegs = []  // { x1, y1, x2, y2 } line segments
+
+  // 1) Station circles as bounding boxes (radius ~6 with margin)
+  for (const [, station] of stationById) {
+    if (!station.displayPos) continue
+    const [sx, sy] = toCanvas(station.displayPos)
+    obstacleRects.push({ x: sx - 10, y: sy - 10, w: 20, h: 20 })
+  }
+
+  // 2) Station label text boxes (estimate ~70x22 for zh, offset by labelPlacement)
+  for (const [id, station] of stationById) {
+    if (!station.displayPos) continue
+    const [sx, sy] = toCanvas(station.displayPos)
+    const lp = stationLabels[id] || { dx: 12, dy: -8, anchor: 'start' }
+    const lx = sx + (lp.dx || 0)
+    const ly = sy + (mirrorVertical ? -(lp.dy || 0) : (lp.dy || 0))
+    const anchor = lp.anchor || 'start'
+    const textW = 80
+    const textH = 24
+    let rx = lx
+    if (anchor === 'middle') rx = lx - textW / 2
+    else if (anchor === 'end') rx = lx - textW
+    obstacleRects.push({ x: rx, y: ly - textH * 0.7, w: textW, h: textH })
+  }
+
+  // 3) Edge polyline segments
+  for (const edge of edges) {
+    const from = stationById.get(edge.fromStationId)?.displayPos
+    const to = stationById.get(edge.toStationId)?.displayPos
+    if (!Array.isArray(from) || !Array.isArray(to)) continue
+    const poly = buildOctilinearPolyline(from, to).map(toCanvas)
+    for (let i = 0; i < poly.length - 1; i++) {
+      obstacleSegs.push({ x1: poly[i][0], y1: poly[i][1], x2: poly[i + 1][0], y2: poly[i + 1][1] })
+    }
+  }
+
+  // --- Helper: test if a rect collides with any obstacle ---
+  const BADGE_W = 80
+  const BADGE_H = 50
+  const MARGIN = 6
+
+  function rectOverlapsRect(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+  }
+
+  function segIntersectsRect(seg, r) {
+    // Test segment against 4 edges of rect
+    const corners = [
+      [r.x, r.y], [r.x + r.w, r.y],
+      [r.x + r.w, r.y + r.h], [r.x, r.y + r.h],
+    ]
+    for (let i = 0; i < 4; i++) {
+      const c1 = corners[i]
+      const c2 = corners[(i + 1) % 4]
+      if (segmentIntersects([seg.x1, seg.y1], [seg.x2, seg.y2], c1, c2)) return true
+    }
+    // Also check if segment is fully inside rect
+    if (seg.x1 >= r.x && seg.x1 <= r.x + r.w && seg.y1 >= r.y && seg.y1 <= r.y + r.h) return true
+    return false
+  }
+
+  function candidateCollides(cx, cy, placedLabels) {
+    const rect = { x: cx - BADGE_W / 2 - MARGIN, y: cy - BADGE_H / 2 - MARGIN, w: BADGE_W + MARGIN * 2, h: BADGE_H + MARGIN * 2 }
+    for (const obs of obstacleRects) {
+      if (rectOverlapsRect(rect, obs)) return true
+    }
+    for (const seg of obstacleSegs) {
+      if (segIntersectsRect(seg, rect)) return true
+    }
+    for (const placed of placedLabels) {
+      const pr = { x: placed.x - BADGE_W / 2 - MARGIN, y: placed.y - BADGE_H / 2 - MARGIN, w: BADGE_W + MARGIN * 2, h: BADGE_H + MARGIN * 2 }
+      if (rectOverlapsRect(rect, pr)) return true
+    }
+    return false
+  }
+
+  // --- Build labels with collision avoidance ---
   const labels = []
+  const distances = [70, 95, 120, 150, 185, 220]
+  const angleOffsets = [0, Math.PI / 6, -Math.PI / 6, Math.PI / 3, -Math.PI / 3, Math.PI / 2, -Math.PI / 2, Math.PI * 2 / 3, -Math.PI * 2 / 3, Math.PI * 5 / 6, -Math.PI * 5 / 6, Math.PI]
+
   for (const line of lines) {
     const lineEdges = edges.filter(
       (edge) => Array.isArray(edge.sharedByLineIds) && edge.sharedByLineIds.includes(line.id),
@@ -152,10 +236,11 @@ function buildLineLabels(lines, edges, stationById, toCanvas) {
     const isLoop = terminals.length === 0 && adjacency.size >= 3
     const nameZh = getDisplayLineName(line, 'zh') || line.nameZh || ''
     const number = extractSchematicLineNumber(nameZh, line.nameEn, line.key)
-    const offsetDist = 42
+
+    let anchorX, anchorY, baseAngle
 
     if (isLoop) {
-      // For loop lines: compute centroid, then place label outside the topmost station
+      // For loops, anchor at topmost station, base direction = upward
       const stationIds = [...adjacency.keys()]
       let topId = stationIds[0]
       let topY = Infinity
@@ -168,47 +253,61 @@ function buildLineLabels(lines, edges, stationById, toCanvas) {
       const topStation = stationById.get(topId)
       if (!topStation?.displayPos) continue
       const [tx, ty] = toCanvas(topStation.displayPos)
-
-      labels.push({
-        id: line.id,
-        nameZh,
-        nameEn: line.nameEn || '',
-        color: line.color || '#2563EB',
-        number,
-        x: tx,
-        y: ty - offsetDist,
-      })
+      anchorX = tx
+      anchorY = ty
+      baseAngle = -Math.PI / 2 // upward
     } else {
+      // For non-loops, anchor at terminal, base direction = outward from neighbor
       const terminalId = terminals.length ? terminals[terminals.length - 1] : adjacency.keys().next().value
       const station = stationById.get(terminalId)
       if (!station?.displayPos) continue
-
       const [cx, cy] = toCanvas(station.displayPos)
+      anchorX = cx
+      anchorY = cy
+
       const neighborIds = adjacency.get(terminalId) || []
-      let dx = 1
-      let dy = 0
       if (neighborIds.length) {
         const neighbor = stationById.get(neighborIds[0])
         if (neighbor?.displayPos) {
           const [nx, ny] = toCanvas(neighbor.displayPos)
-          const len = Math.hypot(cx - nx, cy - ny)
-          if (len > 1) {
-            dx = (cx - nx) / len
-            dy = (cy - ny) / len
-          }
+          baseAngle = Math.atan2(cy - ny, cx - nx) // outward from neighbor
+        } else {
+          baseAngle = 0
+        }
+      } else {
+        baseAngle = 0
+      }
+    }
+
+    // Try candidates: distance x angle, pick first non-colliding
+    let bestX = anchorX + Math.cos(baseAngle) * distances[0]
+    let bestY = anchorY + Math.sin(baseAngle) * distances[0]
+    let found = false
+
+    for (const dist of distances) {
+      if (found) break
+      for (const aOff of angleOffsets) {
+        const angle = baseAngle + aOff
+        const cx = anchorX + Math.cos(angle) * dist
+        const cy = anchorY + Math.sin(angle) * dist
+        if (!candidateCollides(cx, cy, labels)) {
+          bestX = cx
+          bestY = cy
+          found = true
+          break
         }
       }
-
-      labels.push({
-        id: line.id,
-        nameZh,
-        nameEn: line.nameEn || '',
-        color: line.color || '#2563EB',
-        number,
-        x: cx + dx * offsetDist,
-        y: cy + dy * offsetDist,
-      })
     }
+
+    labels.push({
+      id: line.id,
+      nameZh,
+      nameEn: line.nameEn || '',
+      color: line.color || '#2563EB',
+      number,
+      x: bestX,
+      y: bestY,
+    })
   }
   return labels
 }

@@ -1,10 +1,10 @@
 import { getDisplayLineName } from '../lineNaming'
 
 const DEFAULT_MESSAGE = '请选择线路'
-const HUD_MIN_WIDTH = 2400
+const HUD_MIN_WIDTH = 1600
 const HUD_MAX_WIDTH = 7600
-const HUD_SINGLE_ROW_HEIGHT = 1200
-const HUD_DOUBLE_ROW_HEIGHT = 2400
+const HUD_SINGLE_ROW_HEIGHT = 900
+const HUD_DOUBLE_ROW_HEIGHT = 1750
 const HUD_FOLD_THRESHOLD = 30
 
 class MinHeap {
@@ -281,13 +281,14 @@ export function buildVehicleHudRenderModel(project, options = {}) {
   const bendOffset = hasBend ? 72 : 0
   const targetGap = hasBend ? 176 : resolveHudStationGap(stationIds.length)
   const rawWidth = sidePadding * 2 + bendOffset + Math.max(1, maxRowCount - 1) * targetGap
-  const width = clamp(rawWidth * 2, HUD_MIN_WIDTH, HUD_MAX_WIDTH)
+  const widthScale = hasBend ? 1.68 : stationIds.length <= 10 ? 1.32 : 1.5
+  const width = clamp(rawWidth * widthScale, HUD_MIN_WIDTH, HUD_MAX_WIDTH)
   const row1Y = topPadding + 352
   const topStationIds = stationIds.slice(0, row1Count)
   const bottomStationIds = stationIds.slice(row1Count)
   const topCalloutDownExtent = hasBend ? estimateRowCalloutDownExtent(topStationIds, stationById, lineId) : 0
   const bottomCalloutUpExtent = hasBend ? estimateRowCalloutUpExtent(bottomStationIds, stationById, lineId) : 0
-  const foldGap = hasBend ? Math.max(412, topCalloutDownExtent + bottomCalloutUpExtent + 112) : 0
+  const foldGap = hasBend ? Math.max(600, topCalloutDownExtent + bottomCalloutUpExtent + 200) : 0
   const row2Y = hasBend ? row1Y + foldGap : row1Y
   const height = hasBend ? HUD_DOUBLE_ROW_HEIGHT : HUD_SINGLE_ROW_HEIGHT
 
@@ -418,7 +419,7 @@ function buildLoopHudRenderModel({ route, direction, stationIds, stationById, li
   const maxRowCount = Math.max(topCount, bottomCount || 0)
   const targetGap = resolveHudStationGap(stationCount)
   const rawWidth = sidePadding * 2 + Math.max(1, maxRowCount - 1) * targetGap + connectorOffset * 2
-  const width = clamp(rawWidth * 2, HUD_MIN_WIDTH, HUD_MAX_WIDTH)
+  const width = clamp(rawWidth * 1.56, HUD_MIN_WIDTH, HUD_MAX_WIDTH)
   const height = 1120
   const trackStartX = sidePadding
   const trackEndX = width - sidePadding
@@ -553,9 +554,9 @@ function buildStationRender(station, isStart, isEnd, lineId, lineById, position)
     connectorDotY = position.y + calloutDirection * 28
   }
 
-  const transferLabelZhY = calloutDirection > 0 ? position.y + 64 : position.y - 64
-  const transferLabelEnY = calloutDirection > 0 ? position.y + 84 : position.y - 84
-  const transferBadgeY = calloutDirection > 0 ? position.y + 96 : position.y - 128
+  const transferLabelZhY = calloutDirection > 0 ? position.y + 80 : position.y - 80
+  const transferLabelEnY = calloutDirection > 0 ? position.y + 100 : position.y - 100
+  const transferBadgeY = calloutDirection > 0 ? position.y + 120 : position.y - 152
 
   return {
     id: station.id,

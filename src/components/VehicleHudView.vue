@@ -179,7 +179,7 @@ onBeforeUnmount(() => {
     <header class="vehicle-hud__header">
       <div>
         <h2>车辆 HUD 生成</h2>
-        <p class="vehicle-hud__subtitle">约 15 站自动折返 | 中键平移 | 滚轮缩放</p>
+        <p class="vehicle-hud__subtitle">约 30 站自动折返 | 中键平移 | 滚轮缩放</p>
       </div>
       <div class="vehicle-hud__controls">
         <label class="vehicle-hud__control">

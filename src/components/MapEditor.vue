@@ -1071,9 +1071,17 @@ function handleStationClick(event) {
   })
 }
 
+function isLineDrawMode() {
+  return store.mode === 'add-edge' || store.mode === 'route-draw'
+}
+
 function handleEdgeClick(event) {
   closeContextMenu()
   suppressNextMapClick = true
+  if (!map) return
+  if (isLineDrawMode()) return
+  const overlappingStations = map.queryRenderedFeatures(event.point, { layers: [LAYER_STATIONS] })
+  if (overlappingStations.length) return
   const edgeId = event.features?.[0]?.properties?.id
   if (!edgeId) return
   if (store.mode !== 'select') {
@@ -1093,6 +1101,7 @@ function handleEdgeClick(event) {
 function handleEdgeAnchorClick(event) {
   closeContextMenu()
   suppressNextMapClick = true
+  if (isLineDrawMode()) return
   const edgeId = event.features?.[0]?.properties?.edgeId
   const anchorIndexRaw = event.features?.[0]?.properties?.anchorIndex
   const anchorIndex = Number(anchorIndexRaw)
