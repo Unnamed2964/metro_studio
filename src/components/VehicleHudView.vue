@@ -12,13 +12,6 @@ import {
   buildHudLineRoute,
   buildVehicleHudRenderModel,
 } from "../lib/hud/renderModel";
-import {
-  JINAN_METRO_ICON_COLOR,
-  JINAN_METRO_ICON_INNER_PATH,
-  JINAN_METRO_ICON_MAIN_PATH,
-  JINAN_METRO_ICON_TRANSFORM,
-} from "../lib/hud/jinanBrand";
-import jinanWordmarkImage from "../assets/jinan.png";
 import { useProjectStore } from "../stores/projectStore";
 
 const store = useProjectStore();
@@ -89,80 +82,6 @@ const model = computed(() =>
     route: route.value,
   }),
 );
-const hudHeaderLayout = computed(() => {
-  const stripX = 30;
-  const stripY = 16;
-  const stripHeight = 88;
-  const stripWidth = Math.max(720, model.value.width - 60);
-  const contentX = stripX + 6;
-  const contentY = stripY + 2;
-  const contentHeight = stripHeight - 4;
-  const contentWidth = stripWidth - 12;
-
-  /* brand card */
-  const brandCardX = contentX + 6;
-  const brandCardY = contentY + 4;
-  const brandCardW = 160;
-  const brandCardH = 76;
-
-  /* line badge area – right of brand card */
-  const lineBadgeX = brandCardX + brandCardW + 16;
-  const lineBadgeCenterY = stripY + stripHeight / 2;
-
-  /* arrived tag – centered in remaining space */
-  const arrivedTagWidth = clamp(contentWidth * 0.36, 340, 520);
-  const arrivedTagHeight = 76;
-  const arrivedTagX = contentX + (contentWidth - arrivedTagWidth) / 2 + 40;
-  const arrivedTagY = stripY + 6;
-  const arrivedLabelWidth = 110;
-  const arrivedMainX = arrivedTagX + arrivedLabelWidth + 14;
-
-  /* route span on the right */
-  const rightRouteX = contentX + contentWidth - 14;
-
-  return {
-    stripX,
-    stripY,
-    stripWidth,
-    stripHeight,
-    contentX,
-    contentY,
-    contentWidth,
-    contentHeight,
-    brandCardX,
-    brandCardY,
-    brandCardW,
-    brandCardH,
-    lineBadgeX,
-    lineBadgeCenterY,
-    arrivedTagX,
-    arrivedTagY,
-    arrivedTagWidth,
-    arrivedTagHeight,
-    arrivedLabelWidth,
-    arrivedMainX,
-    rightRouteX,
-  };
-});
-
-const lineBadgeMeta = computed(() => {
-  const raw = String(model.value.lineBadgeZh || model.value.lineNameZh || "").trim();
-  const match = raw.match(/^(\d+)(号线)?$/u);
-  if (!match) {
-    return {
-      isNumeric: false,
-      numberPart: "",
-      suffixPart: "",
-      fullText: raw,
-    };
-  }
-  return {
-    isNumeric: true,
-    numberPart: match[1],
-    suffixPart: match[2] || "号线",
-    fullText: raw,
-  };
-});
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -318,25 +237,6 @@ onBeforeUnmount(() => {
                 stroke-linecap="round"
               />
             </g>
-            <g id="jinanMetroIcon" class="hud-defs__metro-icon">
-              <rect
-                x="32.2"
-                y="3.8"
-                width="206.1"
-                height="268.2"
-                fill="#ffffff"
-              />
-              <g :transform="JINAN_METRO_ICON_TRANSFORM">
-                <path
-                  :d="JINAN_METRO_ICON_MAIN_PATH"
-                  :fill="JINAN_METRO_ICON_COLOR"
-                />
-                <path
-                  :d="JINAN_METRO_ICON_INNER_PATH"
-                  :fill="JINAN_METRO_ICON_COLOR"
-                />
-              </g>
-            </g>
           </defs>
 
           <rect
@@ -365,184 +265,6 @@ onBeforeUnmount(() => {
               stroke="#d6dfeb"
               stroke-width="1.8"
             />
-            <!-- ===== header color strip ===== -->
-            <rect
-              class="hud-header__strip"
-              :x="hudHeaderLayout.stripX"
-              :y="hudHeaderLayout.stripY"
-              :width="hudHeaderLayout.stripWidth"
-              :height="hudHeaderLayout.stripHeight"
-              rx="8"
-              :fill="model.lineColor"
-            />
-
-            <!-- ===== brand card (white inset) ===== -->
-            <rect
-              class="hud-header__brand-card"
-              :x="hudHeaderLayout.brandCardX"
-              :y="hudHeaderLayout.brandCardY"
-              :width="hudHeaderLayout.brandCardW"
-              :height="hudHeaderLayout.brandCardH"
-              rx="5"
-              fill="#ffffff"
-            />
-            <g
-              class="hud-header__brand-icon"
-              :transform="`translate(${hudHeaderLayout.brandCardX + 6} ${hudHeaderLayout.brandCardY + 4}) scale(0.18)`"
-            >
-              <use href="#jinanMetroIcon" />
-            </g>
-            <image
-              class="hud-header__brand-wordmark"
-              :href="jinanWordmarkImage"
-              :x="hudHeaderLayout.brandCardX + 68"
-              :y="hudHeaderLayout.brandCardY + 10"
-              width="82"
-              height="22"
-              preserveAspectRatio="xMinYMid meet"
-            />
-            <text
-              class="hud-header__brand-en hud-brand-en"
-              :x="hudHeaderLayout.brandCardX + 68"
-              :y="hudHeaderLayout.brandCardY + 50"
-            >
-              JINAN METRO
-            </text>
-
-            <!-- ===== line badge (number + 号线) ===== -->
-            <g class="hud-header__line-badge-group">
-              <text
-                v-if="lineBadgeMeta.isNumeric"
-                class="hud-header__line-badge-number hud-line-badge-zh"
-                :x="hudHeaderLayout.lineBadgeX"
-                :y="hudHeaderLayout.lineBadgeCenterY + 22"
-                text-anchor="start"
-                dominant-baseline="auto"
-              >
-                {{ lineBadgeMeta.numberPart }}
-              </text>
-              <text
-                v-if="lineBadgeMeta.isNumeric"
-                class="hud-header__line-badge-suffix hud-line-badge-zh"
-                :x="hudHeaderLayout.lineBadgeX + String(lineBadgeMeta.numberPart).length * 42 + 4"
-                :y="hudHeaderLayout.lineBadgeCenterY + 16"
-                text-anchor="start"
-              >
-                {{ lineBadgeMeta.suffixPart }}
-              </text>
-              <text
-                v-if="!lineBadgeMeta.isNumeric"
-                class="hud-header__line-badge-full hud-line-badge-zh"
-                :x="hudHeaderLayout.lineBadgeX"
-                :y="hudHeaderLayout.lineBadgeCenterY + 10"
-                text-anchor="start"
-              >
-                {{ lineBadgeMeta.fullText }}
-              </text>
-              <text
-                class="hud-header__line-badge-en hud-line-badge-en"
-                :x="hudHeaderLayout.lineBadgeX"
-                :y="hudHeaderLayout.lineBadgeCenterY + 36"
-                text-anchor="start"
-              >
-                {{ model.lineBadgeEn || model.lineNameEn }}
-              </text>
-            </g>
-
-            <!-- ===== arrived station tab ===== -->
-            <g class="hud-header__arrived-tab">
-              <!-- white card background -->
-              <rect
-                :x="hudHeaderLayout.arrivedTagX"
-                :y="hudHeaderLayout.arrivedTagY"
-                :width="hudHeaderLayout.arrivedTagWidth"
-                :height="hudHeaderLayout.arrivedTagHeight"
-                rx="6"
-                fill="#ffffff"
-              />
-              <!-- vertical divider -->
-              <line
-                :x1="hudHeaderLayout.arrivedTagX + hudHeaderLayout.arrivedLabelWidth"
-                :y1="hudHeaderLayout.arrivedTagY + 10"
-                :x2="hudHeaderLayout.arrivedTagX + hudHeaderLayout.arrivedLabelWidth"
-                :y2="hudHeaderLayout.arrivedTagY + hudHeaderLayout.arrivedTagHeight - 10"
-                stroke="#e0e6ed"
-                stroke-width="1.2"
-              />
-              <!-- downward triangle pointer -->
-              <path
-                :d="`M ${hudHeaderLayout.arrivedTagX + 40} ${hudHeaderLayout.arrivedTagY + hudHeaderLayout.arrivedTagHeight}
-                      L ${hudHeaderLayout.arrivedTagX + 56} ${hudHeaderLayout.arrivedTagY + hudHeaderLayout.arrivedTagHeight + 10}
-                      L ${hudHeaderLayout.arrivedTagX + 72} ${hudHeaderLayout.arrivedTagY + hudHeaderLayout.arrivedTagHeight}
-                      Z`"
-                fill="#ffffff"
-              />
-              <!-- cover the bottom border where triangle meets -->
-              <line
-                :x1="hudHeaderLayout.arrivedTagX + 41"
-                :y1="hudHeaderLayout.arrivedTagY + hudHeaderLayout.arrivedTagHeight"
-                :x2="hudHeaderLayout.arrivedTagX + 71"
-                :y2="hudHeaderLayout.arrivedTagY + hudHeaderLayout.arrivedTagHeight"
-                stroke="#ffffff"
-                stroke-width="2"
-              />
-              <!-- 下一站 label -->
-              <text
-                class="hud-header__arrived-tag-zh"
-                :x="hudHeaderLayout.arrivedTagX + hudHeaderLayout.arrivedLabelWidth / 2"
-                :y="hudHeaderLayout.arrivedTagY + 30"
-                text-anchor="middle"
-              >
-                下一站
-              </text>
-              <text
-                class="hud-header__arrived-tag-en hud-text-en"
-                :x="hudHeaderLayout.arrivedTagX + hudHeaderLayout.arrivedLabelWidth / 2"
-                :y="hudHeaderLayout.arrivedTagY + 52"
-                text-anchor="middle"
-              >
-                Next
-              </text>
-            </g>
-
-            <!-- arrived station name -->
-            <text
-              class="hud-header__arrived-main-zh"
-              :x="hudHeaderLayout.arrivedMainX"
-              :y="hudHeaderLayout.arrivedTagY + 34"
-              text-anchor="start"
-            >
-              {{ model.nextStationZh || model.destinationZh || "" }}
-            </text>
-            <text
-              class="hud-header__arrived-main-en hud-text-en"
-              :x="hudHeaderLayout.arrivedMainX"
-              :y="hudHeaderLayout.arrivedTagY + 58"
-              text-anchor="start"
-            >
-              {{ model.nextStationEn || model.destinationEn || "" }}
-            </text>
-
-            <!-- route span on the right -->
-            <text
-              v-if="!model.isLoop"
-              class="hud-header__route-zh hud-route-zh"
-              :x="hudHeaderLayout.rightRouteX"
-              :y="hudHeaderLayout.lineBadgeCenterY + 2"
-              text-anchor="end"
-            >
-              {{ model.routeSpanZh || "" }}
-            </text>
-            <text
-              v-if="!model.isLoop"
-              class="hud-header__route-en hud-route-en"
-              :x="hudHeaderLayout.rightRouteX"
-              :y="hudHeaderLayout.lineBadgeCenterY + 22"
-              text-anchor="end"
-            >
-              {{ model.routeSpanEn || "" }}
-            </text>
-
             <path
               class="hud-track hud-track--glow"
               :d="model.trackPath"
@@ -772,32 +494,17 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 
-.hud-brand-zh,
-.hud-line-badge-zh,
-.hud-next-tag,
-.hud-next-main,
-.hud-route-zh,
 .hud-station-zh {
   font-family:
     "Source Han Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei",
     sans-serif;
 }
 
-.hud-brand-en,
-.hud-line-badge-en,
-.hud-next-tag-en,
-.hud-next-main-en,
-.hud-route-en,
-.hud-station-en,
-.hud-text-en {
+.hud-text-en,
+.hud-station-en {
   font-family:
     "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow",
     "Noto Sans", sans-serif;
-}
-.hud-brand-zh {
-  fill: #111827;
-  font-size: 23px;
-  font-weight: 750;
 }
 .hud-station__transfer-label-zh {
   transform: translateY(-20px);
@@ -807,118 +514,6 @@ onBeforeUnmount(() => {
 }
 g.hud-station__transfer-badge {
   transform: translateY(-35px);
-}
-.hud-brand-en {
-  fill: #374151;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  font-weight: 700;
-}
-
-.hud-header__arrived-tag-zh {
-  fill: #3a4a5c;
-  font-family:
-    "Source Han Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei",
-    sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.hud-header__arrived-tag-en {
-  fill: #8b99aa;
-  font-size: 14px;
-  letter-spacing: 0.03em;
-  font-weight: 650;
-}
-
-.hud-header__arrived-main-zh {
-  fill: #111827;
-  font-family:
-    "Source Han Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei",
-    sans-serif;
-  font-size: 36px;
-  font-weight: 800;
-}
-
-.hud-header__arrived-main-en {
-  fill: #5c6c80;
-  font-size: 16px;
-  letter-spacing: 0.03em;
-  font-weight: 650;
-}
-
-.hud-line-badge-zh {
-  fill: #ffffff;
-  font-size: 31px;
-  font-weight: 760;
-}
-
-.hud-header__line-badge-number {
-  fill: #ffffff;
-  font-family:
-    "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow",
-    "Noto Sans", sans-serif;
-  font-size: 68px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.hud-header__line-badge-suffix {
-  fill: #ffffff;
-  font-size: 28px;
-  font-weight: 760;
-}
-
-.hud-header__line-badge-full {
-  fill: #ffffff;
-  font-size: 36px;
-  font-weight: 760;
-}
-
-.hud-line-badge-en {
-  fill: rgba(255, 255, 255, 0.75);
-  font-size: 16px;
-  letter-spacing: 0.04em;
-  font-weight: 700;
-}
-
-.hud-next-tag {
-  fill: #4b5563;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.hud-next-tag-en {
-  fill: #9ca3af;
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  font-weight: 680;
-}
-
-.hud-next-main {
-  fill: #1f2937;
-  font-size: 29px;
-  font-weight: 760;
-}
-
-.hud-next-main-en {
-  fill: #374151;
-  font-size: 14px;
-  letter-spacing: 0.03em;
-  font-weight: 680;
-}
-
-.hud-route-zh {
-  fill: #ffffff;
-  font-size: 22px;
-  font-weight: 760;
-}
-
-.hud-route-en {
-  fill: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
-  letter-spacing: 0.03em;
-  font-weight: 700;
 }
 
 .hud-station-zh {
