@@ -131,3 +131,181 @@ body {
 #app {
   min-height: 100vh;
 }
+
+/* ── Shared Properties Panel Classes ── */
+
+.pp-hint {
+  margin: 6px 0 0;
+  color: var(--toolbar-hint);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pp-label {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--toolbar-muted);
+}
+
+.pp-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 6px;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-input-text);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+
+.pp-input:focus {
+  border-color: var(--toolbar-tab-active-border);
+}
+
+.pp-select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 6px;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-input-text);
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.pp-select:focus {
+  border-color: var(--toolbar-tab-active-border);
+}
+
+.pp-color {
+  width: 100%;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 6px;
+  background: var(--toolbar-input-bg);
+  cursor: pointer;
+}
+
+.pp-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--toolbar-text);
+  cursor: pointer;
+  margin: 4px 0;
+}
+
+.pp-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.pp-divider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--toolbar-divider);
+}
+
+.pp-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--toolbar-button-border);
+  border-radius: 6px;
+  background: var(--toolbar-button-bg);
+  color: var(--toolbar-button-text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+}
+
+.pp-btn:hover:not(:disabled) {
+  border-color: var(--toolbar-button-hover-border);
+}
+
+.pp-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pp-btn--primary {
+  background: var(--toolbar-primary-bg);
+  border-color: var(--toolbar-primary-border);
+  color: #fff;
+}
+
+.pp-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.pp-btn--danger {
+  background: var(--toolbar-danger-bg);
+  border-color: var(--toolbar-danger-border);
+  color: #fff;
+}
+
+.pp-btn--danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.pp-btn--small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.pp-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pp-range {
+  flex: 1;
+  min-width: 0;
+}
+
+.pp-range-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--toolbar-text);
+  min-width: 36px;
+  text-align: right;
+}
+
+.pp-progress {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--toolbar-card-border);
+  border-radius: 8px;
+  background: var(--toolbar-item-bg);
+}
+
+.pp-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--toolbar-text);
+  margin-bottom: 6px;
+}
+
+.pp-progress-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--toolbar-input-border);
+  overflow: hidden;
+}
+
+.pp-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--toolbar-primary-bg);
+  transition: width 0.3s ease;
+}

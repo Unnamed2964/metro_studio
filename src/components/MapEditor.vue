@@ -1497,16 +1497,6 @@ watch(
 
 <template>
   <section class="map-editor">
-    <header class="map-editor__header">
-      <h2>真实地图编辑器</h2>
-      <div class="map-editor__stats">
-        <span>站点: {{ stationCount }}</span>
-        <span>线段: {{ edgeCount }}</span>
-        <span>已选站: {{ store.selectedStationIds.length }}</span>
-        <span>已选边: {{ selectedEdgeLabel }}</span>
-        <span>模式: {{ store.mode }}</span>
-      </div>
-    </header>
     <div class="map-editor__container">
       <div ref="mapContainer" class="map-editor__map" @contextmenu.prevent></div>
       <div v-if="selectionBox.active" class="map-editor__selection-box" :style="selectionBoxStyle"></div>
@@ -1668,29 +1658,6 @@ watch(
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-.map-editor__header {
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--workspace-panel-header-border);
-  background: var(--workspace-panel-header-bg);
-  color: var(--workspace-panel-text);
-}
-
-.map-editor__header h2 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--workspace-panel-text);
-}
-
-.map-editor__stats {
-  display: flex;
-  gap: 12px;
-  color: var(--workspace-panel-muted);
-  font-size: 12px;
 }
 
 .map-editor__container {
