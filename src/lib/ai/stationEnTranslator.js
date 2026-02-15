@@ -1,195 +1,205 @@
-import { postOpenRouterChat } from './openrouterClient'
+import { postLLMChat } from "./openrouterClient";
 
-const DEFAULT_OPENROUTER_MODEL = 'gemini-3-flash-preview'
-const TRANSLATION_BATCH_SIZE = 18
+const DEFAULT_LLM_MODEL = "gemini-3-flash-preview";
+const TRANSLATION_BATCH_SIZE = 18;
 
 const STATION_TRANSLATION_SCHEMA = {
-  type: 'object',
+  type: "object",
   additionalProperties: false,
   properties: {
     items: {
-      type: 'array',
+      type: "array",
       minItems: 0,
       maxItems: TRANSLATION_BATCH_SIZE,
       items: {
-        type: 'object',
+        type: "object",
         additionalProperties: false,
         properties: {
-          stationId: { type: 'string', minLength: 1, maxLength: 64 },
-          nameEn: { type: 'string', minLength: 1, maxLength: 96 },
+          stationId: { type: "string", minLength: 1, maxLength: 64 },
+          nameEn: { type: "string", minLength: 1, maxLength: 96 },
         },
-        required: ['stationId', 'nameEn'],
+        required: ["stationId", "nameEn"],
       },
     },
   },
-  required: ['items'],
-}
+  required: ["items"],
+};
 
-const ENGLISH_NAMING_STANDARD = `专名部分用汉语拼音，不标声调，多音节连写，各词首字母大写。通名部分按道路和公共场所英文规范意译（如路/马路=Road，大道=Avenue，公园=Park，医院=Hospital，妇幼保健院=Maternal and Child Health Hospital）。若“东/西/南/北”是道路专名的固有组成（如“二环南路”“山师东路”），方位词不翻译，直接写入拼音（Erhuan Nanlu、Shanshi Donglu）；仅在表达独立方位修饰时才使用 East/West/South/North。公共机构/医院/学校/政府部门等必须意译其通名，不得整词音译。报站和导向标识仅保留站名主体，英文名末尾不得出现 Station/Metro Station/Subway Station。多线换乘站中英文统一，不用生僻缩写和不规范拼写。`
-const CHINESE_STATION_SUFFIX_REGEX = /(地铁站|车站|站)$/u
-const ENGLISH_STATION_SUFFIX_REGEX = /\b(?:metro\s+station|subway\s+station|railway\s+station|train\s+station|station)\b\.?$/iu
+const ENGLISH_NAMING_STANDARD = `专名部分用汉语拼音，不标声调，多音节连写，各词首字母大写。通名部分按道路和公共场所英文规范意译（如路/马路=Road，大道=Avenue，公园=Park，医院=Hospital，妇幼保健院=Maternal and Child Health Hospital）。若“东/西/南/北”是道路专名的固有组成（如“二环南路”“山师东路”），方位词不翻译，直接写入拼音（Erhuan Nanlu、Shanshi Donglu）；仅在表达独立方位修饰时才使用 East/West/South/North。公共机构/医院/学校/政府部门等必须意译其通名，不得整词音译。报站和导向标识仅保留站名主体，英文名末尾不得出现 Station/Metro Station/Subway Station。多线换乘站中英文统一，不用生僻缩写和不规范拼写。`;
+const CHINESE_STATION_SUFFIX_REGEX = /(地铁站|车站|站)$/u;
+const ENGLISH_STATION_SUFFIX_REGEX =
+  /\b(?:metro\s+station|subway\s+station|railway\s+station|train\s+station|station)\b\.?$/iu;
 
 function toFiniteNumber(value, fallback = 0) {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function hasCjk(text) {
-  return /[\u3400-\u9fff]/.test(String(text || ''))
+  return /[\u3400-\u9fff]/.test(String(text || ""));
 }
 
 function toTitleWords(text) {
-  return String(text || '')
+  return String(text || "")
     .trim()
     .split(/[\s_-]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ')
+    .join(" ");
 }
 
 function stripChineseStationSuffix(text) {
-  return String(text || '')
+  return String(text || "")
     .trim()
-    .replace(CHINESE_STATION_SUFFIX_REGEX, '')
-    .trim()
+    .replace(CHINESE_STATION_SUFFIX_REGEX, "")
+    .trim();
 }
 
 function sanitizeEnglishStationName(text) {
-  return String(text || '')
+  return String(text || "")
     .trim()
-    .replace(ENGLISH_STATION_SUFFIX_REGEX, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
+    .replace(ENGLISH_STATION_SUFFIX_REGEX, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function safeJsonParse(text) {
-  if (typeof text !== 'string') return null
+  if (typeof text !== "string") return null;
   try {
-    return JSON.parse(text)
+    return JSON.parse(text);
   } catch {
-    return null
+    return null;
   }
 }
 
 function extractJsonObject(text) {
-  const direct = safeJsonParse(text)
-  if (direct && typeof direct === 'object') return direct
+  const direct = safeJsonParse(text);
+  if (direct && typeof direct === "object") return direct;
 
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  if (start < 0 || end <= start) return null
-  return safeJsonParse(text.slice(start, end + 1))
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  return safeJsonParse(text.slice(start, end + 1));
 }
 
-function fallbackNameEn(nameZh, previousNameEn = '') {
-  const previous = sanitizeEnglishStationName(previousNameEn)
-  if (previous) return previous
-  const zh = stripChineseStationSuffix(nameZh)
-  if (!zh) return ''
-  if (!hasCjk(zh)) return toTitleWords(zh)
-  return zh
+function fallbackNameEn(nameZh, previousNameEn = "") {
+  const previous = sanitizeEnglishStationName(previousNameEn);
+  if (previous) return previous;
+  const zh = stripChineseStationSuffix(nameZh);
+  if (!zh) return "";
+  if (!hasCjk(zh)) return toTitleWords(zh);
+  return zh;
 }
 
 function chunkArray(items, size) {
-  if (!Array.isArray(items) || !items.length) return []
-  const normalizedSize = Math.max(1, Math.floor(toFiniteNumber(size, TRANSLATION_BATCH_SIZE)))
-  const chunks = []
+  if (!Array.isArray(items) || !items.length) return [];
+  const normalizedSize = Math.max(
+    1,
+    Math.floor(toFiniteNumber(size, TRANSLATION_BATCH_SIZE)),
+  );
+  const chunks = [];
   for (let i = 0; i < items.length; i += normalizedSize) {
-    chunks.push(items.slice(i, i + normalizedSize))
+    chunks.push(items.slice(i, i + normalizedSize));
   }
-  return chunks
+  return chunks;
 }
 
 function normalizeInputStations(stations) {
-  if (!Array.isArray(stations)) return []
+  if (!Array.isArray(stations)) return [];
   return stations
     .map((station) => ({
-      stationId: String(station?.stationId || station?.id || '').trim(),
-      nameZh: String(station?.nameZh || '').trim(),
-      previousNameEn: String(station?.nameEn || station?.previousNameEn || '').trim(),
+      stationId: String(station?.stationId || station?.id || "").trim(),
+      nameZh: String(station?.nameZh || "").trim(),
+      previousNameEn: String(
+        station?.nameEn || station?.previousNameEn || "",
+      ).trim(),
     }))
-    .filter((station) => station.stationId && station.nameZh)
+    .filter((station) => station.stationId && station.nameZh);
 }
 
 function extractItemsFromChatResponse(payload) {
-  const content = payload?.choices?.[0]?.message?.content
-  if (content && typeof content === 'object') {
+  const content = payload?.choices?.[0]?.message?.content;
+  if (content && typeof content === "object") {
     if (Array.isArray(content)) {
       const joined = content
         .map((part) => {
-          if (typeof part === 'string') return part
-          return String(part?.text || '')
+          if (typeof part === "string") return part;
+          return String(part?.text || "");
         })
-        .join('')
-      const parsed = extractJsonObject(joined)
-      return parsed && Array.isArray(parsed.items) ? parsed.items : []
+        .join("");
+      const parsed = extractJsonObject(joined);
+      return parsed && Array.isArray(parsed.items) ? parsed.items : [];
     }
-    return Array.isArray(content.items) ? content.items : []
+    return Array.isArray(content.items) ? content.items : [];
   }
-  if (typeof content === 'string') {
-    const parsed = extractJsonObject(content)
+  if (typeof content === "string") {
+    const parsed = extractJsonObject(content);
     if (parsed && Array.isArray(parsed.items)) {
-      return parsed.items
+      return parsed.items;
     }
   }
-  return []
+  return [];
 }
 
 function normalizeTranslationItems(rawItems, stationMap) {
-  const updates = []
-  const seen = new Set()
+  const updates = [];
+  const seen = new Set();
 
   for (const item of rawItems || []) {
-    const stationId = String(item?.stationId || '').trim()
-    if (!stationId || seen.has(stationId)) continue
-    const station = stationMap.get(stationId)
-    if (!station) continue
+    const stationId = String(item?.stationId || "").trim();
+    if (!stationId || seen.has(stationId)) continue;
+    const station = stationMap.get(stationId);
+    if (!station) continue;
 
-    const nameEn = sanitizeEnglishStationName(item?.nameEn)
-    if (!nameEn) continue
+    const nameEn = sanitizeEnglishStationName(item?.nameEn);
+    if (!nameEn) continue;
 
-    seen.add(stationId)
-    updates.push({ stationId, nameEn })
+    seen.add(stationId);
+    updates.push({ stationId, nameEn });
   }
 
-  return updates
+  return updates;
 }
 
 function isResponseFormatError(error) {
-  const text = String(error?.message || '').toLowerCase()
-  return text.includes('response_format') || text.includes('json_schema') || text.includes('structured')
+  const text = String(error?.message || "").toLowerCase();
+  return (
+    text.includes("response_format") ||
+    text.includes("json_schema") ||
+    text.includes("structured")
+  );
 }
 
-async function postOpenRouterChatWithFallback(payload, signal) {
+async function postLLMChatWithFallback(payload, signal) {
   try {
-    return await postOpenRouterChat(payload, signal)
+    return await postLLMChat(payload, signal);
   } catch (error) {
     if (!payload?.response_format || !isResponseFormatError(error)) {
-      throw error
+      throw error;
     }
-    const degradedPayload = { ...payload }
-    delete degradedPayload.response_format
-    return postOpenRouterChat(degradedPayload, signal)
+    const degradedPayload = { ...payload };
+    delete degradedPayload.response_format;
+    return postLLMChat(degradedPayload, signal);
   }
 }
 
 async function translateStationChunk(chunk, model, signal) {
   const systemPrompt = [
-    '你是轨道交通英文站名规范翻译助手。',
-    '任务：仅根据输入 stationId + 中文站名生成英文站名。',
-    '严格遵守规范：',
+    "你是轨道交通英文站名规范翻译助手。",
+    "任务：仅根据输入 stationId + 中文站名生成英文站名。",
+    "严格遵守规范：",
     ENGLISH_NAMING_STANDARD,
-    '约束：',
-    '1) 仅输出 JSON；2) 仅可返回输入 stationId；3) 不得凭空添加不在中文名中的地名；4) nameEn 末尾严禁出现 Station/Metro Station/Subway Station；5) 对公共机构名称必须意译其通名（如医院/妇幼保健院/学校/政府机构）；6) 所有输出必须可用于站名标签。',
-  ].join('\n')
+    "约束：",
+    "1) 仅输出 JSON；2) 仅可返回输入 stationId；3) 不得凭空添加不在中文名中的地名；4) nameEn 末尾严禁出现 Station/Metro Station/Subway Station；5) 对公共机构名称必须意译其通名（如医院/妇幼保健院/学校/政府机构）；6) 所有输出必须可用于站名标签。",
+  ].join("\n");
 
   const payload = {
     model,
     stream: false,
     response_format: {
-      type: 'json_schema',
+      type: "json_schema",
       json_schema: {
-        name: 'station_translation_batch',
+        name: "station_translation_batch",
         strict: true,
         schema: STATION_TRANSLATION_SCHEMA,
       },
@@ -198,28 +208,36 @@ async function translateStationChunk(chunk, model, signal) {
     top_p: 0.8,
     messages: [
       {
-        role: 'system',
+        role: "system",
         content: systemPrompt,
       },
       {
-        role: 'user',
+        role: "user",
         content: JSON.stringify(
           {
-            task: '将输入列表中的中文站名翻译为符合规范的英文站名。',
-            output: '返回 { items: [{ stationId, nameEn }] }',
-            stations: chunk.map((item) => ({ stationId: item.stationId, nameZh: stripChineseStationSuffix(item.nameZh) })),
+            task: "将输入列表中的中文站名翻译为符合规范的英文站名。",
+            output: "返回 { items: [{ stationId, nameEn }] }",
+            stations: chunk.map((item) => ({
+              stationId: item.stationId,
+              nameZh: stripChineseStationSuffix(item.nameZh),
+            })),
           },
           null,
           2,
         ),
       },
     ],
-  }
+  };
 
-  const response = await postOpenRouterChatWithFallback(payload, signal)
-  const stationMap = new Map(chunk.map((station) => [station.stationId, station]))
-  const modelItems = normalizeTranslationItems(extractItemsFromChatResponse(response), stationMap)
-  const translatedIdSet = new Set(modelItems.map((item) => item.stationId))
+  const response = await postLLMChatWithFallback(payload, signal);
+  const stationMap = new Map(
+    chunk.map((station) => [station.stationId, station]),
+  );
+  const modelItems = normalizeTranslationItems(
+    extractItemsFromChatResponse(response),
+    stationMap,
+  );
+  const translatedIdSet = new Set(modelItems.map((item) => item.stationId));
 
   const fallbackItems = chunk
     .filter((station) => !translatedIdSet.has(station.stationId))
@@ -227,86 +245,92 @@ async function translateStationChunk(chunk, model, signal) {
       stationId: station.stationId,
       nameEn: fallbackNameEn(station.nameZh, station.previousNameEn),
     }))
-    .filter((item) => item.nameEn)
+    .filter((item) => item.nameEn);
 
-  return [...modelItems, ...fallbackItems]
+  return [...modelItems, ...fallbackItems];
 }
 
 export async function retranslateStationEnglishNames({
   stations,
-  model = DEFAULT_OPENROUTER_MODEL,
+  model = DEFAULT_LLM_MODEL,
   signal,
   onProgress,
 } = {}) {
-  const normalizedStations = normalizeInputStations(stations)
-  const total = normalizedStations.length
+  const normalizedStations = normalizeInputStations(stations);
+  const total = normalizedStations.length;
   if (!total) {
-    return { updates: [], failed: [] }
+    return { updates: [], failed: [] };
   }
 
-  const updates = []
-  const failed = []
-  const chunks = chunkArray(normalizedStations, TRANSLATION_BATCH_SIZE)
+  const updates = [];
+  const failed = [];
+  const chunks = chunkArray(normalizedStations, TRANSLATION_BATCH_SIZE);
 
-  let done = 0
-  onProgress?.({ done, total, percent: 0, message: '准备翻译任务...' })
+  let done = 0;
+  onProgress?.({ done, total, percent: 0, message: "准备翻译任务..." });
 
   for (const chunk of chunks) {
     if (signal?.aborted) {
-      throw new Error('重译任务已取消')
+      throw new Error("重译任务已取消");
     }
 
-    const rangeFrom = done + 1
-    const rangeTo = Math.min(done + chunk.length, total)
+    const rangeFrom = done + 1;
+    const rangeTo = Math.min(done + chunk.length, total);
     onProgress?.({
       done,
       total,
       percent: total ? (done / total) * 100 : 0,
       message: `正在翻译第 ${rangeFrom}-${rangeTo} 站...`,
-    })
+    });
 
     try {
-      const chunkUpdates = await translateStationChunk(chunk, model, signal)
-      const foundIds = new Set(chunkUpdates.map((item) => item.stationId))
-      updates.push(...chunkUpdates)
+      const chunkUpdates = await translateStationChunk(chunk, model, signal);
+      const foundIds = new Set(chunkUpdates.map((item) => item.stationId));
+      updates.push(...chunkUpdates);
       for (const station of chunk) {
-        if (foundIds.has(station.stationId)) continue
-        failed.push({ stationId: station.stationId, reason: '模型未返回可用翻译结果' })
+        if (foundIds.has(station.stationId)) continue;
+        failed.push({
+          stationId: station.stationId,
+          reason: "模型未返回可用翻译结果",
+        });
       }
     } catch (error) {
       for (const station of chunk) {
-        const fallback = fallbackNameEn(station.nameZh, station.previousNameEn)
+        const fallback = fallbackNameEn(station.nameZh, station.previousNameEn);
         if (fallback) {
-          updates.push({ stationId: station.stationId, nameEn: fallback })
+          updates.push({ stationId: station.stationId, nameEn: fallback });
         } else {
-          failed.push({ stationId: station.stationId, reason: String(error?.message || '翻译失败') })
+          failed.push({
+            stationId: station.stationId,
+            reason: String(error?.message || "翻译失败"),
+          });
         }
       }
     }
 
-    done += chunk.length
+    done += chunk.length;
     onProgress?.({
       done,
       total,
       percent: total ? (done / total) * 100 : 100,
-      message: done >= total ? '翻译完成' : `已完成 ${done}/${total} 站`,
-    })
+      message: done >= total ? "翻译完成" : `已完成 ${done}/${total} 站`,
+    });
   }
 
-  const dedupedUpdates = []
-  const seen = new Set()
+  const dedupedUpdates = [];
+  const seen = new Set();
   for (const item of updates) {
-    const nameEn = sanitizeEnglishStationName(item?.nameEn)
-    if (!item?.stationId || !nameEn) continue
-    if (seen.has(item.stationId)) continue
-    seen.add(item.stationId)
-    dedupedUpdates.push({ stationId: item.stationId, nameEn })
+    const nameEn = sanitizeEnglishStationName(item?.nameEn);
+    if (!item?.stationId || !nameEn) continue;
+    if (seen.has(item.stationId)) continue;
+    seen.add(item.stationId);
+    dedupedUpdates.push({ stationId: item.stationId, nameEn });
   }
 
   return {
     updates: dedupedUpdates,
     failed,
-  }
+  };
 }
 
-export { DEFAULT_OPENROUTER_MODEL as DEFAULT_TRANSLATION_MODEL }
+export { DEFAULT_LLM_MODEL as DEFAULT_TRANSLATION_MODEL };

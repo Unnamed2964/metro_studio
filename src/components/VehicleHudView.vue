@@ -83,6 +83,20 @@ const model = computed(() =>
   }),
 );
 
+function formatLineOptionLabel(line) {
+  const zh = String(line?.nameZh || "").trim();
+  const en = String(line?.nameEn || "").trim();
+  if (zh && en) return `${zh} / ${en}`;
+  return zh || en || String(line?.id || "").trim() || "未命名线路";
+}
+
+function formatDirectionOptionLabel(option) {
+  const zh = String(option?.labelZh || "").trim();
+  const en = String(option?.labelEn || "").trim();
+  if (zh && en) return `${zh} / ${en}`;
+  return zh || en || String(option?.key || "").trim() || "未命名方向";
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -184,6 +198,38 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="vehicle-hud">
+    <header class="vehicle-hud__controls">
+      <label class="vehicle-hud__control">
+        <span class="vehicle-hud__control-label">线路</span>
+        <select
+          v-model="selectedLineId"
+          class="vehicle-hud__select"
+          :disabled="!lineOptions.length"
+        >
+          <option v-if="!lineOptions.length" value="">暂无线路</option>
+          <option v-for="line in lineOptions" :key="line.id" :value="line.id">
+            {{ formatLineOptionLabel(line) }}
+          </option>
+        </select>
+      </label>
+      <label class="vehicle-hud__control">
+        <span class="vehicle-hud__control-label">方向</span>
+        <select
+          v-model="selectedDirectionKey"
+          class="vehicle-hud__select"
+          :disabled="!directionOptions.length"
+        >
+          <option v-if="!directionOptions.length" value="">暂无方向</option>
+          <option
+            v-for="option in directionOptions"
+            :key="option.key"
+            :value="option.key"
+          >
+            {{ formatDirectionOptionLabel(option) }}
+          </option>
+        </select>
+      </label>
+    </header>
     <div
       class="vehicle-hud__canvas"
       :class="{ 'vehicle-hud__canvas--panning': panState.active }"
@@ -311,20 +357,20 @@ onBeforeUnmount(() => {
                 class="hud-station__core"
                 :cx="station.x"
                 :cy="station.y"
-                r="24"
+                :r="station.isInterchange ? 24.6 : 24"
                 fill="#ffffff"
                 :stroke="model.lineColor"
-                stroke-width="7"
+                :stroke-width="station.isInterchange ? 10 : 7"
               />
               <circle
                 v-if="station.isInterchange"
-                class="hud-station__interchange-ring"
+                class="hud-station__interchange-inner-ring"
                 :cx="station.x"
                 :cy="station.y"
-                r="33"
-                fill="#f9fcff"
+                r="13.8"
+                fill="none"
                 :stroke="model.lineColor"
-                stroke-width="3"
+                stroke-width="3.6"
               />
 
               <g v-if="station.isInterchange" class="hud-station__interchange">
@@ -468,6 +514,43 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
+.vehicle-hud__controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(240px, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--workspace-panel-border);
+  background: var(--workspace-panel-header-bg);
+}
+
+.vehicle-hud__control {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vehicle-hud__control-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--workspace-panel-muted);
+}
+
+.vehicle-hud__select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 8px;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-input-text);
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.vehicle-hud__select:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
 .vehicle-hud__canvas {
   flex: 1;
   min-height: 0;
@@ -525,5 +608,11 @@ g.hud-station__transfer-badge {
   font-size: 17px;
   font-weight: 680;
   letter-spacing: 0.01em;
+}
+
+@media (max-width: 960px) {
+  .vehicle-hud__controls {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

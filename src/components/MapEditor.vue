@@ -368,7 +368,7 @@ async function requestAiCandidatesForStation({ lngLat, stationId, screenPoint } 
 
     if (controller.signal.aborted || requestVersion !== aiStationMenu.requestVersion) return
 
-    store.statusText = 'AI点站：正在调用 OpenRouter 生成候选站名...'
+    store.statusText = 'AI点站：正在调用 LLM 生成候选站名...'
     const candidates = await generateStationNameCandidates({
       context: namingContext,
       lngLat,
@@ -1727,9 +1727,9 @@ watch(
   margin-top: -8px;
   padding: 3px 7px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.9);
-  color: #f8fafc;
+  border: 1px solid var(--toolbar-border);
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
   font-size: 11px;
   line-height: 1;
   pointer-events: none;
@@ -1747,12 +1747,12 @@ watch(
   width: 268px;
   max-height: calc(100% - 16px);
   overflow: auto;
-  border: 1px solid #2b3643;
+  border: 1px solid var(--toolbar-border);
   border-radius: 12px;
-  background: rgba(9, 16, 27, 0.97);
-  color: #e2e8f0;
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
   padding: 10px;
-  box-shadow: 0 18px 42px rgba(2, 6, 23, 0.48);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
 }
 
 .map-editor__ai-menu {
@@ -1760,12 +1760,12 @@ watch(
   width: 356px;
   max-height: calc(100% - 16px);
   overflow: auto;
-  border: 1px solid #2b3643;
+  border: 1px solid var(--toolbar-border);
   border-radius: 12px;
-  background: rgba(9, 16, 27, 0.98);
-  color: #e2e8f0;
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
   padding: 10px;
-  box-shadow: 0 18px 42px rgba(2, 6, 23, 0.5);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
 }
 
 .map-editor__context-menu h3 {
@@ -1781,20 +1781,20 @@ watch(
 .map-editor__context-meta {
   margin: 0;
   font-size: 11px;
-  color: #93c5fd;
+  color: var(--toolbar-hint);
   line-height: 1.35;
 }
 
 .map-editor__context-section {
   margin-top: 10px;
-  border-top: 1px solid #334155;
+  border-top: 1px solid var(--toolbar-divider);
   padding-top: 8px;
 }
 
 .map-editor__context-section > p {
   margin: 0 0 6px;
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--toolbar-muted);
 }
 
 .map-editor__context-row {
@@ -1806,13 +1806,18 @@ watch(
 
 .map-editor__context-row button,
 .map-editor__context-row button {
-  border: 1px solid #334155;
+  border: 1px solid var(--toolbar-button-border);
   border-radius: 7px;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--toolbar-button-bg);
+  color: var(--toolbar-button-text);
   font-size: 11px;
   padding: 5px 7px;
   cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.map-editor__context-row button:hover:not(:disabled) {
+  border-color: var(--toolbar-button-hover-border);
 }
 
 .map-editor__context-row button:disabled {
@@ -1824,14 +1829,14 @@ watch(
   margin: 8px 0;
   font-size: 12px;
   line-height: 1.5;
-  color: #cbd5e1;
+  color: var(--toolbar-muted);
 }
 
 .map-editor__ai-error {
   margin: 8px 0;
   font-size: 12px;
   line-height: 1.5;
-  color: #fda4af;
+  color: var(--toolbar-danger-border);
 }
 
 .map-editor__ai-candidate-list {
@@ -1842,16 +1847,22 @@ watch(
 }
 
 .map-editor__ai-candidate {
-  border: 1px solid #334155;
+  border: 1px solid var(--toolbar-input-border);
   border-radius: 8px;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-text);
   text-align: left;
   padding: 8px 9px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.map-editor__ai-candidate:hover {
+  border-color: var(--toolbar-button-hover-border);
+  background: var(--toolbar-button-bg);
 }
 
 .map-editor__ai-candidate strong {
@@ -1860,13 +1871,13 @@ watch(
 
 .map-editor__ai-candidate span {
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--toolbar-muted);
 }
 
 .map-editor__ai-candidate small {
   font-size: 11px;
   line-height: 1.35;
-  color: #93c5fd;
+  color: var(--toolbar-hint);
 }
 
 .map-editor__hint {
@@ -1875,19 +1886,21 @@ watch(
   bottom: 10px;
   margin: 0;
   padding: 5px 8px;
-  background: rgba(15, 23, 42, 0.72);
-  color: #e2e8f0;
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
+  border: 1px solid var(--toolbar-border);
   border-radius: 6px;
   font-size: 11px;
   z-index: 11;
   pointer-events: none;
+  opacity: 0.95;
 }
 
 :deep(.maplibregl-ctrl-scale) {
-  border: 1px solid rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--toolbar-border);
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #0f172a;
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
   font-size: 11px;
   font-weight: 600;
   line-height: 1.25;

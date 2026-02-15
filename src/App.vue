@@ -1,7 +1,10 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import IconBase from './components/IconBase.vue'
+import IconSprite from './components/IconSprite.vue'
 import MapEditor from './components/MapEditor.vue'
 import SchematicView from './components/SchematicView.vue'
+import StatusBar from './components/StatusBar.vue'
 import ToolbarControls from './components/ToolbarControls.vue'
 import VehicleHudView from './components/VehicleHudView.vue'
 import { useProjectStore } from './stores/projectStore'
@@ -12,18 +15,21 @@ const WORKSPACE_VIEW_STORAGE_KEY = 'railmap_workspace_active_view'
 const VIEW_OPTIONS = [
   {
     key: 'map',
-    label: '阶段一：网络编辑',
-    description: '在真实地图上完成站点、线段和锚点编辑。',
+    label: '编辑',
+    icon: 'map',
+    description: '在真实地图上完成站点、线段和锚点编辑',
   },
   {
     key: 'schematic',
-    label: '阶段二：版式校核',
-    description: '检查自动排版结果与可读性评分。',
+    label: '版式',
+    icon: 'layout',
+    description: '检查自动排版结果与可读性评分',
   },
   {
     key: 'hud',
-    label: '阶段三：车载发布',
-    description: '按线路方向生成车辆 HUD 视图。',
+    label: 'HUD',
+    icon: 'monitor',
+    description: '按线路方向生成车辆 HUD 视图',
   },
 ]
 const sidebarCollapsed = ref(false)
@@ -88,6 +94,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <IconSprite />
   <main class="app" :class="{ 'app--sidebar-collapsed': sidebarCollapsed }">
     <ToolbarControls :collapsed="sidebarCollapsed" @toggle-collapse="toggleSidebar" />
     <section class="workspace">
@@ -101,7 +108,8 @@ onBeforeUnmount(() => {
             type="button"
             @click="setActiveWorkspaceView(view.key)"
           >
-            {{ view.label }}
+            <IconBase :name="view.icon" :size="16" />
+            <span>{{ view.label }}</span>
           </button>
         </div>
         <p class="workspace__tab-description">{{ activeViewMeta.description }}</p>
@@ -130,6 +138,8 @@ onBeforeUnmount(() => {
           <VehicleHudView />
         </section>
       </div>
+
+      <StatusBar />
     </section>
   </main>
 </template>
@@ -151,7 +161,7 @@ onBeforeUnmount(() => {
 
 .workspace {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   min-height: 0;
   overflow: hidden;
   background: var(--workspace-bg);
@@ -175,16 +185,28 @@ onBeforeUnmount(() => {
   background: var(--workspace-panel-bg);
   color: var(--workspace-panel-text);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace__tab:hover:not(.workspace__tab--active) {
+  border-color: var(--toolbar-button-hover-border);
+  transform: translateY(-1px);
 }
 
 .workspace__tab--active {
   background: var(--toolbar-tab-active-bg);
   border-color: var(--toolbar-tab-active-border);
   color: var(--toolbar-tab-active-text);
+  border-width: 2px;
+  padding: 7px 15px;
 }
 
 .workspace__tab-description {
@@ -204,6 +226,7 @@ onBeforeUnmount(() => {
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
+  transition: opacity 0.2s ease;
 }
 
 .workspace__panel > * {

@@ -6,6 +6,7 @@ const HUD_MAX_WIDTH = 9600
 const HUD_SINGLE_ROW_HEIGHT = 960
 const HUD_DOUBLE_ROW_HEIGHT = 1750
 const HUD_FOLD_THRESHOLD = 30
+const HUD_STATION_LABEL_LIFT_PX = 6
 
 class MinHeap {
   constructor() {
@@ -553,6 +554,8 @@ function buildStationRender(station, isStart, isEnd, lineId, lineById, position)
     calloutDirection = position.y <= position.centerY ? 1 : -1
     connectorDotY = position.y + calloutDirection * 28
   }
+  labelY -= HUD_STATION_LABEL_LIFT_PX
+  labelEnY -= HUD_STATION_LABEL_LIFT_PX
 
   const transferLabelZhY = calloutDirection > 0 ? position.y + 80 : position.y - 80
   const transferLabelEnY = calloutDirection > 0 ? position.y + 100 : position.y - 100

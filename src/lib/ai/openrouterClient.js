@@ -15,8 +15,8 @@ function resolveProviderApiKey() {
   return String(
     import.meta.env.BLTCY_API_KEY ||
       import.meta.env.VITE_BLTCY_API_KEY ||
-      import.meta.env.OPENROUTER_API_KEY ||
-      import.meta.env.VITE_OPENROUTER_API_KEY ||
+      import.meta.env.LLM_API_KEY ||
+      import.meta.env.VITE_LLM_API_KEY ||
       '',
   ).trim()
 }
@@ -65,7 +65,7 @@ function buildErrorMessage(status, body) {
   return `AI 请求失败（HTTP ${status}）`
 }
 
-export async function postOpenRouterChat(payload, signal, timeoutMs = DEFAULT_API_TIMEOUT_MS) {
+export async function postLLMChat(payload, signal, timeoutMs = DEFAULT_API_TIMEOUT_MS) {
   if (signal?.aborted) {
     throw new Error('AI 请求已取消')
   }

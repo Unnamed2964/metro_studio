@@ -21,7 +21,7 @@
   --toolbar-text: #e5eefb;
   --toolbar-muted: #9ab2ce;
   --toolbar-status: #c8f6da;
-  --toolbar-hint: #95c9ff;
+  --toolbar-hint: #a8d4ff;
   --toolbar-input-bg: #0b1526;
   --toolbar-input-border: #334865;
   --toolbar-input-text: #eff6ff;
@@ -63,11 +63,7 @@
 :root[data-ui-font='yahei'] {
   --app-font-family: 'Microsoft YaHei', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
 }
-.hud-station__name-zh.hud-station-zh{
-      transform: rotate(-45deg, 3647.37, 432)
-      
-      transform: translateY(20px) !important;
-}
+
 :root[data-ui-font='heiti'] {
   --app-font-family: 'SimHei', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
 }
@@ -88,7 +84,7 @@
   --toolbar-text: #0f1a2e;
   --toolbar-muted: #54657f;
   --toolbar-status: #0f6b43;
-  --toolbar-hint: #1d4b88;
+  --toolbar-hint: #2563eb;
   --toolbar-input-bg: #ffffff;
   --toolbar-input-border: #bfccdd;
   --toolbar-input-text: #0f172a;

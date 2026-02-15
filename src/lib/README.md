@@ -10,7 +10,7 @@
 - `projectModel.js`：工程数据模型与标准化（含线路状态、线型、环线标记、自动排版配置 `layoutConfig`、线段级线型覆盖 `lineStyleOverride`）。
 - `transfer.js`：手动换乘关系工具（站点对归一化、换乘联通分组、有效换乘线路集合计算）。
 - `uiPreferences.js`：UI 主题/字体偏好定义与归一化（本地持久化键、选项集、默认值）。
-- `ai/`：OpenRouter 能力封装（站点命名候选生成、结构化 JSON 校验与回退）。
+- `ai/`：LLM 能力封装（站点命名候选生成、结构化 JSON 校验与回退）。
 - `hud/`：车辆 HUD 渲染模型（线路主路径、方向、换乘标识、超长单弯折返）。
 - `export/`：导出逻辑（实际走向图 PNG、官方风格图 PNG、车辆 HUD ZIP）。
 - `layout/`：布局 Worker 调用端。

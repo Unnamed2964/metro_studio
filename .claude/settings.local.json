@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx vite build:*)"
+      "Bash(npx vite build:*)",
+      "Bash(where:*)",
+      "Bash(/c/Users/Ame/Documents/Projects/railmap/add-claude-code-context-menu.reg:*)",
+      "Bash(iconv:*)",
+      "WebSearch",
+      "Bash(npm install:*)"
     ]
   }
 }

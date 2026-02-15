@@ -1,5 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import AccordionSection from './AccordionSection.vue'
+import IconBase from './IconBase.vue'
+import TooltipWrapper from './TooltipWrapper.vue'
 import { generateStationNameCandidates, generateStationNameCandidatesBatch } from '../lib/ai/stationNaming'
 import { buildProjectMetroRanking, computeProjectRailLengthKm, fetchWorldMetroRanking } from '../lib/ranking/worldMetroRanking'
 import { getDisplayLineName } from '../lib/lineNaming'
@@ -26,10 +29,10 @@ const props = defineProps({
 const emit = defineEmits(['toggle-collapse'])
 
 const TAB_OPTIONS = [
-  { key: 'project', label: '项目与数据' },
-  { key: 'workflow', label: '绘制流程' },
-  { key: 'object', label: '对象属性' },
-  { key: 'publish', label: '发布导出' },
+  { key: 'project', label: '项目', icon: 'folder' },
+  { key: 'workflow', label: '工具', icon: 'sliders' },
+  { key: 'object', label: '属性', icon: 'box' },
+  { key: 'publish', label: '导出', icon: 'share' },
 ]
 const MODE_LABELS = {
   select: '选择/拖拽',
@@ -40,6 +43,16 @@ const MODE_LABELS = {
 }
 
 const activeTab = ref('project')
+const sectionCollapsed = reactive({
+  projectManagement: false,
+  dataImport: false,
+  modeSwitch: false,
+  operations: false,
+  stationProps: false,
+  edgeProps: false,
+  lineProps: false,
+  exportOptions: false,
+})
 const uiTheme = ref(DEFAULT_UI_THEME)
 const uiFont = ref(DEFAULT_UI_FONT)
 const newProjectName = ref('济南地铁图工程')
@@ -1144,7 +1157,8 @@ onBeforeUnmount(() => {
         :class="{ active: activeTab === tab.key }"
         @click="activeTab = tab.key"
       >
-        {{ tab.label }}
+        <IconBase :name="tab.icon" :size="14" />
+        <span>{{ tab.label }}</span>
       </button>
     </nav>
 
@@ -1231,44 +1245,67 @@ onBeforeUnmount(() => {
 
       <template v-else-if="activeTab === 'workflow'">
         <section class="toolbar__section">
-          <h3>绘制流程</h3>
-          <p class="toolbar__section-intro">先选择编辑模式，再执行选择与排版控制。</p>
+          <h3>工具</h3>
+          <p class="toolbar__section-intro">选择编辑模式，执行选择与排版控制</p>
           <div class="toolbar__row">
-            <button class="toolbar__btn" :class="{ active: store.mode === 'select' }" @click="store.setMode('select')">
-              选择/拖拽
-            </button>
-            <button class="toolbar__btn" :class="{ active: store.mode === 'add-station' }" @click="store.setMode('add-station')">
-              点站
-            </button>
-            <button class="toolbar__btn" :class="{ active: store.mode === 'ai-add-station' }" @click="store.setMode('ai-add-station')">
-              AI点站
-            </button>
-            <button class="toolbar__btn" :class="{ active: store.mode === 'add-edge' }" @click="store.setMode('add-edge')">
-              拉线
-            </button>
-            <button class="toolbar__btn" :class="{ active: store.mode === 'route-draw' }" @click="store.setMode('route-draw')">
-              连续布线
-            </button>
+            <TooltipWrapper text="选择/拖拽工具" shortcut="V">
+              <button class="toolbar__btn" :class="{ active: store.mode === 'select' }" @click="store.setMode('select')">
+                <IconBase name="cursor" :size="14" />
+                <span>选择</span>
+              </button>
+            </TooltipWrapper>
+            <TooltipWrapper text="点击添加站点" shortcut="S">
+              <button class="toolbar__btn" :class="{ active: store.mode === 'add-station' }" @click="store.setMode('add-station')">
+                <IconBase name="plus-circle" :size="14" />
+                <span>点站</span>
+              </button>
+            </TooltipWrapper>
+            <TooltipWrapper text="AI 智能点站" shortcut="A">
+              <button class="toolbar__btn" :class="{ active: store.mode === 'ai-add-station' }" @click="store.setMode('ai-add-station')">
+                <IconBase name="sparkles" :size="14" />
+                <span>AI点站</span>
+              </button>
+            </TooltipWrapper>
+          </div>
+          <div class="toolbar__row">
+            <TooltipWrapper text="连接两个站点" shortcut="E">
+              <button class="toolbar__btn" :class="{ active: store.mode === 'add-edge' }" @click="store.setMode('add-edge')">
+                <IconBase name="git-branch" :size="14" />
+                <span>拉线</span>
+              </button>
+            </TooltipWrapper>
+            <TooltipWrapper text="连续布线模式" shortcut="R">
+              <button class="toolbar__btn" :class="{ active: store.mode === 'route-draw' }" @click="store.setMode('route-draw')">
+                <IconBase name="route" :size="14" />
+                <span>连续布线</span>
+              </button>
+            </TooltipWrapper>
           </div>
           <div class="toolbar__row">
             <span class="toolbar__meta">已选站点: {{ selectedStationCount }}</span>
             <span class="toolbar__meta">已选线段: {{ selectedEdgeCount }}</span>
           </div>
           <div class="toolbar__row">
-            <button class="toolbar__btn" :disabled="!store.canUndo" @click="undoEdit">撤销（Ctrl/Cmd+Z）</button>
-            <button class="toolbar__btn" :disabled="!store.canRedo" @click="redoEdit">重做（Ctrl/Cmd+Shift+Z）</button>
-          </div>
-          <div class="toolbar__row">
+            <TooltipWrapper text="撤销上一步操作" shortcut="Ctrl+Z">
+              <button class="toolbar__btn" :disabled="!store.canUndo" @click="undoEdit">
+                <IconBase name="undo" :size="14" />
+              </button>
+            </TooltipWrapper>
+            <TooltipWrapper text="重做上一步操作" shortcut="Ctrl+Shift+Z">
+              <button class="toolbar__btn" :disabled="!store.canRedo" @click="redoEdit">
+                <IconBase name="redo" :size="14" />
+              </button>
+            </TooltipWrapper>
             <button class="toolbar__btn" @click="selectAllStations">全选站点</button>
             <button class="toolbar__btn" @click="store.clearSelection()">清空选择</button>
-            <button
-              class="toolbar__btn"
-              :disabled="selectedStationCount < 1 || store.isStationEnglishRetranslating"
-              @click="retranslateSelectedStationEnglishNames"
-            >
-              {{ store.isStationEnglishRetranslating ? '翻译中...' : 'AI翻译选中站英文' }}
-            </button>
           </div>
+          <button
+            class="toolbar__btn"
+            :disabled="selectedStationCount < 1 || store.isStationEnglishRetranslating"
+            @click="retranslateSelectedStationEnglishNames"
+          >
+            {{ store.isStationEnglishRetranslating ? '翻译中...' : 'AI翻译选中站英文' }}
+          </button>
           <label class="toolbar__label">地理种子缩放（geoSeedScale）</label>
           <div class="toolbar__range-row">
             <input
@@ -1815,6 +1852,15 @@ onBeforeUnmount(() => {
   line-height: 1.3;
   font-weight: 600;
   text-align: center;
+  transition: all 0.18s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.toolbar__tab:hover:not(.active) {
+  border-color: var(--toolbar-button-hover-border);
 }
 
 .toolbar__tab.active {
@@ -1863,6 +1909,12 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 8px;
+  transition: border-color 0.15s ease;
+}
+
+.toolbar__input:focus {
+  outline: none;
+  border-color: var(--toolbar-tab-active-border);
 }
 
 .toolbar__label {
@@ -1952,6 +2004,12 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.toolbar__ai-candidate-btn:hover {
+  border-color: var(--toolbar-button-hover-border);
+  background: var(--toolbar-button-bg);
 }
 
 .toolbar__ai-candidate-btn strong {
@@ -1979,10 +2037,16 @@ onBeforeUnmount(() => {
   font-size: 12px;
   min-width: 0;
   flex: 1 1 120px;
+  transition: all 0.15s ease;
 }
 
-.toolbar__btn:hover {
+.toolbar__btn:hover:not(:disabled) {
   border-color: var(--toolbar-button-hover-border);
+  transform: translateY(-1px);
+}
+
+.toolbar__btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .toolbar__btn:disabled {
@@ -1993,11 +2057,24 @@ onBeforeUnmount(() => {
 .toolbar__btn--primary {
   background: var(--toolbar-primary-bg);
   border-color: var(--toolbar-primary-border);
+  border-width: 2px;
+  font-weight: 600;
+  padding: 7px 9px;
+}
+
+.toolbar__btn--primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.3);
 }
 
 .toolbar__btn--danger {
   background: var(--toolbar-danger-bg);
   border-color: var(--toolbar-danger-border);
+}
+
+.toolbar__btn--danger:hover:not(:disabled) {
+  filter: brightness(1.15);
+  box-shadow: 0 2px 8px rgba(185, 50, 66, 0.3);
 }
 
 .toolbar__btn.active {
@@ -2035,6 +2112,12 @@ onBeforeUnmount(() => {
   color: var(--toolbar-input-text);
   border-radius: 8px;
   padding: 8px 10px;
+  transition: border-color 0.15s ease;
+}
+
+.toolbar__select:focus {
+  outline: none;
+  border-color: var(--toolbar-tab-active-border);
 }
 
 .toolbar__divider {
@@ -2085,16 +2168,24 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 8px;
   justify-content: space-between;
+  transition: all 0.15s ease;
 }
 
 .toolbar__line-item.active,
 .toolbar__project-item.active {
   border-color: var(--toolbar-active-border);
+  border-width: 2px;
+  padding: 7px;
 }
 
 .toolbar__line-item {
   cursor: pointer;
   align-items: center;
+}
+
+.toolbar__line-item:hover:not(.active) {
+  border-color: var(--toolbar-button-hover-border);
+  transform: translateX(2px);
 }
 
 .toolbar__line-swatch {
