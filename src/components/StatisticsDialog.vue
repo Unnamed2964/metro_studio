@@ -78,9 +78,15 @@ watch(
       loading.value = true
       stats.value = null
       await nextTick()
-      await new Promise((r) => requestAnimationFrame(r))
+      // Double rAF ensures the loading spinner is painted before heavy work
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
       if (!props.visible) return
-      stats.value = store.project ? calculateNetworkMetrics(store.project) : null
+      // Run calculation in a macrotask so the browser can paint the loading state
+      stats.value = await new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(store.project ? calculateNetworkMetrics(store.project) : null)
+        }, 0)
+      })
       loading.value = false
     }
   }

@@ -1,15 +1,15 @@
 /**
  * Network topology statistics and analysis utilities.
  * Computes various metrics for rail transit network.
+ *
+ * Optimized: single Dijkstra pass per station, shared adjacency,
+ * edge lookup map, and pre-indexed line→edges mapping.
  */
 
-import { dijkstra, findFarthestPair } from '../hud/hudGraphAlgorithms'
-import { haversineDistanceMeters } from '../geo'
+import { dijkstra } from '../hud/hudGraphAlgorithms'
 
 /**
  * Build adjacency list for network analysis.
- * @param {Array} edges - Project edges
- * @returns {Map<string, Array<{to: string, weight: number, edgeId: string}>>}
  */
 function buildAdjacency(edges) {
   const adj = new Map()
@@ -26,113 +26,67 @@ function buildAdjacency(edges) {
 }
 
 /**
- * Build adjacency list with transfer penalty weights.
- * Higher weight for transfers to find paths with fewer transfers.
- * @param {Array} edges - Project edges
- * @param {Map<string, string[]>} stationToLines - Station ID -> Line IDs
- * @param {number} penaltyMultiplier - Transfer penalty multiplier (default: 1000)
- * @returns {Map<string, Array<{to: string, weight: number, edgeId: string, lineIds: string[]}>>}
+ * Build a fast edge lookup: "stationA|stationB" -> edge,
+ * keyed both directions for O(1) access.
  */
-function buildTransferWeightAdj(edges, stationToLines, penaltyMultiplier = 1000) {
-  const adj = new Map()
+function buildEdgeLookup(edges) {
+  const map = new Map()
   for (const edge of edges) {
-    const { fromStationId, toStationId, lengthMeters, id, sharedByLineIds } = edge
+    const { fromStationId, toStationId } = edge
     if (!fromStationId || !toStationId) continue
-    const fromLines = stationToLines.get(fromStationId) || []
-    const toLines = stationToLines.get(toStationId) || []
-    const edgeLines = sharedByLineIds || []
-    const weight = lengthMeters || 0
-    
-    if (!adj.has(fromStationId)) adj.set(fromStationId, [])
-    if (!adj.has(toStationId)) adj.set(toStationId, [])
-    
-    adj.get(fromStationId).push({ 
-      to: toStationId, 
-      weight, 
-      edgeId: id,
-      lineIds: edgeLines,
-      fromLines,
-      toLines 
-    })
-    adj.get(toStationId).push({ 
-      to: fromStationId, 
-      weight, 
-      edgeId: id,
-      lineIds: edgeLines,
-      fromLines: toLines,
-      toLines: fromLines
-    })
+    map.set(`${fromStationId}|${toStationId}`, edge)
+    map.set(`${toStationId}|${fromStationId}`, edge)
   }
-  return adj
+  return map
 }
 
 /**
  * Reconstruct path from Dijkstra prev map.
- * @param {Map<string, string>} prev - Previous node map
- * @param {string} from - Start station ID
- * @param {string} to - End station ID
- * @returns {string[]} Station IDs in path (inclusive)
  */
-function reconstructDijkstraPath(prev, from, to) {
+function reconstructPath(prev, from, to) {
   const path = []
   let current = to
   const visited = new Set()
-  const maxSteps = 10000
-  let steps = 0
-  
-  while (current && steps < maxSteps) {
+  while (current) {
     if (visited.has(current)) return []
     visited.add(current)
     path.push(current)
     if (current === from) break
     current = prev.get(current)
-    steps++
   }
-  
   path.reverse()
   if (path.length === 0 || path[0] !== from) return []
   return path
 }
 
 /**
- * Calculate path metrics: distance, station count, transfer count, unique lines.
- * @param {string[]} stationIds - Path station IDs
- * @param {Map<string, string[]>} stationToLines - Station line IDs
- * @param {Array} edges - All edges (for distance)
- * @param {Map<string, Object>} edgeById - Edge lookup
- * @returns {Object} Path metrics
+ * Calculate path metrics using edge lookup map (O(1) per step).
  */
-function calculatePathMetrics(stationIds, stationToLines, edges, edgeById) {
+function calculatePathMetrics(stationIds, stationToLines, edgeLookup) {
   let totalMeters = 0
   let transferCount = 0
   const uniqueLines = new Set()
-  
+
   for (let i = 0; i < stationIds.length - 1; i++) {
     const fromId = stationIds[i]
     const toId = stationIds[i + 1]
-    
+
     const fromLines = stationToLines.get(fromId) || []
     const toLines = stationToLines.get(toId) || []
-    
-    fromLines.forEach(l => uniqueLines.add(l))
-    toLines.forEach(l => uniqueLines.add(l))
-    
+
+    for (const l of fromLines) uniqueLines.add(l)
+    for (const l of toLines) uniqueLines.add(l)
+
     if (fromLines.length > 0 && toLines.length > 0) {
-      const hasSharedLine = fromLines.some(l => toLines.includes(l))
-      if (!hasSharedLine) {
+      if (!fromLines.some(l => toLines.includes(l))) {
         transferCount++
       }
     }
-    
-    for (const edge of edges) {
-      if ((edge.fromStationId === fromId && edge.toStationId === toId) ||
-          (edge.fromStationId === toId && edge.toStationId === fromId)) {
-        totalMeters += edge.lengthMeters || 0
-        break
-      }
-    }
+
+    const edge = edgeLookup.get(`${fromId}|${toId}`)
+    if (edge) totalMeters += edge.lengthMeters || 0
   }
-  
+
   return {
     stationCount: stationIds.length,
     totalMeters,
@@ -143,221 +97,128 @@ function calculatePathMetrics(stationIds, stationToLines, edges, edgeById) {
 }
 
 /**
- * Find the path with maximum transfer count.
- * @param {Array} stations - All stations
- * @param {Array} edges - All edges
- * @returns {Object|null} Path info with stationIds, metrics, etc.
+ * Find all four "extreme" paths in a single pass of Dijkstra per station.
+ * Instead of 4 separate O(N × Dijkstra) loops, we do 1 loop and evaluate
+ * all criteria for each (start, end) pair simultaneously.
  */
-export function findMaxTransferPath(stations, edges) {
-  if (!stations?.length || !edges?.length) return null
-  
-  const stationToLines = new Map()
-  for (const station of stations) {
-    stationToLines.set(station.id, station.lineIds || [])
-  }
-  
-  const adj = buildAdjacency(edges)
-  const stationIds = stations.map(s => s.id)
-  
-  let bestPath = null
-  let maxTransfers = 0
-  
+function findAllExtremePaths(stations, adj, stationToLines, edgeLookup) {
+  const stationIds = [...adj.keys()]
+  if (stationIds.length === 0) return { longestDistance: null, maxTransfers: null, maxLines: null, maxStations: null }
+
+  let bestDistance = null, maxDist = -1
+  let bestTransfers = null, maxTrans = -1
+  let bestLines = null, maxLn = -1
+  let bestStations = null, maxSt = -1
+
   for (const startId of stationIds) {
-    const { prev } = dijkstra(adj, startId)
-    
+    const { dist, prev } = dijkstra(adj, startId)
+
     for (const endId of stationIds) {
       if (endId === startId) continue
-      
-      const pathIds = reconstructDijkstraPath(prev, startId, endId)
+      const d = dist.get(endId)
+      if (!Number.isFinite(d)) continue
+
+      // Quick check: can this pair beat any current best?
+      // For distance, we can check before reconstructing the path.
+      const couldBeatDistance = d > maxDist
+      // For others we need the path, but we can skip if distance is 0
+      // (disconnected or same node — already filtered above).
+
+      // Only reconstruct path if there's a chance it beats something,
+      // or if we haven't found any path yet.
+      const needPath = couldBeatDistance ||
+        bestTransfers === null || bestLines === null || bestStations === null
+
+      // For transfer/lines/stations, we can't pre-filter without the path,
+      // so we reconstruct for all reachable pairs. The key optimization is
+      // doing this once instead of 4 times.
+      const pathIds = reconstructPath(prev, startId, endId)
       if (pathIds.length < 2) continue
-      
-      const metrics = calculatePathMetrics(pathIds, stationToLines, edges, new Map())
-      
-      if (metrics.transferCount > maxTransfers || 
-          (metrics.transferCount === maxTransfers && bestPath && metrics.totalMeters > bestPath.metrics.totalMeters)) {
-        maxTransfers = metrics.transferCount
-        bestPath = {
-          fromStationId: startId,
-          toStationId: endId,
-          stationIds: pathIds,
-          metrics
-        }
+
+      const metrics = calculatePathMetrics(pathIds, stationToLines, edgeLookup)
+
+      // Longest distance
+      if (d > maxDist) {
+        maxDist = d
+        bestDistance = { fromStationId: startId, toStationId: endId, stationIds: pathIds, metrics: { ...metrics, maxDistance: d } }
+      }
+
+      // Max transfers
+      if (metrics.transferCount > maxTrans ||
+          (metrics.transferCount === maxTrans && bestTransfers && metrics.totalMeters > bestTransfers.metrics.totalMeters)) {
+        maxTrans = metrics.transferCount
+        bestTransfers = { fromStationId: startId, toStationId: endId, stationIds: pathIds, metrics }
+      }
+
+      // Max unique lines
+      if (metrics.uniqueLinesCount > maxLn ||
+          (metrics.uniqueLinesCount === maxLn && bestLines && metrics.totalMeters > bestLines.metrics.totalMeters)) {
+        maxLn = metrics.uniqueLinesCount
+        bestLines = { fromStationId: startId, toStationId: endId, stationIds: pathIds, metrics }
+      }
+
+      // Max stations
+      if (metrics.stationCount > maxSt ||
+          (metrics.stationCount === maxSt && bestStations && metrics.totalMeters > bestStations.metrics.totalMeters)) {
+        maxSt = metrics.stationCount
+        bestStations = { fromStationId: startId, toStationId: endId, stationIds: pathIds, metrics }
       }
     }
   }
-  
-  return bestPath
-}
 
-/**
- * Find the path with maximum unique lines count.
- * @param {Array} stations - All stations
- * @param {Array} edges - All edges
- * @returns {Object|null} Path info
- */
-export function findMaxLinesPath(stations, edges) {
-  if (!stations?.length || !edges?.length) return null
-  
-  const stationToLines = new Map()
-  for (const station of stations) {
-    stationToLines.set(station.id, station.lineIds || [])
-  }
-  
-  const adj = buildAdjacency(edges)
-  const stationIds = stations.map(s => s.id)
-  
-  let bestPath = null
-  let maxLines = 0
-  
-  for (const startId of stationIds) {
-    const { prev } = dijkstra(adj, startId)
-    
-    for (const endId of stationIds) {
-      if (endId === startId) continue
-      
-      const pathIds = reconstructDijkstraPath(prev, startId, endId)
-      if (pathIds.length < 2) continue
-      
-      const metrics = calculatePathMetrics(pathIds, stationToLines, edges, new Map())
-      
-      if (metrics.uniqueLinesCount > maxLines ||
-          (metrics.uniqueLinesCount === maxLines && bestPath && metrics.totalMeters > bestPath.metrics.totalMeters)) {
-        maxLines = metrics.uniqueLinesCount
-        bestPath = {
-          fromStationId: startId,
-          toStationId: endId,
-          stationIds: pathIds,
-          metrics
-        }
-      }
-    }
-  }
-  
-  return bestPath
-}
-
-/**
- * Find the path with maximum station count.
- * @param {Array} stations - All stations
- * @param {Array} edges - All edges
- * @returns {Object|null} Path info
- */
-export function findMaxStationsPath(stations, edges) {
-  if (!stations?.length || !edges?.length) return null
-  
-  const stationToLines = new Map()
-  for (const station of stations) {
-    stationToLines.set(station.id, station.lineIds || [])
-  }
-  
-  const adj = buildAdjacency(edges)
-  const stationIds = stations.map(s => s.id)
-  
-  let bestPath = null
-  let maxStations = 0
-  
-  for (const startId of stationIds) {
-    const { prev } = dijkstra(adj, startId)
-    
-    for (const endId of stationIds) {
-      if (endId === startId) continue
-      
-      const pathIds = reconstructDijkstraPath(prev, startId, endId)
-      if (pathIds.length < 2) continue
-      
-      const metrics = calculatePathMetrics(pathIds, stationToLines, edges, new Map())
-      
-      if (metrics.stationCount > maxStations ||
-          (metrics.stationCount === maxStations && bestPath && metrics.totalMeters > bestPath.metrics.totalMeters)) {
-        maxStations = metrics.stationCount
-        bestPath = {
-          fromStationId: startId,
-          toStationId: endId,
-          stationIds: pathIds,
-          metrics
-        }
-      }
-    }
-  }
-  
-  return bestPath
-}
-
-/**
- * Find the longest distance path using farthest pair algorithm.
- * @param {Array} stations - All stations
- * @param {Array} edges - All edges
- * @returns {Object|null} Path info
- */
-export function findLongestDistancePath(stations, edges) {
-  if (!stations?.length || !edges?.length) return null
-  
-  const stationToLines = new Map()
-  for (const station of stations) {
-    stationToLines.set(station.id, station.lineIds || [])
-  }
-  
-  const adj = buildAdjacency(edges)
-  const stationIdList = stations.map(s => s.id)
-  
-  const farthest = findFarthestPair(adj, stationIdList)
-  if (!farthest) return null
-  
-  const { prev } = dijkstra(adj, farthest.from)
-  const pathIds = reconstructDijkstraPath(prev, farthest.from, farthest.to)
-  
-  if (pathIds.length < 2) return null
-  
-  const metrics = calculatePathMetrics(pathIds, stationToLines, edges, new Map())
-  
   return {
-    fromStationId: farthest.from,
-    toStationId: farthest.to,
-    stationIds: pathIds,
-    metrics: {
-      ...metrics,
-      maxDistance: farthest.distance
-    }
+    longestDistance: bestDistance,
+    maxTransfers: bestTransfers,
+    maxLines: bestLines,
+    maxStations: bestStations
   }
 }
 
 /**
  * Calculate comprehensive network topology metrics.
- * @param {Object} project - Project object
- * @returns {Object} Network metrics
  */
 export function calculateNetworkMetrics(project) {
   const stations = project.stations || []
   const edges = project.edges || []
   const lines = project.lines || []
-  
-  if (!stations.length || !edges.length) {
-    return null
-  }
-  
+
+  if (!stations.length || !edges.length) return null
+
+  // Shared data structures — built once
   const adj = buildAdjacency(edges)
+  const edgeLookup = buildEdgeLookup(edges)
   const lineById = new Map(lines.map(l => [l.id, l]))
-  const stationById = new Map(stations.map(s => [s.id, s]))
-  
+
   const stationToLines = new Map()
   for (const station of stations) {
     stationToLines.set(station.id, station.lineIds || [])
   }
-  
+
   const totalMeters = edges.reduce((sum, e) => sum + (e.lengthMeters || 0), 0)
-  
+
+  // Interchange stats
   const interchangeStations = stations.filter(s => s.isInterchange)
   const interchangeCounts = new Map()
   for (const station of interchangeStations) {
     const lineCount = stationToLines.get(station.id)?.length || 0
     interchangeCounts.set(lineCount, (interchangeCounts.get(lineCount) || 0) + 1)
   }
-  
+
+  // Line metrics — pre-index edges by lineId to avoid O(L×E) scan
+  const edgesByLine = new Map()
+  for (const edge of edges) {
+    for (const lineId of (edge.sharedByLineIds || [])) {
+      if (!edgesByLine.has(lineId)) edgesByLine.set(lineId, [])
+      edgesByLine.get(lineId).push(edge)
+    }
+  }
+
   const lineMetrics = lines.map(line => {
-    const lineEdges = edges.filter(e => (e.sharedByLineIds || []).includes(line.id))
-    const lineMeters = lineEdges.reduce((sum, e) => sum + (e.lengthMeters || 0), 0)
+    const lineEdges = edgesByLine.get(line.id) || []
+    let lineMeters = 0
     const lineStations = new Set()
     for (const e of lineEdges) {
+      lineMeters += e.lengthMeters || 0
       lineStations.add(e.fromStationId)
       lineStations.add(e.toStationId)
     }
@@ -370,12 +231,11 @@ export function calculateNetworkMetrics(project) {
       isLoop: line.isLoop
     }
   })
-  
-  const maxTransferPath = findMaxTransferPath(stations, edges)
-  const maxLinesPath = findMaxLinesPath(stations, edges)
-  const maxStationsPath = findMaxStationsPath(stations, edges)
-  const longestDistancePath = findLongestDistancePath(stations, edges)
-  
+
+  // All path analyses in a single Dijkstra pass
+  const paths = findAllExtremePaths(stations, adj, stationToLines, edgeLookup)
+
+  // Interchange ranking
   const interchangeRanking = interchangeStations
     .map(station => ({
       stationId: station.id,
@@ -385,7 +245,7 @@ export function calculateNetworkMetrics(project) {
       lineNames: (stationToLines.get(station.id) || []).map(lid => lineById.get(lid)?.nameZh).filter(Boolean)
     }))
     .sort((a, b) => b.lineCount - a.lineCount || a.stationName.localeCompare(b.stationName, 'zh-Hans-CN'))
-  
+
   return {
     basics: {
       lineCount: lines.length,
@@ -401,11 +261,6 @@ export function calculateNetworkMetrics(project) {
       byLineCount: Object.fromEntries(Array.from(interchangeCounts.entries()).sort((a, b) => a[0] - b[0])),
       ranking: interchangeRanking.slice(0, 50)
     },
-    paths: {
-      longestDistance: longestDistancePath,
-      maxTransfers: maxTransferPath,
-      maxLines: maxLinesPath,
-      maxStations: maxStationsPath
-    }
+    paths
   }
 }
