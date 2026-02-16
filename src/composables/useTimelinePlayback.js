@@ -95,11 +95,21 @@ export function useTimelinePlayback(containerRef, canvasRef, { hasData, active, 
 
     renderer.setSpeed(playbackSpeed.value)
 
-    // Initial sizing
+    // Initial sizing — ensure container is laid out first
     if (containerRef.value) {
       const rect = containerRef.value.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
         renderer.resize(rect.width, rect.height)
+      } else {
+        // Fallback: use nextTick to ensure layout is complete
+        Promise.resolve().then(() => {
+          if (containerRef.value && renderer) {
+            const newRect = containerRef.value.getBoundingClientRect()
+            if (newRect.width > 0 && newRect.height > 0) {
+              renderer.resize(newRect.width, newRect.height)
+            }
+          }
+        })
       }
     }
   }
@@ -136,7 +146,10 @@ export function useTimelinePlayback(containerRef, canvasRef, { hasData, active, 
     pseudoMode.value = true
     destroyRenderer()
     createRenderer()
-    renderer?.play()
+    // Delay play() to ensure renderer is fully initialized
+    Promise.resolve().then(() => {
+      renderer?.play()
+    })
   }
 
   /** Exit pseudo mode and return to normal empty state. */

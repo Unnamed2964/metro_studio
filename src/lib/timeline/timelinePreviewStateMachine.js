@@ -720,7 +720,8 @@ export class TimelinePreviewEngine {
 
     const { loaded, total } = this._tileCache.getProgress()
     this._loadingProgress = { loaded, total }
-    const rawProgress = total > 0 ? Math.min(1, loaded / total) : 0
+    // If no tiles to load, treat as 100% progress
+    const rawProgress = total > 0 ? Math.min(1, loaded / total) : 1
 
     const smoothFactor = 1 - Math.pow(2, -dt / 400)
     const target = Math.max(this._loadingSmoothedProgress, rawProgress)
@@ -731,16 +732,8 @@ export class TimelinePreviewEngine {
       year: this._years[this._currentYearIndex] ?? null,
       yearIndex: this._currentYearIndex,
       totalYears: this._years.length,
-      loadingProgress: { loaded, total },
+      loadingProgress: total > 0 ? { loaded, total } : { loaded: 1, total: 1 },
     })
-
-    // Fast load shortcut: if completed in <500ms, skip animation entirely
-    if (this._loadingComplete && elapsed < 500) {
-      this._tileCache.stopProgressTracking()
-      this._startPlaying(now)
-      this._scheduleFrame()
-      return
-    }
 
     const scanY = this._loadingSmoothedProgress * this._logicalHeight
 
@@ -814,6 +807,13 @@ export class TimelinePreviewEngine {
 
     this._tileCache.startProgressTracking((loaded, total) => {
       this._loadingProgress = { loaded, total }
+      // Notify Vue component of loading progress
+      this._onStateChange?.(this._state, {
+        year: this._years[this._currentYearIndex] ?? null,
+        yearIndex: this._currentYearIndex,
+        totalYears: this._years.length,
+        loadingProgress: { loaded, total },
+      })
     })
 
     const promises = []
@@ -840,9 +840,7 @@ export class TimelinePreviewEngine {
       promises.push(this._tileCache.prefetchForBounds(this._fullBounds, z))
     }
 
-    return Promise.all(promises).then(() => {
-      this._tileCache.stopProgressTracking()
-    })
+    return Promise.all(promises)
   }
 
   // ─── Public API ────────────────────────────────────────────────
@@ -893,6 +891,7 @@ export class TimelinePreviewEngine {
       this._precacheTilesForAnimation(),
     ]).then(() => {
       if (this._state !== 'loading') return
+      this._tileCache.stopProgressTracking()
       this._loadingComplete = true
     })
   }
