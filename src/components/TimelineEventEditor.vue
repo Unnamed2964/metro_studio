@@ -161,7 +161,7 @@ function onKeyDown(event) {
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 3px;
-  transition: background 0.1s;
+  transition: background var(--transition-fast);
   min-height: 18px;
 }
 

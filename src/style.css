@@ -52,9 +52,10 @@
   --workspace-canvas-bg: #0d1729;
 
   /* ── Design tokens ── */
-  --transition-fast: 0.1s ease;
-  --transition-normal: 0.15s ease;
-  --transition-slow: 0.25s ease;
+  --transition-instant: 0ms cubic-bezier(0.16,1,0.3,1);
+  --transition-fast: 120ms cubic-bezier(0.16,1,0.3,1);
+  --transition-normal: 200ms cubic-bezier(0.16,1,0.3,1);
+  --transition-slow: 300ms cubic-bezier(0.16,1,0.3,1);
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;

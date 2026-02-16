@@ -70,7 +70,7 @@ function toggleCollapse() {
   width: 4px;
   cursor: col-resize;
   z-index: 10;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--transition-normal);
 }
 
 .layout-controls-panel__resize-handle:hover,

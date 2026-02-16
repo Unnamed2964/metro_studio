@@ -71,7 +71,7 @@ watch(
 
 <template>
   <Teleport to="body">
-    <Transition name="prompt-dialog">
+    <Transition name="dialog-transition">
       <div
         v-if="promptState.visible"
         class="prompt-overlay"
@@ -211,40 +211,5 @@ watch(
 .prompt-dialog__btn--primary:hover {
   background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
   box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
-}
-
-/* ── Transition ── */
-.prompt-dialog-enter-active {
-  transition: opacity 0.2s ease;
-}
-
-.prompt-dialog-enter-active .prompt-dialog {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
-}
-
-.prompt-dialog-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.prompt-dialog-leave-active .prompt-dialog {
-  transition: transform 0.15s ease, opacity 0.15s ease;
-}
-
-.prompt-dialog-enter-from {
-  opacity: 0;
-}
-
-.prompt-dialog-enter-from .prompt-dialog {
-  opacity: 0;
-  transform: scale(0.94);
-}
-
-.prompt-dialog-leave-to {
-  opacity: 0;
-}
-
-.prompt-dialog-leave-to .prompt-dialog {
-  opacity: 0;
-  transform: scale(0.96);
 }
 </style>

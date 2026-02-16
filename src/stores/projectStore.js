@@ -6,6 +6,7 @@ import { lifecycleActions } from './project/actions/lifecycle'
 import { networkEditingActions } from './project/actions/networkEditing'
 import { selectionActions } from './project/actions/selection'
 import { timelineActions } from './project/actions/timelineActions'
+import { navigationActions } from './project/actions/navigationActions'
 
 export const useProjectStore = defineStore('project', {
   state: () => ({
@@ -36,6 +37,12 @@ export const useProjectStore = defineStore('project', {
     timelinePlayback: {
       state: 'idle',
       speed: 1,
+    },
+    navigation: {
+      active: false,
+      originLngLat: null,
+      destinationLngLat: null,
+      result: null,
     },
     history: {
       past: [],
@@ -133,6 +140,7 @@ export const useProjectStore = defineStore('project', {
     ...importLayoutActions,
     ...exportPersistenceActions,
     ...timelineActions,
+    ...navigationActions,
   },
 })
 

@@ -11,8 +11,20 @@ export function useAnimationSettings() {
     } catch { }
   }
 
+  function updateCssVariables() {
+    const root = document.documentElement
+    const config = getAutoAnimateConfig()
+    const duration = config.duration === 0 ? { instant: 0, fast: 0, normal: 0, slow: 0 } : ANIMATION_CONFIG.duration
+
+    root.style.setProperty('--transition-instant', `${duration.instant}ms ${ANIMATION_CONFIG.easing}`)
+    root.style.setProperty('--transition-fast', `${duration.fast}ms ${ANIMATION_CONFIG.easing}`)
+    root.style.setProperty('--transition-normal', `${duration.normal}ms ${ANIMATION_CONFIG.easing}`)
+    root.style.setProperty('--transition-slow', `${duration.slow}ms ${ANIMATION_CONFIG.easing}`)
+  }
+
   function toggleAnimation(value) {
     enabled.value = value ?? !enabled.value
+    updateCssVariables()
     try {
       localStorage.setItem(ANIMATION_CONFIG.storageKey, enabled.value)
     } catch { }
@@ -27,5 +39,6 @@ export function useAnimationSettings() {
   }
 
   loadSettings()
+  updateCssVariables()
   return { enabled, toggleAnimation, getAutoAnimateConfig }
 }

@@ -1,6 +1,7 @@
 export const ANIMATION_CONFIG = {
   enabled: true,
   duration: {
+    instant: 0,
     fast: 120,
     normal: 200,
     slow: 300,

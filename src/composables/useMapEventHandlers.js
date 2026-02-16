@@ -66,6 +66,7 @@ export function useMapEventHandlers({
   }
 
   function handleStationClick(event) {
+    if (store.navigation?.active) return
     closeContextMenu()
     closeAiStationMenu()
     suppressNextMapClick = true
@@ -109,6 +110,7 @@ export function useMapEventHandlers({
   }
 
   function handleEdgeClick(event) {
+    if (store.navigation?.active) return
     const map = getMap()
     closeContextMenu()
     suppressNextMapClick = true
@@ -157,6 +159,7 @@ export function useMapEventHandlers({
   }
 
   function handleEdgeAnchorClick(event) {
+    if (store.navigation?.active) return
     closeContextMenu()
     suppressNextMapClick = true
     if (isLineDrawMode()) return
@@ -172,6 +175,7 @@ export function useMapEventHandlers({
   }
 
   function handleMapClick(event) {
+    if (store.navigation?.active) return
     const map = getMap()
     closeContextMenu()
     closeAiStationMenu()
@@ -218,6 +222,7 @@ export function useMapEventHandlers({
   }
 
   function startStationDrag(event) {
+    if (store.navigation?.active) return
     const map = getMap()
     closeContextMenu()
     closeAiStationMenu()

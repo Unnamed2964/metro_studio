@@ -138,29 +138,9 @@ const iconMap = {
   background: var(--toolbar-button-bg);
 }
 
-/* ── Transition ── */
-.toast-enter-active {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
-}
-
 .toast-leave-active {
-  transition: transform 0.2s ease-in, opacity 0.2s ease-in;
   position: absolute;
   right: 0;
   width: 100%;
-}
-
-.toast-enter-from {
-  transform: translateX(calc(100% + 16px));
-  opacity: 0;
-}
-
-.toast-leave-to {
-  transform: translateX(calc(100% + 16px));
-  opacity: 0;
-}
-
-.toast-move {
-  transition: transform 0.25s ease;
 }
 </style>

@@ -228,18 +228,7 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   z-index: 9001;
-  animation: dropdown-enter 0.15s ease-out;
-}
-
-@keyframes dropdown-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: dropdown-enter var(--transition-normal);
 }
 
 .dropdown-menu__separator {
@@ -334,19 +323,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-/* Submenu entry animation */
 .dropdown-menu .dropdown-menu {
-  animation: submenu-enter 0.15s ease-out;
-}
-
-@keyframes submenu-enter {
-  from {
-    opacity: 0;
-    transform: translateX(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  animation: submenu-enter var(--transition-normal);
 }
 </style>

@@ -8,6 +8,7 @@ import {
   normalizeUiTheme,
 } from './lib/uiPreferences'
 import './style.css'
+import './lib/animation/transitions.css'
 
 try {
   const cachedTheme = window.localStorage.getItem(UI_THEME_STORAGE_KEY)

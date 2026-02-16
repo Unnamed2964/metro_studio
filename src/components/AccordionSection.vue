@@ -102,17 +102,6 @@ function toggle() {
 
 .accordion__content {
   padding: 12px 0 0;
-  animation: accordion-slide-down 0.2s ease;
-}
-
-@keyframes accordion-slide-down {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: 500px;
-  }
+  animation: accordion-slide-down var(--transition-normal);
 }
 </style>

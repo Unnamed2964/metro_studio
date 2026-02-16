@@ -124,7 +124,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: backdrop-fade-in 0.2s ease-out forwards;
+  animation: backdrop-fade-in var(--transition-normal) forwards;
 }
 
 @keyframes backdrop-fade-in {
@@ -144,7 +144,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: dialog-enter 0.2s ease-out;
+  animation: dialog-enter var(--transition-normal);
 }
 
 @keyframes dialog-enter {

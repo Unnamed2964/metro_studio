@@ -18,7 +18,9 @@ import { useMapEventHandlers } from '../composables/useMapEventHandlers.js'
 import { useMapBoundary } from '../composables/useMapBoundary.js'
 import { useRouteDrawPreview } from '../composables/useRouteDrawPreview.js'
 import { useMapTimelinePlayer } from '../composables/useMapTimelinePlayer.js'
+import { useMapNavigation } from '../composables/useMapNavigation.js'
 import { useAnimationSettings } from '../composables/useAnimationSettings.js'
+import IconBase from './IconBase.vue'
 import TimelineSlider from './TimelineSlider.vue'
 
 const store = useProjectStore()
@@ -193,6 +195,13 @@ const {
   destroy: destroyTimelinePlayer,
 } = useMapTimelinePlayer({ store })
 
+const {
+  navPrompt,
+  navResultVisible,
+  initNavigation,
+  destroyNavigation,
+} = useMapNavigation({ store, getMap })
+
 // ── Map helpers ──
 
 function lockMapNorthUp() {
@@ -205,6 +214,17 @@ function lockMapNorthUp() {
 
 function onWindowResize() {
   handleWindowResize(adjustContextMenuPosition, aiMenuApi.adjustAiStationMenuPosition)
+}
+
+function handleNavKeyDown(event) {
+  if (event.key === 'Escape' && store.navigation.active) {
+    store.exitNavigation()
+  }
+}
+
+function formatNavDistance(meters) {
+  if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`
+  return `${Math.round(meters)} m`
 }
 
 // ── Lifecycle ──
@@ -254,6 +274,8 @@ onMounted(() => {
     map.on('mouseleave', LAYER_EDGES_HIT, onInteractiveFeatureLeave)
     map.on('mouseenter', LAYER_EDGE_ANCHORS_HIT, onInteractiveFeatureEnter)
     map.on('mouseleave', LAYER_EDGE_ANCHORS_HIT, onInteractiveFeatureLeave)
+
+    initNavigation(map)
   })
 
   map.on('click', handleMapClick)
@@ -265,6 +287,7 @@ onMounted(() => {
   map.on('move', refreshRouteDrawPreviewProjectedPoints)
   window.addEventListener('resize', onWindowResize)
   window.addEventListener('keydown', handleWindowKeyDown)
+  window.addEventListener('keydown', handleNavKeyDown)
 })
 
 onBeforeUnmount(() => {
@@ -272,9 +295,11 @@ onBeforeUnmount(() => {
   store.unregisterActualRoutePngExporter(exportActualRoutePngFromMap)
   window.removeEventListener('resize', onWindowResize)
   window.removeEventListener('keydown', handleWindowKeyDown)
+  window.removeEventListener('keydown', handleNavKeyDown)
   closeContextMenu()
   closeAiStationMenu()
   destroyTimelinePlayer()
+  destroyNavigation()
   aiMenuApi.destroy()
   scaleControl = null
   if (map) {
@@ -510,6 +535,44 @@ setupBoundaryWatcher()
         </div>
       </div>
 
+      <div v-if="navPrompt" class="map-editor__nav-prompt">
+        <IconBase name="navigation" :size="14" />
+        <span>{{ navPrompt }}</span>
+        <button class="map-editor__nav-prompt-close" @click="store.exitNavigation()">Esc 退出</button>
+      </div>
+
+      <div v-if="navResultVisible" class="map-editor__nav-panel">
+        <div class="map-editor__nav-panel-header">
+          <h3>导航结果</h3>
+          <button class="map-editor__nav-panel-close" @click="store.exitNavigation()" aria-label="关闭导航">
+            <IconBase name="x" :size="14" />
+          </button>
+        </div>
+        <div v-if="store.navigation.result" class="map-editor__nav-panel-body">
+          <div class="map-editor__nav-summary">
+            <span class="map-editor__nav-total">总距离 {{ formatNavDistance(store.navigation.result.totalMeters) }}</span>
+            <span class="map-editor__nav-detail">
+              步行 {{ formatNavDistance(store.navigation.result.walkToOriginMeters) }}
+              → 地铁 {{ formatNavDistance(store.navigation.result.transitMeters) }}
+              → 步行 {{ formatNavDistance(store.navigation.result.walkFromDestMeters) }}
+            </span>
+          </div>
+          <div
+            v-for="(seg, i) in store.navigation.result.segments"
+            :key="i"
+            class="map-editor__nav-segment"
+          >
+            <span class="map-editor__nav-seg-color" :style="{ background: seg.lineColor }"></span>
+            <span class="map-editor__nav-seg-text">
+              {{ seg.lineName }}：{{ seg.fromStation }} → {{ seg.toStation }}（{{ seg.stationCount }}站，{{ formatNavDistance(seg.distanceMeters) }}）
+            </span>
+          </div>
+        </div>
+        <div v-else class="map-editor__nav-panel-body">
+          <p class="map-editor__nav-no-route">未找到可达路径，请尝试更近的位置</p>
+        </div>
+      </div>
+
       <p class="map-editor__hint">
         Shift/Ctrl/⌘ + 拖拽框选站点/线段 | Alt + 点击线段选中整条线路 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Ctrl/Cmd+Z 撤销 |
         Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做 | Esc 取消待连接起点/关闭菜单
@@ -553,18 +616,7 @@ setupBoundaryWatcher()
   background: rgba(14, 165, 233, 0.14);
   pointer-events: none;
   z-index: 10;
-  animation: selection-appear 120ms cubic-bezier(0.16,1,0.3,1) forwards;
-}
-
-@keyframes selection-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  animation: selection-appear var(--transition-fast) forwards;
 }
 
 .map-editor__route-preview {
@@ -668,7 +720,7 @@ setupBoundaryWatcher()
   font-size: 11px;
   padding: 5px 7px;
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--transition-normal);
 }
 
 .map-editor__context-row button:hover:not(:disabled) {
@@ -712,7 +764,7 @@ setupBoundaryWatcher()
   display: flex;
   flex-direction: column;
   gap: 3px;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--transition-normal), background-color var(--transition-normal);
 }
 
 .map-editor__ai-candidate:hover {
@@ -766,7 +818,7 @@ setupBoundaryWatcher()
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--transition-normal), background-color var(--transition-normal);
 }
 
 .map-editor__line-selection-option:hover {
@@ -817,5 +869,142 @@ setupBoundaryWatcher()
   font-size: 11px;
   font-weight: 600;
   line-height: 1.25;
+}
+
+.map-editor__nav-prompt {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 999px;
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 20;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+}
+
+.map-editor__nav-prompt-close {
+  border: none;
+  background: transparent;
+  color: var(--toolbar-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.map-editor__nav-prompt-close:hover {
+  color: var(--toolbar-text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.map-editor__nav-panel {
+  position: absolute;
+  top: 12px;
+  right: 56px;
+  width: 280px;
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 12px;
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
+  padding: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  z-index: 20;
+}
+
+.map-editor__nav-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.map-editor__nav-panel-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.map-editor__nav-panel-close {
+  border: none;
+  background: transparent;
+  color: var(--toolbar-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.map-editor__nav-panel-close:hover {
+  color: var(--toolbar-text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.map-editor__nav-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-editor__nav-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--toolbar-divider);
+}
+
+.map-editor__nav-total {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-editor__nav-detail {
+  font-size: 11px;
+  color: var(--toolbar-muted);
+  line-height: 1.4;
+}
+
+.map-editor__nav-segment {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.map-editor__nav-seg-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.map-editor__nav-seg-text {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.map-editor__nav-no-route {
+  margin: 0;
+  font-size: 12px;
+  color: var(--toolbar-muted);
+  text-align: center;
+  padding: 12px 0;
 }
 </style>

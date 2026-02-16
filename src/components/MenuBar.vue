@@ -136,6 +136,14 @@ const lineMenuItems = computed(() =>
     action: `line_${line.id}`,
   })),
 )
+
+function toggleNavigation() {
+  if (store.navigation.active) {
+    store.exitNavigation()
+  } else {
+    store.enterNavigation()
+  }
+}
 </script>
 
 <template>
@@ -172,6 +180,18 @@ const lineMenuItems = computed(() =>
     </div>
 
     <div class="menu-bar__right">
+      <TooltipWrapper text="导航" placement="bottom" :delay="300">
+        <button
+          class="menu-bar__nav-btn"
+          :class="{ 'menu-bar__nav-btn--active': store.navigation.active }"
+          type="button"
+          @click="toggleNavigation"
+          aria-label="导航"
+        >
+          <IconBase name="navigation" :size="16" />
+        </button>
+      </TooltipWrapper>
+
       <div class="menu-bar__line-switcher">
         <button
           ref="lineButtonRef"
@@ -360,7 +380,7 @@ const lineMenuItems = computed(() =>
   padding: 4px 8px;
   font-size: 12px;
   cursor: pointer;
-  transition: border-color 0.12s ease;
+  transition: border-color var(--transition-fast);
   max-width: 180px;
 }
 
@@ -454,7 +474,7 @@ const lineMenuItems = computed(() =>
   cursor: pointer;
   padding: 0;
   line-height: 1;
-  transition: color 0.1s, background 0.1s;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .menu-bar__year-btn:hover:not(:disabled) {
@@ -509,5 +529,33 @@ const lineMenuItems = computed(() =>
 .menu-bar__theme-btn:hover {
   color: var(--toolbar-text);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.menu-bar__nav-btn {
+  border: 1px solid var(--toolbar-input-border);
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-muted);
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease), border-color var(--transition-fast, 0.1s ease);
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.menu-bar__nav-btn:hover {
+  color: var(--toolbar-text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.menu-bar__nav-btn--active {
+  color: var(--toolbar-tab-active-text);
+  background: var(--toolbar-primary-bg, #2563eb);
+  border-color: var(--toolbar-primary-bg, #2563eb);
+}
+
+.menu-bar__nav-btn--active:hover {
+  background: var(--toolbar-primary-bg, #2563eb);
+  opacity: 0.9;
 }
 </style>

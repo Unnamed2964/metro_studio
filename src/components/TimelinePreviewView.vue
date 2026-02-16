@@ -190,7 +190,7 @@ const {
   border-radius: 4px;
   padding: 5px 7px;
   cursor: pointer;
-  transition: color 0.12s, background 0.12s;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .preview-view__btn:hover {
@@ -227,7 +227,7 @@ const {
   font-size: 10px;
   padding: 2px 6px;
   cursor: pointer;
-  transition: color 0.1s, background 0.1s;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .preview-view__speed-btn:hover {
@@ -246,7 +246,7 @@ const {
   font-size: 10px;
   padding: 2px 8px;
   cursor: pointer;
-  transition: color 0.1s, background 0.1s;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .preview-view__toggle-btn:hover {
@@ -311,7 +311,7 @@ const {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--transition-normal), color var(--transition-normal);
 }
 
 .preview-view__pseudo-btn:hover {
@@ -331,7 +331,7 @@ const {
 .preview-view__progress-bar {
   height: 100%;
   background: var(--toolbar-primary-bg);
-  transition: width 0.3s ease;
+  transition: width var(--transition-slow);
   border-radius: 0 2px 2px 0;
 }
 </style>

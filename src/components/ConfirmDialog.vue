@@ -63,7 +63,7 @@ watch(
 
 <template>
   <Teleport to="body">
-    <Transition name="confirm-dialog">
+    <Transition name="dialog-transition">
       <div
         v-if="confirmState.visible"
         class="confirm-overlay"
@@ -206,40 +206,5 @@ watch(
 .confirm-dialog__btn--danger:hover {
   background: linear-gradient(180deg, #c94959 0%, #b53242 100%);
   box-shadow: 0 2px 8px rgba(141, 36, 48, 0.35);
-}
-
-/* ── Transition ── */
-.confirm-dialog-enter-active {
-  transition: opacity 0.2s ease;
-}
-
-.confirm-dialog-enter-active .confirm-dialog {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
-}
-
-.confirm-dialog-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.confirm-dialog-leave-active .confirm-dialog {
-  transition: transform 0.15s ease, opacity 0.15s ease;
-}
-
-.confirm-dialog-enter-from {
-  opacity: 0;
-}
-
-.confirm-dialog-enter-from .confirm-dialog {
-  opacity: 0;
-  transform: scale(0.94);
-}
-
-.confirm-dialog-leave-to {
-  opacity: 0;
-}
-
-.confirm-dialog-leave-to .confirm-dialog {
-  opacity: 0;
-  transform: scale(0.96);
 }
 </style>

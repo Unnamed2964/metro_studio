@@ -432,7 +432,7 @@ onMounted(async () => {
   line-height: 1.3;
   font-weight: 600;
   text-align: center;
-  transition: all 120ms cubic-bezier(0.16,1,0.3,1);
+  transition: all var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -511,7 +511,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all var(--transition-normal);
 }
 
 .toolbar__year-btn:hover:not(:disabled) {

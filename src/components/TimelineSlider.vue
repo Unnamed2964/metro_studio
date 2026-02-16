@@ -226,7 +226,7 @@ const eventDescription = computed(() => {
   padding: 4px 6px;
   cursor: pointer;
   font-size: 11px;
-  transition: color 0.12s, background 0.12s;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .timeline-slider__btn:hover {
@@ -272,7 +272,7 @@ const eventDescription = computed(() => {
   background: var(--toolbar-muted);
   transform: translate(-50%, -50%);
   opacity: 0.5;
-  transition: opacity 0.15s, background 0.15s;
+  transition: opacity var(--transition-normal), background var(--transition-normal);
 }
 
 .timeline-slider__marker--active {
@@ -342,7 +342,7 @@ const eventDescription = computed(() => {
   font-size: 10px;
   padding: 2px 6px;
   cursor: pointer;
-  transition: color 0.1s, background 0.1s;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .timeline-slider__speed-btn:hover {

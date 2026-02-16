@@ -337,7 +337,7 @@ onBeforeUnmount(() => {
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-normal);
 }
 
 .app__panel > * {

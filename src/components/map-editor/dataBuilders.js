@@ -280,4 +280,6 @@ export {
   buildEdgeAnchorsGeoJson,
   filterEdgesByYear,
   filterStationsByVisibleEdges,
+  resolveEdgeWaypointsForRender,
+  buildCurveFromWaypoints,
 }

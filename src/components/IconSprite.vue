@@ -307,6 +307,11 @@
       <symbol id="icon-minimize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 14h6v6m10-10h-6V4m0 6l7-7M3 21l7-7"/>
       </symbol>
+
+      <!-- 导航 -->
+      <symbol id="icon-navigation" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+      </symbol>
     </defs>
   </svg>
 </template>

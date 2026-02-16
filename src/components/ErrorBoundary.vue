@@ -79,7 +79,7 @@ function reload() {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--transition-normal);
 }
 
 .error-boundary__reload:hover {

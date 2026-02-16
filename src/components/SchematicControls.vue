@@ -173,7 +173,7 @@ function updateConfig(key, value) {
   border-radius: 50%;
   background: var(--toolbar-primary-bg);
   cursor: pointer;
-  transition: transform 0.1s ease;
+  transition: transform var(--transition-fast);
 }
 
 .pp-range::-webkit-slider-thumb:hover {
@@ -187,7 +187,7 @@ function updateConfig(key, value) {
   background: var(--toolbar-primary-bg);
   cursor: pointer;
   border: none;
-  transition: transform 0.1s ease;
+  transition: transform var(--transition-fast);
 }
 
 .pp-range::-moz-range-thumb:hover {

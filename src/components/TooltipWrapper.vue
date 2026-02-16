@@ -162,7 +162,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  animation: tooltip-fade-in 0.1s ease-out;
+  animation: tooltip-fade-in var(--transition-fast);
 }
 
 .tooltip__text {
@@ -219,16 +219,5 @@ onBeforeUnmount(() => {
   margin-top: -4px;
   border-top: none;
   border-right: none;
-}
-
-@keyframes tooltip-fade-in {
-  from {
-    opacity: 0;
-    transform: scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 </style>
