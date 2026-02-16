@@ -168,13 +168,16 @@ export function useMenuBarActions(store, emit, refs) {
     const key = await prompt({
       title: '配置 Protomaps API Key',
       message: '请输入您的 Protomaps API Key（非商业用途免费，从 https://protomaps.com/account 获取）：',
-      placeholder: '0e8b461853d1798f',
+      placeholder: 'your-api-key-here',
       defaultValue: store.protomapsApiKey,
       confirmText: '保存',
       cancelText: '取消',
     })
     if (key !== null) {
       store.setProtomapsApiKey(key)
+      try {
+        window.localStorage.setItem('protomapsApiKey', key)
+      } catch { /* noop */ }
     }
   }
 

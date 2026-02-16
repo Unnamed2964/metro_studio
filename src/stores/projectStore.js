@@ -11,6 +11,14 @@ import { navigationActions } from './project/actions/navigationActions'
 import { styleBrushActions } from './project/actions/styleBrushActions'
 import { annotationActions } from './project/actions/annotationActions'
 
+function getInitialProtomapsApiKey() {
+  try {
+    return window.localStorage.getItem('protomapsApiKey') || ''
+  } catch {
+    return ''
+  }
+}
+
 export const useProjectStore = defineStore('project', {
   state: () => ({
     project: null,
@@ -38,7 +46,7 @@ export const useProjectStore = defineStore('project', {
     },
     exportStationVisibilityMode: 'all',
     showLanduseOverlay: false,
-    protomapsApiKey: '',
+    protomapsApiKey: getInitialProtomapsApiKey(),
     currentEditYear: 2010,
     timelineFilterYear: null,
     timelinePlayback: {

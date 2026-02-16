@@ -442,8 +442,11 @@ watch(
   setupBoundaryWatcher()
 
   watch(
-    () => store.showLanduseOverlay,
-    (visible) => {
+    () => ({
+      showLanduseOverlay: store.showLanduseOverlay,
+      protomapsApiKey: store.protomapsApiKey,
+    }),
+    ({ showLanduseOverlay: visible }) => {
       if (!map || !map.isStyleLoaded()) return
       if (visible) {
         ensureLanduseLayer(map, store)

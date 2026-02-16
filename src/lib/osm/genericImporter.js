@@ -296,10 +296,11 @@ export async function importCityMetroNetwork(relationId, options = {}, signal) {
 
   const payloads = []
   for (const query of queries) {
-    payloads.push(await postOverpassQuery(query, signal))
+    payloads.push(postOverpassQuery(query, signal))
   }
 
-  const elements = mergeElements(payloads)
+  const results = await Promise.all(payloads)
+  const elements = mergeElements(results)
   const { nodes, ways, relations } = indexElements(elements)
 
   // 3. Process route relations into lines, stations, edges
@@ -423,10 +424,14 @@ export async function importCityMetroNetwork(relationId, options = {}, signal) {
   }
 
   // 4. Import standalone construction/proposed station nodes
+  const subwayStationNodes = []
   for (const [nodeId, node] of nodes) {
     const tags = node?.tags || {}
     if (!isSubwayStationNode(tags)) continue
+    subwayStationNodes.push([nodeId, node, tags])
+  }
 
+  for (const [nodeId, node, tags] of subwayStationNodes) {
     const status = classifyStationStatus(tags)
     if (status === 'open') continue
     if (!shouldIncludeStatus(status, includeConstruction, includeProposed)) continue

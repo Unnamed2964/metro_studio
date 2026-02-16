@@ -37,16 +37,16 @@ const COMMON_LANDUSE_TYPES = [
 
 const LANDUSE_COLORS = {
   residential: '#E8F4C6',
-  commercial: '#F4A460',
-  industrial: '#8B7355',
-  retail: '#FFD700',
+  commercial: '#FF3333',
+  industrial: '#FF5555',
+  retail: '#FF1111',
   school: '#87CEEB',
   university: '#9370DB',
   cemetery: '#D3D3D3',
   military: '#808080',
   railway: '#A52A2A',
   garages: '#C0C0C0',
-  bus_station: '#4682B4',
+  bus_station: '#FF4444',
   stadium: '#32CD32',
 }
 
@@ -358,25 +358,47 @@ export function ensureMapLayers(map, store) {
 export function ensureLanduseLayer(map, store) {
   if (!map) return
 
+  if (!store.protomapsApiKey) {
+    console.warn('Protomaps API Key not configured. Please set it in Settings > Configure Protomaps API Key')
+    removeLanduseLayer(map)
+    return
+  }
+
   if (!map.getSource('protomaps')) {
-    map.addSource('protomaps', {
-      type: 'vector',
-      url: `https://api.protomaps.com/tiles/v4.json?key=${store.protomapsApiKey}`,
-      attribution: '© Protomaps © OpenStreetMap contributors',
-    })
+    try {
+      map.addSource('protomaps', {
+        type: 'vector',
+        url: `https://api.protomaps.com/tiles/v4.json?key=${store.protomapsApiKey}`,
+        attribution: '© Protomaps © OpenStreetMap contributors',
+      })
+    } catch (e) {
+      console.error('Failed to add protomaps source:', e)
+      return
+    }
   }
 
   if (!map.getLayer(LAYER_LANDUSE)) {
-    map.addLayer({
-      id: LAYER_LANDUSE,
-      type: 'fill',
-      source: 'protomaps',
-      'source-layer': 'landuse',
-      paint: {
-        'fill-color': '#E8F4C6',
-        'fill-opacity': 0.6,
-      },
-    }, 'osm-base')
+    try {
+      const colorExpression = ['case']
+      for (const [landuse, color] of Object.entries(LANDUSE_COLORS)) {
+        colorExpression.push(['==', ['get', 'kind'], landuse], color)
+      }
+      colorExpression.push('#E8F4C6')
+
+      map.addLayer({
+        id: LAYER_LANDUSE,
+        type: 'fill',
+        source: 'protomaps',
+        'source-layer': 'landuse',
+        paint: {
+          'fill-color': colorExpression,
+          'fill-opacity': 0.75,
+        },
+      })
+    } catch (e) {
+      console.error('Failed to add landuse layer:', e)
+      return
+    }
   }
 
   updateLanduseVisibility(map, store.showLanduseOverlay)

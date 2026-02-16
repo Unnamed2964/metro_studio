@@ -132,13 +132,54 @@ function mergeStationsAndTopology({ stations, edges, lines, lineStatusById }) {
     }
   }
 
-  for (let i = 0; i < stations.length; i += 1) {
-    for (let j = i + 1; j < stations.length; j += 1) {
-      const stationA = stations[i]
-      const stationB = stations[j]
-      const dist = haversineDistanceMeters(stationA.lngLat, stationB.lngLat)
-      if (dist <= VERY_CLOSE_FORCE_MERGE_METERS) {
-        uf.union(stationA.id, stationB.id)
+  // Use grid-based spatial indexing to avoid O(n²) comparisons
+  const gridSize = 0.01 // ~1km at equator
+  const grid = new Map()
+
+  for (const station of stations) {
+    const gridKey = `${Math.floor(station.lngLat[0] / gridSize)},${Math.floor(station.lngLat[1] / gridSize)}`
+    if (!grid.has(gridKey)) {
+      grid.set(gridKey, [])
+    }
+    grid.get(gridKey).push(station)
+  }
+
+  const checkedPairs = new Set()
+  for (const [gridKey, cellStations] of grid.entries()) {
+    const [gx, gy] = gridKey.split(',').map(Number)
+
+    // Check within cell
+    for (let i = 0; i < cellStations.length; i += 1) {
+      for (let j = i + 1; j < cellStations.length; j += 1) {
+        const stationA = cellStations[i]
+        const stationB = cellStations[j]
+        const dist = haversineDistanceMeters(stationA.lngLat, stationB.lngLat)
+        if (dist <= VERY_CLOSE_FORCE_MERGE_METERS) {
+          uf.union(stationA.id, stationB.id)
+        }
+      }
+    }
+
+    // Check adjacent cells
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        if (dx === 0 && dy === 0) continue
+        const neighborKey = `${gx + dx},${gy + dy}`
+        const neighborStations = grid.get(neighborKey)
+        if (!neighborStations) continue
+
+        for (const stationA of cellStations) {
+          for (const stationB of neighborStations) {
+            const pairKey = stationA.id < stationB.id ? `${stationA.id}:${stationB.id}` : `${stationB.id}:${stationA.id}`
+            if (checkedPairs.has(pairKey)) continue
+            checkedPairs.add(pairKey)
+
+            const dist = haversineDistanceMeters(stationA.lngLat, stationB.lngLat)
+            if (dist <= VERY_CLOSE_FORCE_MERGE_METERS) {
+              uf.union(stationA.id, stationB.id)
+            }
+          }
+        }
       }
     }
   }
