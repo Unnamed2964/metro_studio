@@ -1,6 +1,8 @@
 # Metro Studio
 
-<img width="2077" height="1083" alt="image" src="https://github.com/user-attachments/assets/e2cbb6b0-050e-4fc8-a673-2b84322bd5ea" />
+<img width="2546" height="1311" alt="image" src="https://github.com/user-attachments/assets/a1a3b963-3893-4f36-a7a1-20477e28e7ea" />
+
+<img width="2546" height="1311" alt="image" src="https://github.com/user-attachments/assets/adbf7c29-2a85-44f8-968e-f41992f77eae" />
 
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
@@ -32,9 +34,15 @@ Metro Studio 是一个地铁线路图编辑器，专为轨道交通爱好者设�
 
 导出 PNG 高清图片、时间线动画视频、项目数据文件。
 
+<img width="2301" height="1255" alt="image" src="https://github.com/user-attachments/assets/186290f2-477d-4095-86b6-d1b2f03aee57" />
+
+
 **AI 辅助**
 
 根据站点周边地理信息，自动生成中英文站点名称。
+
+<img width="1017" height="763" alt="image" src="https://github.com/user-attachments/assets/19c181a0-0c70-4379-ac27-c685d96c27bf" />
+
 
 **数据导入**
 
