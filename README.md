@@ -55,7 +55,7 @@ Metro Studio 是一个地铁线路图编辑器，专为轨道交通爱好者设�
 
 ### 在线使用
 
-[在线演示地址（计划部署中）]
+[https://metro-studio-iota.vercel.app/]
 
 ### 本地运行
 
