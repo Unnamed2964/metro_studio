@@ -148,7 +148,7 @@ function updateStationVisibilityFilter(map, store) {
   if (!map || !map.getLayer(LAYER_STATIONS)) return
   const hasSelectedEdges = store.selectedEdgeIds && store.selectedEdgeIds.length > 0
   if (!hasSelectedEdges) {
-    map.setFilter(LAYER_STATIONS, ['==', ['get', 'isInterchange'], true])
+    map.setFilter(LAYER_STATIONS, ['==', ['get', 'id'], ['get', 'id']])
     return
   }
   const visibleStationIds = getStationIdsForSelectedEdges(store)
