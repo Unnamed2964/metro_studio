@@ -1,11 +1,10 @@
 import { computed, onBeforeUnmount, reactive } from 'vue'
-import { generateStationNameCandidatesBatch } from '../lib/ai/stationNaming'
+import { generateStationNameCandidates } from '../lib/ai/stationNaming'
 import { fetchNearbyStationNamingContext, STATION_NAMING_RADIUS_METERS } from '../lib/osm/nearbyStationNamingContext'
 import { useProjectStore } from '../stores/projectStore'
 
 const AI_AUTO_CONTEXT_CONCURRENCY = 20
-const AI_AUTO_MODEL_BATCH_SIZE = 30
-const AI_AUTO_MODEL_BATCH_CONCURRENCY = 5
+const AI_AUTO_NAMING_CONCURRENCY = 5
 
 function chunkArray(items, chunkSize) {
   const source = Array.isArray(items) ? items : []
@@ -175,75 +174,47 @@ export function useAiAutoBatchNaming() {
         return
       }
 
-      const batches = chunkArray(contextItems, AI_AUTO_MODEL_BATCH_SIZE)
-      let batchCursor = 0
-      const batchWorkerCount = Math.max(
-        1,
-        Math.min(AI_AUTO_MODEL_BATCH_CONCURRENCY, batches.length),
-      )
-      store.statusText = `${runningLabel}：正在批量请求 AI 0/${count}`
+      let namingCursor = 0
+      const namingWorkerCount = Math.max(1, Math.min(AI_AUTO_NAMING_CONCURRENCY, contextItems.length))
+      store.statusText = `${runningLabel}：正在请求 AI 0/${count}`
 
-      const batchWorker = async () => {
+      const namingWorker = async () => {
         while (true) {
           if (controller.signal.aborted) return
-          const index = batchCursor
-          if (index >= batches.length) return
-          batchCursor += 1
-          const batchItems = batches[index]
-          let batchResults = []
+          const index = namingCursor
+          if (index >= contextItems.length) return
+          namingCursor += 1
+          const item = contextItems[index]
           try {
-            batchResults = await generateStationNameCandidatesBatch({
-              stations: batchItems,
+            const candidates = await generateStationNameCandidates({
+              context: item.context,
+              lngLat: item.lngLat,
               signal: controller.signal,
-              strictModel: true,
             })
-          } catch (error) {
-            if (controller.signal.aborted || isAbortError(error)) return
-            const message = String(error?.message || 'AI 批量请求失败')
-            for (const item of batchItems) {
-              appendFailure(item.stationId, message, failedStationIds, failedItems)
-              state.doneCount += 1
-            }
-            continue
-          }
-          if (controller.signal.aborted) return
-
-          const resultMap = new Map()
-          for (const result of batchResults) {
-            const sid = String(result?.stationId || '').trim()
-            if (!sid || resultMap.has(sid)) continue
-            resultMap.set(sid, result)
-          }
-
-          for (const item of batchItems) {
-            const result = resultMap.get(item.stationId)
-            const candidates = Array.isArray(result?.candidates) ? result.candidates : []
-            const bestCandidate = candidates.length ? candidates[0] : null
-            if (!bestCandidate) {
-              appendFailure(
-                item.stationId,
-                result?.error || 'AI 未返回可用候选',
-                failedStationIds,
-                failedItems,
-              )
+            if (controller.signal.aborted) return
+            const best = candidates?.[0]
+            if (!best) {
+              appendFailure(item.stationId, 'AI 未返回可用候选', failedStationIds, failedItems)
             } else {
               updates.push({
                 stationId: item.stationId,
-                nameZh: bestCandidate.nameZh,
-                nameEn: bestCandidate.nameEn,
+                nameZh: best.nameZh,
+                nameEn: best.nameEn,
               })
               state.successCount += 1
             }
-            state.doneCount += 1
+          } catch (error) {
+            if (controller.signal.aborted || isAbortError(error)) return
+            appendFailure(item.stationId, String(error?.message || 'AI 请求失败'), failedStationIds, failedItems)
           }
-
-          if (state.doneCount === count || state.doneCount % 10 === 0) {
-            store.statusText = `${runningLabel}：正在批量请求 AI ${state.doneCount}/${count}`
+          state.doneCount += 1
+          if (state.doneCount === count || state.doneCount % 5 === 0) {
+            store.statusText = `${runningLabel}：正在请求 AI ${state.doneCount}/${count}`
           }
         }
       }
 
-      await Promise.all(Array.from({ length: batchWorkerCount }, () => batchWorker()))
+      await Promise.all(Array.from({ length: namingWorkerCount }, () => namingWorker()))
       if (controller.signal.aborted) return
 
       const { updatedCount } = store.updateStationNamesBatch(updates, {
