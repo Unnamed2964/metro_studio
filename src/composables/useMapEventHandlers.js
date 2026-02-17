@@ -66,6 +66,7 @@ export function useMapEventHandlers({
   const selectionBox = reactive({
     active: false,
     append: false,
+    modifierType: 'none', // 'shift' for stations, 'ctrl' for edges, 'none' for both
     startX: 0,
     startY: 0,
     endX: 0,
@@ -560,19 +561,38 @@ export function useMapEventHandlers({
         // 正常框选模式
         if (pickedStationIds.length || pickedEdgeIds.length) {
           if (selectionBox.append) {
-            if (pickedStationIds.length) {
-              store.selectStations(pickedStationIds, { replace: false, keepEdges: true })
+            // 追加模式：根据修饰键类型选择
+            if (selectionBox.modifierType === 'shift' && pickedStationIds.length) {
+              // Shift: 只选站点
+              store.selectStations(pickedStationIds, { replace: false, keepEdges: false })
+            } else if (selectionBox.modifierType === 'ctrl' && pickedEdgeIds.length) {
+              // Ctrl: 只选线段
+              store.selectEdges(pickedEdgeIds, { replace: false, keepStations: false })
+            } else if (selectionBox.modifierType === 'none') {
+              // 无修饰键：选择所有
+              if (pickedStationIds.length) {
+                store.selectStations(pickedStationIds, { replace: false, keepEdges: true })
+              }
+              if (pickedEdgeIds.length) {
+                store.selectEdges(pickedEdgeIds, { replace: false, keepStations: true })
+              }
             }
-            if (pickedEdgeIds.length) {
-              store.selectEdges(pickedEdgeIds, { replace: false, keepStations: true })
-            }
-          } else if (pickedStationIds.length && pickedEdgeIds.length) {
-            store.setSelectedStations(pickedStationIds, { keepEdges: true })
-            store.setSelectedEdges(pickedEdgeIds, { keepStations: true })
-          } else if (pickedStationIds.length) {
-            store.setSelectedStations(pickedStationIds)
           } else {
-            store.setSelectedEdges(pickedEdgeIds)
+            // 替换模式：根据修饰键类型选择
+            if (selectionBox.modifierType === 'shift' && pickedStationIds.length) {
+              // Shift: 只选站点
+              store.setSelectedStations(pickedStationIds)
+            } else if (selectionBox.modifierType === 'ctrl' && pickedEdgeIds.length) {
+              // Ctrl: 只选线段
+              store.setSelectedEdges(pickedEdgeIds)
+            } else if (selectionBox.modifierType === 'none') {
+              // 无修饰键：优先选站点
+              if (pickedStationIds.length) {
+                store.setSelectedStations(pickedStationIds)
+              } else {
+                store.setSelectedEdges(pickedEdgeIds)
+              }
+            }
           }
         } else if (!selectionBox.append) {
           store.clearSelection()
@@ -606,7 +626,9 @@ export function useMapEventHandlers({
     if (selectionBox.active) return
     const mouseEvent = event.originalEvent
     if (mouseEvent?.button !== 0) return
-    const modifier = Boolean(mouseEvent?.shiftKey || mouseEvent?.ctrlKey || mouseEvent?.metaKey)
+    const isShift = Boolean(mouseEvent?.shiftKey)
+    const isCtrl = Boolean(mouseEvent?.ctrlKey || mouseEvent?.metaKey)
+    const modifier = isShift || isCtrl
     if (!modifier && store.mode !== 'box-select') return
 
     const hitAnchors = map.queryRenderedFeatures(event.point, { layers: [LAYER_EDGE_ANCHORS_HIT] })
@@ -618,6 +640,7 @@ export function useMapEventHandlers({
 
     selectionBox.active = true
     selectionBox.append = modifier
+    selectionBox.modifierType = isShift ? 'shift' : isCtrl ? 'ctrl' : 'none'
     selectionBox.startX = event.point.x
     selectionBox.startY = event.point.y
     selectionBox.endX = event.point.x

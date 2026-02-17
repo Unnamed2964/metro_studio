@@ -39,6 +39,7 @@ const mapContainer = ref(null)
 const contextMenuRef = ref(null)
 const aiStationMenuRef = ref(null)
 const lineSelectionMenuRef = ref(null)
+const showHint = ref(false)
 let map = null
 let scaleControl = null
 
@@ -718,8 +719,17 @@ watch(
         </div>
       </div>
 
-      <p class="map-editor__hint">
-        Shift/Ctrl/⌘ + 拖拽框选站点/线段 | Alt + 点击线段选中整条线路 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Ctrl/Cmd+Z 撤销 |
+      <button
+        class="map-editor__hint-toggle"
+        :class="{ 'map-editor__hint-toggle--active': showHint }"
+        @click="showHint = !showHint"
+        title="显示/隐藏快捷键提示"
+      >
+        <IconBase name="info" :size="18" />
+      </button>
+
+      <p v-if="showHint" class="map-editor__hint">
+        Shift + 拖拽框选站点 | Ctrl/⌘ + 拖拽框选线段 | Alt + 点击线段选中整条线路 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Ctrl/Cmd+Z 撤销 |
         Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做 | Esc 取消待连接起点/关闭菜单
       </p>
     </div>
@@ -991,9 +1001,38 @@ watch(
   margin-left: auto;
 }
 
-.map-editor__hint {
+.map-editor__hint-toggle {
   position: absolute;
   left: 12px;
+  bottom: 10px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  cursor: pointer;
+  z-index: 12;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.map-editor__hint-toggle:hover {
+  background: var(--toolbar-hover-bg);
+  border-color: var(--toolbar-hover-border);
+}
+
+.map-editor__hint-toggle--active {
+  background: var(--toolbar-active-bg);
+  color: var(--toolbar-active-text);
+}
+
+.map-editor__hint {
+  position: absolute;
+  left: 52px;
   bottom: 10px;
   margin: 0;
   padding: 5px 8px;

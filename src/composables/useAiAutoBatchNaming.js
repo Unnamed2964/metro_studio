@@ -3,8 +3,8 @@ import { generateStationNameCandidates } from '../lib/ai/stationNaming'
 import { fetchNearbyStationNamingContext, STATION_NAMING_RADIUS_METERS } from '../lib/osm/nearbyStationNamingContext'
 import { useProjectStore } from '../stores/projectStore'
 
-const AI_AUTO_CONTEXT_CONCURRENCY = 20
-const AI_AUTO_NAMING_CONCURRENCY = 5
+const AI_AUTO_CONTEXT_CONCURRENCY = 1
+const AI_AUTO_NAMING_CONCURRENCY = 1
 
 function chunkArray(items, chunkSize) {
   const source = Array.isArray(items) ? items : []
@@ -37,6 +37,8 @@ export function useAiAutoBatchNaming() {
     failedCount: 0,
     appliedCount: 0,
     error: '',
+    currentStationId: '',
+    currentStationName: '',
   })
 
   const total = computed(() => state.stationIds.length)
@@ -74,6 +76,8 @@ export function useAiAutoBatchNaming() {
     state.failedCount = 0
     state.appliedCount = 0
     state.error = ''
+    state.currentStationId = ''
+    state.currentStationName = ''
   }
 
   function appendFailure(stationId, message, failedStationIds, failedItems) {
@@ -110,6 +114,8 @@ export function useAiAutoBatchNaming() {
     state.failedCount = 0
     state.appliedCount = 0
     state.error = ''
+    state.currentStationId = ''
+    state.currentStationName = ''
 
     const count = normalizedStationIds.length
     const updates = []
@@ -132,6 +138,8 @@ export function useAiAutoBatchNaming() {
         contextCursor += 1
         const stationId = normalizedStationIds[index]
         const station = findStationById(stationId)
+        state.currentStationId = stationId
+        state.currentStationName = buildStationDisplayName(stationId)
         if (!station || !Array.isArray(station.lngLat)) {
           appendFailure(stationId, '当前站点不存在或坐标无效', failedStationIds, failedItems)
           state.doneCount += 1
@@ -156,9 +164,7 @@ export function useAiAutoBatchNaming() {
         } finally {
           if (!controller.signal.aborted) {
             const fetchedCount = contextItems.length + failedStationIds.length
-            if (fetchedCount === count || fetchedCount % 10 === 0) {
-              store.statusText = `${runningLabel}：正在抓取站点上下文 ${fetchedCount}/${count}`
-            }
+            store.statusText = `${runningLabel}：正在抓取站点上下文 ${fetchedCount}/${count} [${state.currentStationName}]`
           }
         }
       }
@@ -185,6 +191,8 @@ export function useAiAutoBatchNaming() {
           if (index >= contextItems.length) return
           namingCursor += 1
           const item = contextItems[index]
+          state.currentStationId = item.stationId
+          state.currentStationName = buildStationDisplayName(item.stationId)
           try {
             const candidates = await generateStationNameCandidates({
               context: item.context,
@@ -208,9 +216,7 @@ export function useAiAutoBatchNaming() {
             appendFailure(item.stationId, String(error?.message || 'AI 请求失败'), failedStationIds, failedItems)
           }
           state.doneCount += 1
-          if (state.doneCount === count || state.doneCount % 5 === 0) {
-            store.statusText = `${runningLabel}：正在请求 AI ${state.doneCount}/${count}`
-          }
+          store.statusText = `${runningLabel}：正在请求 AI ${state.doneCount}/${count} [${state.currentStationName}]`
         }
       }
 
