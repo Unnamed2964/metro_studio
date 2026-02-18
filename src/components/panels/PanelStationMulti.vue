@@ -1,15 +1,14 @@
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, inject, reactive } from 'vue'
 import AccordionSection from '../AccordionSection.vue'
 import TooltipWrapper from '../TooltipWrapper.vue'
 import { useProjectStore } from '../../stores/projectStore'
-import { useAiAutoBatchNaming } from '../../composables/useAiAutoBatchNaming'
 import { useDialog } from '../../composables/useDialog'
 
 const store = useProjectStore()
 const { confirm } = useDialog()
 
-const aiAutoBatch = useAiAutoBatchNaming()
+const aiAutoBatch = inject('aiAutoBatchNaming')
 
 const isNewStation = (s) => s.nameZh?.startsWith('新站 ')
 

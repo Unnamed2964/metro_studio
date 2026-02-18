@@ -28,6 +28,7 @@ import { useAutoSave } from './composables/useAutoSave'
 import { useDialog } from './composables/useDialog.js'
 import { useAnimationSettings } from './composables/useAnimationSettings.js'
 import { useShortcuts } from './composables/useShortcuts.js'
+import { useAiAutoBatchNaming } from './composables/useAiAutoBatchNaming'
 
 const store = useProjectStore()
 const { saveState, lastSavedAt, saveNow } = useAutoSave()
@@ -47,6 +48,9 @@ provide('stationRenameTrigger', stationRenameTrigger)
 const escapeCallbacks = new Set()
 provide('registerEscapeCallback', (cb) => escapeCallbacks.add(cb))
 provide('unregisterEscapeCallback', (cb) => escapeCallbacks.delete(cb))
+
+const aiAutoBatch = useAiAutoBatchNaming()
+provide('aiAutoBatchNaming', aiAutoBatch)
 
 const WORKSPACE_VIEW_STORAGE_KEY = 'metro_studio_workspace_active_view'
 const activeView = ref('map')

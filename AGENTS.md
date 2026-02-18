@@ -15,3 +15,9 @@
 - 视觉反馈要即时——每个操作都应该有清晰的响应。
 - 错误处理要优雅——不让用户看到技术性的错误信息，给出可操作的提示。
 - 性能是体验的一部分——卡顿就是 bug。 
+
+Add under a ## Bug Fixing section at the top level of CLAUDE.md\n\nWhen fixing bugs, always ask clarifying questions about the exact UI element or behavior before making changes. Do not assume which component, icon, or element the user is referring to.
+Add under a ## Workflow section near the top of CLAUDE.md\n\nBefore implementing a solution, briefly present the approach and get user confirmation. Never start large refactors, feature implementations, or multi-file changes without stating the plan first.
+Add under a ## Project Context section at the top of CLAUDE.md\n\nThis is a Vue.js + JavaScript project using canvas rendering and map libraries (MapLibre/Protomaps). When editing map-related code, pay close attention to field names in tile schemas (e.g., 'kind' vs 'class') and distinguish between DOM events and map library events.
+Add under a ## Writing Style section in CLAUDE.md\n\nKeep tone professional and minimal in user-facing text (release notes, READMEs, docs). No emojis. No hype language. Match the user's communication style, which is direct and technical.
+Add under a ## Technical Constraints section in CLAUDE.md\n\nWhen writing or editing large files (>200 lines), use chunked writes. Never attempt to write an entire large file in one operation.

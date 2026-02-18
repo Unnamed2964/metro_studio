@@ -1,10 +1,11 @@
 import { computed, onBeforeUnmount, reactive } from 'vue'
-import { generateStationNameCandidates } from '../lib/ai/stationNaming'
+import { generateStationNameCandidatesBatch } from '../lib/ai/stationNaming'
 import { fetchNearbyStationNamingContext, STATION_NAMING_RADIUS_METERS } from '../lib/osm/nearbyStationNamingContext'
 import { useProjectStore } from '../stores/projectStore'
 
 const AI_AUTO_CONTEXT_CONCURRENCY = 1
-const AI_AUTO_NAMING_CONCURRENCY = 5
+const AI_BATCH_SIZE = 3
+const AI_BATCH_CONCURRENCY = 3
 const AI_AUTO_CONTEXT_DELAY_MS = 200
 
 function chunkArray(items, chunkSize) {
@@ -100,6 +101,7 @@ export function useAiAutoBatchNaming() {
       ...new Set((stationIds || []).map((id) => String(id || '').trim()).filter(Boolean)),
     ]
     if (!normalizedStationIds.length) return
+    console.log('[batchNaming] run start', { count: normalizedStationIds.length, retryFailedOnly: !!options.retryFailedOnly })
 
     abortRequest()
     const controller = new AbortController()
@@ -153,8 +155,10 @@ export function useAiAutoBatchNaming() {
           })
           if (controller.signal.aborted) return
           contextItems.push({ stationId, lngLat: station.lngLat, context })
+          console.log('[batchNaming] context fetched for', stationId)
         } catch (error) {
           if (controller.signal.aborted || isAbortError(error)) return
+          console.warn('[batchNaming] context fetch failed for', stationId, error?.message)
           appendFailure(
             stationId,
             String(error?.message || '上下文抓取失败'),
@@ -190,61 +194,64 @@ export function useAiAutoBatchNaming() {
         return
       }
 
-      let namingCursor = 0
-      const namingWorkerCount = Math.max(1, Math.min(AI_AUTO_NAMING_CONCURRENCY, contextItems.length))
-      store.statusText = `${runningLabel}：正在请求 AI 0/${count}`
+      // 收集已有站名用于去重
+      const targetIdSet = new Set(normalizedStationIds)
+      const existingNames = (store.project?.stations || [])
+        .filter((s) => !targetIdSet.has(s.id) && s.nameZh)
+        .map((s) => s.nameZh)
 
-      const namingWorker = async () => {
-        while (true) {
-          if (controller.signal.aborted) return
-          const index = namingCursor
-          if (index >= contextItems.length) return
-          namingCursor += 1
-          const item = contextItems[index]
-          state.currentStationId = item.stationId
-          state.currentStationName = buildStationDisplayName(item.stationId)
-          try {
-            const candidates = await generateStationNameCandidates({
-              context: item.context,
-              lngLat: item.lngLat,
-              signal: controller.signal,
-            })
-            if (controller.signal.aborted) return
-            const best = candidates?.[0]
-            if (!best) {
-              appendFailure(item.stationId, 'AI 未返回可用候选', failedStationIds, failedItems)
-            } else {
-              updates.push({
-                stationId: item.stationId,
-                nameZh: best.nameZh,
-                nameEn: best.nameEn,
-              })
-              state.successCount += 1
-            }
-          } catch (error) {
-            if (controller.signal.aborted || isAbortError(error)) return
-            appendFailure(item.stationId, String(error?.message || 'AI 请求失败'), failedStationIds, failedItems)
+      const totalBatches = Math.ceil(contextItems.length / AI_BATCH_SIZE)
+      let doneBatches = 0
+      store.statusText = `${runningLabel}：正在请求 AI（批次 0/${totalBatches}）...`
+
+      const onBatchDone = (batchResults) => {
+        console.log('[batchNaming] onBatchDone', batchResults.map((r) => ({ id: r.stationId, name: r.candidates?.[0]?.nameZh, err: r.error })))
+        const batchUpdates = []
+        for (const result of batchResults) {
+          const best = result.candidates?.[0]
+          if (best) {
+            const update = { stationId: result.stationId, nameZh: best.nameZh, nameEn: best.nameEn }
+            updates.push(update)
+            batchUpdates.push(update)
+            state.successCount += 1
+          } else {
+            appendFailure(result.stationId, result.error || 'AI 未返回可用候选', failedStationIds, failedItems)
           }
           state.doneCount += 1
-          store.statusText = `${runningLabel}：正在请求 AI ${state.doneCount}/${count} [${state.currentStationName}]`
         }
+        // 流式应用：每个 batch 完成立即写入 store
+        if (batchUpdates.length) {
+          const { updatedCount } = store.updateStationNamesBatch(batchUpdates, {
+            reason: `${runningLabel}: 批次 ${doneBatches + 1}/${totalBatches}`,
+          })
+          state.appliedCount += updatedCount
+        }
+        doneBatches += 1
+        store.statusText = `${runningLabel}：正在请求 AI（批次 ${doneBatches}/${totalBatches}）...`
       }
 
-      await Promise.all(Array.from({ length: namingWorkerCount }, () => namingWorker()))
+      await generateStationNameCandidatesBatch({
+        stations: contextItems.map((item) => ({
+          stationId: item.stationId,
+          lngLat: item.lngLat,
+          context: item.context,
+        })),
+        existingNames,
+        signal: controller.signal,
+        batchSize: AI_BATCH_SIZE,
+        concurrency: AI_BATCH_CONCURRENCY,
+        onBatchDone,
+      })
       if (controller.signal.aborted) return
 
-      const { updatedCount } = store.updateStationNamesBatch(updates, {
-        reason: `${runningLabel}: 更新 ${updates.length}/${count} 站`,
-      })
-      state.appliedCount = updatedCount
       state.failedStationIds = failedStationIds
-      if (!updatedCount && failedItems.length) {
+      if (!state.appliedCount && failedItems.length) {
         state.error = '全部站点自动命名失败，请检查网络或模型配置后重试'
       }
       const failedCount = state.failedCount
       store.statusText = failedCount
-        ? `${runningLabel}完成：已应用 ${updatedCount}/${count}，失败 ${failedCount}`
-        : `${runningLabel}完成：已应用 ${updatedCount}/${count}`
+        ? `${runningLabel}完成：已应用 ${state.appliedCount}/${count}，失败 ${failedCount}`
+        : `${runningLabel}完成：已应用 ${state.appliedCount}/${count}`
     } finally {
       if (abortController === controller) {
         abortController = null

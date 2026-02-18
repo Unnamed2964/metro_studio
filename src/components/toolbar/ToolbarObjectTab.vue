@@ -1,7 +1,7 @@
 <script setup>
+import { inject } from 'vue'
 import { LINE_STYLE_OPTIONS } from '../../lib/lineStyles'
 import { useProjectStore } from '../../stores/projectStore'
-import { useAiAutoBatchNaming } from '../../composables/useAiAutoBatchNaming.js'
 import { useToolbarStationOps } from '../../composables/useToolbarStationOps.js'
 import { useToolbarEdgeOps } from '../../composables/useToolbarEdgeOps.js'
 import { useToolbarLineOps } from '../../composables/useToolbarLineOps.js'
@@ -47,7 +47,7 @@ const {
   displayLineName,
 } = useToolbarLineOps()
 
-const aiAutoBatch = useAiAutoBatchNaming()
+const aiAutoBatch = inject('aiAutoBatchNaming')
 
 async function startAiAutoBatchNamingForSelectedStations() {
   if (aiAutoBatch.state.active || aiAutoBatch.state.running) return

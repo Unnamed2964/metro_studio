@@ -478,11 +478,6 @@ watch(
       map.setStyle(buildMapStyle(newTileType))
 
       map.once('style.load', () => {
-        map.setCenter(center)
-        map.setZoom(zoom)
-        map.setBearing(bearing)
-        map.setPitch(pitch)
-        lockMapNorthUp()
         ensureSources(map, store)
         ensureMapLayers(map, store)
         updateMapData(map, store)
@@ -490,6 +485,11 @@ watch(
           ensureLanduseLayer(map, store)
         }
         setStationHighlightVisibility(map, store.highlightStationLocations)
+        map.setCenter(center)
+        map.setZoom(zoom)
+        map.setBearing(bearing)
+        map.setPitch(pitch)
+        lockMapNorthUp()
       })
     },
   )
@@ -634,7 +634,7 @@ watch(
             >
               <strong>{{ candidate.nameZh }}</strong>
               <span>{{ candidate.nameEn }}</span>
-              <small>{{ candidate.basis }} · {{ candidate.reason }}</small>
+              <small>{{ candidate.basis }}</small>
             </button>
           </div>
 
