@@ -148,6 +148,14 @@ export function useMenuBarActions(store, emit, refs) {
     { type: 'separator' },
     { type: 'toggle', label: '启用动画', checked: animationsEnabled.value, action: 'toggleAnimations', icon: 'zap' },
     { type: 'separator' },
+    { type: 'submenu', label: '地图瓦片类型', icon: 'layers', children: [
+      { type: 'toggle', label: 'OpenStreetMap 标准', checked: store.mapTileType === 'osm', action: 'mapTileOsm', icon: 'map' },
+      { type: 'toggle', label: 'ESRI 卫星影像', checked: store.mapTileType === 'satellite', action: 'mapTileSatellite', icon: 'globe' },
+      { type: 'toggle', label: 'OpenTopoMap 地形图', checked: store.mapTileType === 'topo', action: 'mapTileTopo', icon: 'mountain' },
+      { type: 'toggle', label: 'CartoDB 浅色', checked: store.mapTileType === 'positron', action: 'mapTilePositron', icon: 'sun' },
+      { type: 'toggle', label: 'CartoDB 深色', checked: store.mapTileType === 'dark', action: 'mapTileDark', icon: 'moon' },
+    ]},
+    { type: 'separator' },
     { type: 'toggle', label: '显示区域', checked: store.showLanduseOverlay, action: 'toggleLanduseOverlay', icon: 'map' },
     { type: 'toggle', label: '高亮火车站位置', checked: store.highlightStationLocations, action: 'toggleHighlightStations', icon: 'map-pin' },
     { type: 'separator' },
@@ -217,6 +225,11 @@ export function useMenuBarActions(store, emit, refs) {
     if (action === 'stationVisAll') { store.setExportStationVisibilityMode('all'); return }
     if (action === 'stationVisInterchange') { store.setExportStationVisibilityMode('interchange'); return }
     if (action === 'stationVisNone') { store.setExportStationVisibilityMode('none'); return }
+    if (action === 'mapTileOsm') { store.setMapTileType('osm'); return }
+    if (action === 'mapTileSatellite') { store.setMapTileType('satellite'); return }
+    if (action === 'mapTileTopo') { store.setMapTileType('topo'); return }
+    if (action === 'mapTilePositron') { store.setMapTileType('positron'); return }
+    if (action === 'mapTileDark') { store.setMapTileType('dark'); return }
     if (action === 'modeAiAddStation') { store.setMode('ai-add-station'); return }
     if (action === 'showProjectList') { emit('show-project-list'); return }
     if (action === 'aiConfig') { emit('show-ai-config'); return }

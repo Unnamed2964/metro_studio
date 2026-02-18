@@ -48,6 +48,7 @@ export const useProjectStore = defineStore('project', {
     showLanduseOverlay: false,
     highlightStationLocations: false,
     protomapsApiKey: getInitialProtomapsApiKey(),
+    mapTileType: 'osm',
     currentEditYear: 2010,
     timelineFilterYear: null,
     timelinePlayback: {

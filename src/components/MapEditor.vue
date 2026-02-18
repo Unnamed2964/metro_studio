@@ -303,7 +303,7 @@ onMounted(() => {
 
   map = new maplibregl.Map({
     container: mapContainer.value,
-    style: buildMapStyle(),
+    style: buildMapStyle(store.mapTileType),
     center: [116.40, 39.90],
     zoom: 4,
     bearing: 0,
@@ -463,6 +463,34 @@ watch(
     (visible) => {
       if (!map || !map.isStyleLoaded()) return
       setStationHighlightVisibility(map, visible)
+    },
+  )
+
+  watch(
+    () => store.mapTileType,
+    (newTileType) => {
+      if (!map) return
+      const center = map.getCenter()
+      const zoom = map.getZoom()
+      const bearing = map.getBearing()
+      const pitch = map.getPitch()
+
+      map.setStyle(buildMapStyle(newTileType))
+
+      map.once('style.load', () => {
+        map.setCenter(center)
+        map.setZoom(zoom)
+        map.setBearing(bearing)
+        map.setPitch(pitch)
+        lockMapNorthUp()
+        ensureSources(map, store)
+        ensureMapLayers(map, store)
+        updateMapData(map, store)
+        if (store.showLanduseOverlay) {
+          ensureLanduseLayer(map, store)
+        }
+        setStationHighlightVisibility(map, store.highlightStationLocations)
+      })
     },
   )
 </script>

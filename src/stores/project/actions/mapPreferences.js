@@ -18,6 +18,10 @@ const mapPreferencesActions = {
   setProtomapsApiKey(key) {
     this.protomapsApiKey = key || ''
   },
+
+  setMapTileType(tileType) {
+    this.mapTileType = tileType || 'osm'
+  },
 }
 
 export { mapPreferencesActions }
