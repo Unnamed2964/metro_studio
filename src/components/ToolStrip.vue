@@ -36,7 +36,7 @@ const tools = computed(() => {
     { mode: 'add-station', icon: 'plus-circle', label: '点站' },
     { mode: 'add-edge', icon: 'git-branch', label: '拉线' },
     { mode: 'route-draw', icon: 'route', label: '布线' },
-    { mode: 'quick-rename', icon: 'edit-3', label: '快改' },
+    { mode: 'quick-rename', icon: 'edit-3', label: '线改' },
     { mode: 'style-brush', icon: 'paintbrush', label: '样式刷' },
     { mode: 'box-select', icon: 'box-select', label: '框选' },
     { mode: 'quick-link', icon: 'link', label: '连线' },

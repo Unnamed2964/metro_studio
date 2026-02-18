@@ -216,16 +216,85 @@ const selectionActions = {
   },
 
   activateQuickRename() {
-    if (!this.project || !this.project.stations || !this.project.stations.length) {
-      this.statusText = '快速改站名模式：没有站点'
+    if (!this.project || !this.activeLineId) {
+      this.statusText = '快速改站名模式：请先选中一条线路'
       this.mode = 'select'
       return
     }
+
+    const line = this.project.lines.find(l => l.id === this.activeLineId)
+    if (!line || !line.edgeIds || !line.edgeIds.length) {
+      this.statusText = '快速改站名模式：选中线路没有线段'
+      this.mode = 'select'
+      return
+    }
+
+    const edgeIdSet = new Set(line.edgeIds)
+    const edges = this.project.edges.filter(e => edgeIdSet.has(e.id))
+    if (!edges.length) {
+      this.statusText = '快速改站名模式：没有可用线段'
+      this.mode = 'select'
+      return
+    }
+
+    const stationOrder = this.getStationOrderFromEdges(edges)
+    if (stationOrder.length === 0) {
+      this.statusText = '快速改站名模式：无法确定站点顺序'
+      this.mode = 'select'
+      return
+    }
+
     this.quickRename.active = true
-    this.quickRename.stationOrder = this.project.stations.map(s => s.id)
+    this.quickRename.stationOrder = stationOrder
     this.quickRename.currentIndex = 0
-    this.setSelectedStations([this.quickRename.stationOrder[0]])
-    this.statusText = `快速改站名模式：第 1 / ${this.project.stations.length} 站`
+    this.setSelectedStations([stationOrder[0]])
+    this.statusText = `快速改站名模式：第 1 / ${stationOrder.length} 站（${line.nameZh}）`
+  },
+
+  getStationOrderFromEdges(edges) {
+    const adjacency = new Map()
+    const stationIds = new Set()
+
+    for (const edge of edges) {
+      stationIds.add(edge.fromStationId)
+      stationIds.add(edge.toStationId)
+
+      if (!adjacency.has(edge.fromStationId)) {
+        adjacency.set(edge.fromStationId, [])
+      }
+      if (!adjacency.has(edge.toStationId)) {
+        adjacency.set(edge.toStationId, [])
+      }
+
+      adjacency.get(edge.fromStationId).push(edge.toStationId)
+      adjacency.get(edge.toStationId).push(edge.fromStationId)
+    }
+
+    const order = []
+    const visited = new Set()
+    const stationIdArray = Array.from(stationIds)
+
+    for (const startId of stationIdArray) {
+      if (visited.has(startId)) continue
+
+      const queue = [startId]
+      visited.add(startId)
+
+      while (queue.length > 0) {
+        const currentId = queue.shift()
+        order.push(currentId)
+
+        const neighbors = adjacency.get(currentId) || []
+        for (const neighborId of neighbors) {
+          if (!visited.has(neighborId)) {
+            visited.add(neighborId)
+            queue.push(neighborId)
+          }
+        }
+      }
+    }
+
+    return order
   },
 
   quickRenameNext() {

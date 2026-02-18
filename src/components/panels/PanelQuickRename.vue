@@ -26,6 +26,11 @@ const currentStation = computed(() => {
   return store.project.stations.find(s => s.id === currentStationId.value) || null
 })
 
+const currentLine = computed(() => {
+  if (!store.project || !store.activeLineId) return null
+  return store.project.lines.find(l => l.id === store.activeLineId) || null
+})
+
 const progressText = computed(() => {
   if (totalStations.value === 0) return '0/0'
   return `${currentIndex.value + 1}/${totalStations.value}`
@@ -110,6 +115,11 @@ function goToPrev() {
       <span class="panel-quick-rename__station-id">{{ currentStation.id }}</span>
     </div>
 
+    <div v-if="currentLine" class="panel-quick-rename__line-info">
+      <span class="panel-quick-rename__line-color" :style="{ backgroundColor: currentLine.color }" />
+      <span class="panel-quick-rename__line-name">{{ currentLine.nameZh }}</span>
+    </div>
+
     <input
       ref="nameInputRef"
       v-model="tempName"
@@ -154,6 +164,30 @@ function goToPrev() {
 .panel-quick-rename__station-id {
   font-size: 11px;
   color: var(--toolbar-muted);
+}
+
+.panel-quick-rename__line-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--toolbar-input-bg);
+  border-radius: 6px;
+  border: 1px solid var(--toolbar-input-border);
+}
+
+.panel-quick-rename__line-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.panel-quick-rename__line-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--toolbar-text);
 }
 
 .panel-quick-rename__input {
