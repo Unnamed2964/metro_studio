@@ -222,24 +222,27 @@ const selectionActions = {
       return
     }
 
-    let targetLineId = this.activeLineId
+    let targetLineId = null
     let targetLine = null
 
-    if (!targetLineId && this.selectedEdgeIds?.length > 0) {
+    if (this.selectedEdgeIds?.length > 0) {
       const edge = this.project.edges.find(e => e.id === this.selectedEdgeIds[0])
       if (edge?.sharedByLineIds?.length > 0) {
         targetLineId = edge.sharedByLineIds[0]
-        this.activeLineId = targetLineId
       }
+    } else if (this.activeLineId) {
+      targetLineId = this.activeLineId
     }
 
     if (!targetLineId) {
-      this.statusText = '快速改站名模式：请先选中一条线路或线段（按 Alt+点击线段）'
+      this.statusText = '快速改站名模式：请先选中一条线路或线段'
       this.mode = 'select'
       return
     }
 
+    this.activeLineId = targetLineId
     targetLine = this.project.lines.find(l => l.id === targetLineId)
+
     if (!targetLine || !targetLine.edgeIds || !targetLine.edgeIds.length) {
       this.statusText = '快速改站名模式：选中线路没有线段'
       this.mode = 'select'
