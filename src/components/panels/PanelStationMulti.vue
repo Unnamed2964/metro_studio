@@ -3,12 +3,8 @@ import { computed, inject, reactive } from 'vue'
 import AccordionSection from '../AccordionSection.vue'
 import TooltipWrapper from '../TooltipWrapper.vue'
 import { useProjectStore } from '../../stores/projectStore'
-import { useDialog } from '../../composables/useDialog'
 
 const store = useProjectStore()
-const { confirm } = useDialog()
-
-const aiAutoBatch = inject('aiAutoBatchNaming')
 
 const isNewStation = (s) => s.nameZh?.startsWith('新站 ')
 
@@ -49,26 +45,6 @@ function applyBatchStationRename() {
   })
 }
 
-async function startAiAutoBatchNaming() {
-  const selected = selectedStationsInOrder.value
-  if (!selected.length) return
-  const newStations = selected.filter(isNewStation)
-  const namedStations = selected.filter((s) => !isNewStation(s))
-  if (!newStations.length && !namedStations.length) return
-  let targets = newStations
-  if (namedStations.length) {
-    const ok = await confirm({
-      title: '覆盖已有站名',
-      message: `选中的 ${selected.length} 个站中有 ${namedStations.length} 个已命名站点，是否也重新命名？`,
-      confirmText: '全部命名',
-      cancelText: '仅命名新站',
-    })
-    if (ok) targets = selected
-  }
-  if (!targets.length) return
-  aiAutoBatch.start(targets)
-}
-
 function translateNonNewStations() {
   const ids = selectedStationsInOrder.value.filter((s) => !isNewStation(s)).map((s) => s.id)
   if (!ids.length) return
@@ -79,58 +55,6 @@ function translateNonNewStations() {
 <template>
   <div class="panel-station-multi">
     <p class="pp-hint">已选 {{ selectedStationCount }} 个站点</p>
-
-    <AccordionSection title="AI 批量命名">
-      <div class="pp-row">
-        <TooltipWrapper text="AI自动生成并写回全部站名" placement="bottom">
-          <button
-            class="pp-btn pp-btn--primary"
-            :disabled="store.isStationEnglishRetranslating || aiAutoBatch.state.active"
-            @click="startAiAutoBatchNaming"
-          >
-            全自动命名
-          </button>
-        </TooltipWrapper>
-      </div>
-
-      <!-- AI 全自动批量命名进度 -->
-      <div v-if="aiAutoBatch.state.active" class="pp-progress">
-        <div class="pp-progress-head">
-          <span>AI全自动命名 {{ aiAutoBatch.state.doneCount }}/{{ aiAutoBatch.total.value }}</span>
-          <strong>{{ aiAutoBatch.percent.value }}%</strong>
-        </div>
-        <div class="pp-progress-track">
-          <div class="pp-progress-fill" :style="{ width: `${aiAutoBatch.percent.value}%` }" />
-        </div>
-        <p class="pp-hint">
-          成功 {{ aiAutoBatch.state.successCount }}，失败 {{ aiAutoBatch.state.failedCount }}，已应用 {{ aiAutoBatch.state.appliedCount }}
-        </p>
-        <p v-if="aiAutoBatch.state.running" class="pp-hint">正在自动生成并写回站名...</p>
-        <p v-if="aiAutoBatch.state.error" class="pp-hint">{{ aiAutoBatch.state.error }}</p>
-        <div v-if="!aiAutoBatch.state.running && aiAutoBatch.state.failedItems.length" class="pp-hint">
-          失败示例：
-          <span v-for="(item, idx) in aiAutoBatch.state.failedItems.slice(0, 3)" :key="`${item.stationId}_${idx}`">
-            {{ idx === 0 ? '' : '；' }}{{ item.stationName }}（{{ item.message }}）
-          </span>
-        </div>
-        <div class="pp-row">
-          <TooltipWrapper text="仅重试失败项" placement="bottom">
-            <button
-              class="pp-btn"
-              :disabled="aiAutoBatch.state.running || !aiAutoBatch.state.failedStationIds.length"
-              @click="aiAutoBatch.retryFailed"
-            >
-              仅重试失败
-            </button>
-          </TooltipWrapper>
-          <TooltipWrapper :text="aiAutoBatch.state.running ? '取消自动命名' : '关闭面板'" placement="bottom">
-            <button class="pp-btn pp-btn--danger" @click="aiAutoBatch.cancel">
-              {{ aiAutoBatch.state.running ? '取消' : '关闭' }}
-            </button>
-          </TooltipWrapper>
-        </div>
-      </div>
-    </AccordionSection>
 
     <AccordionSection title="英文翻译">
       <TooltipWrapper text="AI翻译选中站英文名" placement="bottom">

@@ -15,7 +15,6 @@ const emit = defineEmits(['set-mode', 'undo', 'redo'])
 const TOOL_SHORTCUT_MAP = {
   'select': 'tool.select',
   'add-station': 'tool.addStation',
-  'ai-add-station': 'tool.aiAddStation',
   'add-edge': 'tool.addEdge',
   'route-draw': 'tool.routeDraw',
   'style-brush': 'tool.styleBrush',
@@ -34,7 +33,6 @@ const tools = computed(() => {
   return [
     { mode: 'select', icon: 'cursor', label: '选择' },
     { mode: 'add-station', icon: 'plus-circle', label: '点站' },
-    { mode: 'ai-add-station', icon: 'sparkles', label: 'AI点站' },
     { mode: 'add-edge', icon: 'git-branch', label: '拉线' },
     { mode: 'route-draw', icon: 'route', label: '布线' },
     { mode: 'style-brush', icon: 'paintbrush', label: '样式刷' },

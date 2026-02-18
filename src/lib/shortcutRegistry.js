@@ -27,7 +27,6 @@ const DEFAULT_SHORTCUTS = [
   // 工具（仅地图视图生效）
   { id: 'tool.select',       label: '选择工具',   defaultBinding: 'V', category: '工具', when: 'mapEditor' },
   { id: 'tool.addStation',   label: '点站工具',   defaultBinding: 'S', category: '工具', when: 'mapEditor' },
-  { id: 'tool.aiAddStation', label: 'AI点站工具', defaultBinding: 'A', category: '工具', when: 'mapEditor' },
   { id: 'tool.addEdge',      label: '拉线工具',   defaultBinding: 'E', category: '工具', when: 'mapEditor' },
   { id: 'tool.routeDraw',    label: '布线工具',   defaultBinding: 'R', category: '工具', when: 'mapEditor' },
   { id: 'tool.styleBrush',   label: '样式刷工具', defaultBinding: 'M', category: '工具', when: 'mapEditor' },

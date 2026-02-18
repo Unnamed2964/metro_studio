@@ -22,7 +22,6 @@ import {
   setStationHighlightVisibility,
 } from './map-editor/mapLayers'
 import { useMapContextMenu } from '../composables/useMapContextMenu.js'
-import { useMapAiStationMenu } from '../composables/useMapAiStationMenu.js'
 import { useMapLineSelectionMenu } from '../composables/useMapLineSelectionMenu.js'
 import { useMapExport } from '../composables/useMapExport.js'
 import { useMapEventHandlers } from '../composables/useMapEventHandlers.js'
@@ -38,7 +37,6 @@ import LanduseLegend from './LanduseLegend.vue'
 const store = useProjectStore()
 const mapContainer = ref(null)
 const contextMenuRef = ref(null)
-const aiStationMenuRef = ref(null)
 const lineSelectionMenuRef = ref(null)
 const showHint = ref(false)
 let map = null
@@ -46,7 +44,6 @@ let scaleControl = null
 
 const { getAutoAnimateConfig } = useAnimationSettings()
 useAutoAnimate(contextMenuRef, getAutoAnimateConfig())
-useAutoAnimate(aiStationMenuRef, getAutoAnimateConfig())
 useAutoAnimate(lineSelectionMenuRef, getAutoAnimateConfig())
 
 function getMap() {
@@ -83,39 +80,7 @@ const {
   mapContainerRef: mapContainer,
   contextMenuRef,
   getMap,
-  closeAiStationMenu: () => aiMenuApi.closeAiStationMenu(),
 })
-
-const aiMenuApi = useMapAiStationMenu({
-  store,
-  mapContainerRef: mapContainer,
-  aiStationMenuRef,
-  getMap,
-  closeContextMenu,
-})
-const {
-  aiStationMenu,
-  STATION_NAMING_RADIUS_METERS,
-  closeAiStationMenu,
-  requestAiCandidatesForStation,
-  addAiStationAt,
-  applyAiStationCandidate,
-  retryAiStationNamingFromMenu,
-  onAiMenuOverlayMouseDown,
-} = aiMenuApi
-
-const aiStationMenuStyle = computed(() => ({
-  left: `${aiStationMenu.x}px`,
-  top: `${aiStationMenu.y}px`,
-}))
-
-function addAiStationAtContext() {
-  aiMenuApi.addAiStationAtContext(contextMenu)
-}
-
-function aiRenameContextStationFromContext() {
-  aiMenuApi.aiRenameContextStationFromContext(contextStation.value, contextMenu)
-}
 
 const {
   lineSelectionMenu,
@@ -127,7 +92,6 @@ const {
   store,
   mapContainerRef: mapContainer,
   closeContextMenu,
-  closeAiStationMenu,
 })
 
 const lineSelectionMenuStyle = computed(() => ({
@@ -165,17 +129,13 @@ const {
   store,
   getMap,
   closeContextMenu,
-  closeAiStationMenu,
   closeLineSelectionMenu,
   openContextMenu,
   updateRouteDrawPreview,
   clearRouteDrawPreview,
-  addAiStationAt,
-  requestAiCandidatesForStation,
   openLineSelectionMenu,
   refreshRouteDrawPreviewProjectedPoints,
   contextMenu,
-  aiStationMenu,
 })
 
 const selectionBoxStyle = computed(() => {
@@ -225,7 +185,7 @@ function lockMapNorthUp() {
 }
 
 function onWindowResize() {
-  handleWindowResize(adjustContextMenuPosition, aiMenuApi.adjustAiStationMenuPosition)
+  handleWindowResize(adjustContextMenuPosition)
 }
 
 // ── Escape callback registration ──
@@ -233,10 +193,6 @@ const registerEscapeCallback = inject('registerEscapeCallback', null)
 const unregisterEscapeCallback = inject('unregisterEscapeCallback', null)
 
 function escapeHandler() {
-  if (aiStationMenu.visible) {
-    closeAiStationMenu()
-    return true
-  }
   if (contextMenu.visible) {
     closeContextMenu()
     return true
@@ -371,10 +327,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize)
   if (unregisterEscapeCallback) unregisterEscapeCallback(escapeHandler)
   closeContextMenu()
-  closeAiStationMenu()
   destroyTimelinePlayer()
   destroyNavigation()
-  aiMenuApi.destroy()
   scaleControl = null
   maplibregl.removeProtocol('pmtiles')
   removeLanduseLayer(map)
@@ -402,7 +356,6 @@ watch(
   () => store.mode,
   () => {
     if (contextMenu.visible) closeContextMenu()
-    if (aiStationMenu.visible) closeAiStationMenu()
   },
 )
 
@@ -544,7 +497,6 @@ watch(
             <div class="map-editor__context-row">
               <button @click="setModeFromContext('select')">选择/拖拽</button>
               <button @click="setModeFromContext('add-station')">点站</button>
-              <button @click="setModeFromContext('ai-add-station')">AI点站</button>
               <button @click="setModeFromContext('add-edge')">拉线</button>
               <button @click="setModeFromContext('route-draw')">连续布线</button>
             </div>
@@ -554,7 +506,6 @@ watch(
             <p>空白处操作</p>
             <div class="map-editor__context-row">
               <button @click="addStationAtContext" :disabled="!contextMenu.lngLat">在此新增站点</button>
-              <button @click="addAiStationAtContext" :disabled="!contextMenu.lngLat">AI 在此新增站点</button>
               <button @click="clearSelectionFromContext">清空选择</button>
             </div>
           </div>
@@ -562,7 +513,6 @@ watch(
           <div v-if="contextMenu.targetType === 'station'" class="map-editor__context-section">
             <p>站点操作</p>
             <div class="map-editor__context-row">
-              <button @click="aiRenameContextStationFromContext" :disabled="!contextStation">AI命名该站点</button>
               <button
                 @click="aiTranslateContextStationEnglishFromContext"
                 :disabled="!contextStation || store.isStationEnglishRetranslating"
@@ -600,47 +550,6 @@ watch(
             <div class="map-editor__context-row">
               <button @click="clearContextEdgeAnchorsFromContext" :disabled="!contextMenu.edgeId">清空该线段锚点</button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        v-if="aiStationMenu.visible"
-        class="map-editor__context-mask"
-        @mousedown="onAiMenuOverlayMouseDown"
-        @contextmenu.prevent="onAiMenuOverlayMouseDown"
-      >
-        <div
-          ref="aiStationMenuRef"
-          class="map-editor__ai-menu"
-          :style="aiStationMenuStyle"
-          @mousedown.stop
-          @contextmenu.prevent
-        >
-          <h3>AI点站候选</h3>
-          <p v-if="aiStationMenu.lngLat" class="map-editor__context-meta">
-            坐标: {{ aiStationMenu.lngLat[0].toFixed(6) }}, {{ aiStationMenu.lngLat[1].toFixed(6) }}
-          </p>
-          <p class="map-editor__context-meta">采样范围: {{ STATION_NAMING_RADIUS_METERS }}m</p>
-          <p v-if="aiStationMenu.loading" class="map-editor__ai-loading">正在分析周边道路/地域/设施并生成候选...</p>
-          <p v-if="!aiStationMenu.loading && aiStationMenu.error" class="map-editor__ai-error">{{ aiStationMenu.error }}</p>
-
-          <div v-if="!aiStationMenu.loading && aiStationMenu.candidates.length" class="map-editor__ai-candidate-list">
-            <button
-              v-for="candidate in aiStationMenu.candidates"
-              :key="`${candidate.nameZh}__${candidate.nameEn}`"
-              class="map-editor__ai-candidate"
-              @click="applyAiStationCandidate(candidate)"
-            >
-              <strong>{{ candidate.nameZh }}</strong>
-              <span>{{ candidate.nameEn }}</span>
-              <small>{{ candidate.basis }}</small>
-            </button>
-          </div>
-
-          <div class="map-editor__context-row">
-            <button @click="retryAiStationNamingFromMenu" :disabled="aiStationMenu.loading">重试生成</button>
-            <button @click="closeAiStationMenu()">关闭</button>
           </div>
         </div>
       </div>

@@ -14,9 +14,8 @@ import { useDialog } from './useDialog.js'
  * @param {import('vue').Ref<HTMLElement|null>} deps.mapContainerRef - Ref to the map container element
  * @param {import('vue').Ref<HTMLElement|null>} deps.contextMenuRef - Ref to the context menu element
  * @param {() => maplibregl.Map|null} deps.getMap - Getter for the map instance
- * @param {() => void} deps.closeAiStationMenu - Function to close the AI station menu
  */
-export function useMapContextMenu({ store, mapContainerRef, contextMenuRef, getMap, closeAiStationMenu }) {
+export function useMapContextMenu({ store, mapContainerRef, contextMenuRef, getMap }) {
   const { confirm, prompt } = useDialog()
 
   const contextMenu = reactive({
@@ -80,7 +79,6 @@ export function useMapContextMenu({ store, mapContainerRef, contextMenuRef, getM
   function openContextMenu(event) {
     const map = getMap()
     if (!mapContainerRef.value || !map) return
-    closeAiStationMenu()
     const point = event.point || { x: 0, y: 0 }
     const anchors = map.queryRenderedFeatures(point, { layers: [LAYER_EDGE_ANCHORS_HIT] })
     const stations = map.queryRenderedFeatures(point, { layers: [LAYER_STATIONS] })

@@ -230,7 +230,6 @@ export function useMenuBarActions(store, emit, refs) {
     if (action === 'mapTileTopo') { store.setMapTileType('topo'); return }
     if (action === 'mapTilePositron') { store.setMapTileType('positron'); return }
     if (action === 'mapTileDark') { store.setMapTileType('dark'); return }
-    if (action === 'modeAiAddStation') { store.setMode('ai-add-station'); return }
     if (action === 'showProjectList') { emit('show-project-list'); return }
     if (action === 'aiConfig') { emit('show-ai-config'); return }
     if (action === 'ttsGeneration') { emit('show-tts-dialog'); return }

@@ -7,9 +7,8 @@ import { nextTick, reactive } from 'vue'
  * @param {import('pinia').Store} deps.store - The project store
  * @param {import('vue').Ref<HTMLElement|null>} deps.mapContainerRef - Ref to the map container element
  * @param {() => void} deps.closeContextMenu - Function to close the context menu
- * @param {() => void} deps.closeAiStationMenu - Function to close the AI station menu
  */
-export function useMapLineSelectionMenu({ store, mapContainerRef, closeContextMenu, closeAiStationMenu }) {
+export function useMapLineSelectionMenu({ store, mapContainerRef, closeContextMenu }) {
   const lineSelectionMenu = reactive({
     visible: false,
     x: 0,
@@ -37,7 +36,6 @@ export function useMapLineSelectionMenu({ store, mapContainerRef, closeContextMe
 
   function openLineSelectionMenu({ x, y, lineOptions }) {
     closeContextMenu()
-    closeAiStationMenu()
     lineSelectionMenu.visible = true
     lineSelectionMenu.x = Number.isFinite(x) ? x : 0
     lineSelectionMenu.y = Number.isFinite(y) ? y : 0

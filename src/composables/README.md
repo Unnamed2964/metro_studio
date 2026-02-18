@@ -6,7 +6,6 @@ Vue 3 Composition API composables，封装可复用的组件逻辑。
 
 ### 地图编辑器相关
 - **useMapContextMenu.js** — 右键菜单状态、位置调整、所有 `*FromContext` 操作函数
-- **useMapAiStationMenu.js** — AI 站点命名菜单状态、候选请求/应用、abort 控制
 - **useMapLineSelectionMenu.js** — 线路选择菜单状态、选择逻辑
 - **useMapExport.js** — PNG 导出全流程（`exportActualRoutePngFromMap` 及辅助函数）
 - **useMapEventHandlers.js** — 点击/拖拽/键盘/鼠标事件处理、`dragState`/`anchorDragState`/`selectionBox` 状态
@@ -28,7 +27,6 @@ Vue 3 Composition API composables，封装可复用的组件逻辑。
 - **useTimelinePlayback.js** — 播放控制（play/pause/stop/speed）、renderer 生命周期、全屏（用于 TimelinePreviewView）
 
 ### 通用工具
-- **useAiAutoBatchNaming.js** — AI 批量站点命名流程（进度追踪、错误处理、abort 控制）
 - **useAutoSave.js** — 自动保存节流与状态管理
 - **useDialog.js** — 全局对话框状态管理（confirm/prompt）
 - **useToast.js** — Toast 通知状态管理

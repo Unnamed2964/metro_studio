@@ -47,12 +47,6 @@ function redoEdit() {
             <span>点站</span>
           </button>
         </TooltipWrapper>
-        <TooltipWrapper text="AI 智能点站" shortcut="A">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'ai-add-station' }" @click="store.setMode('ai-add-station')">
-            <IconBase name="sparkles" :size="14" />
-            <span>AI点站</span>
-          </button>
-        </TooltipWrapper>
       </div>
       <div class="toolbar__row">
         <TooltipWrapper text="连续布线模式" shortcut="R">

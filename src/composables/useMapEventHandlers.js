@@ -31,33 +31,25 @@ function hitTestAnnotation(map, screenPoint, store) {
  * @param {import('pinia').Store} deps.store - The project store
  * @param {() => maplibregl.Map|null} deps.getMap - Getter for the map instance
  * @param {() => void} deps.closeContextMenu - Function to close the context menu
- * @param {() => void} deps.closeAiStationMenu - Function to close the AI station menu
  * @param {() => void} deps.closeLineSelectionMenu - Function to close the line selection menu
  * @param {(event: Object) => void} deps.openContextMenu - Function to open the context menu
  * @param {(event: Object) => void} deps.updateRouteDrawPreview - Function to update route draw preview
  * @param {() => void} deps.clearRouteDrawPreview - Function to clear route draw preview
- * @param {(lngLat: number[], screenPoint: Object) => void} deps.addAiStationAt - Function to add AI station
- * @param {(opts: Object) => void} deps.requestAiCandidatesForStation - Function to request AI candidates
  * @param {(opts: Object) => void} deps.openLineSelectionMenu - Function to open line selection menu
  * @param {() => void} deps.refreshRouteDrawPreviewProjectedPoints - Function to refresh route draw preview projected points
- * @param {import('vue').Reactive} deps.contextMenu - The context menu reactive state (for aiStationMenu visibility check)
- * @param {import('vue').Reactive} deps.aiStationMenu - The AI station menu reactive state
+ * @param {import('vue').Reactive} deps.contextMenu - The context menu reactive state
  */
 export function useMapEventHandlers({
   store,
   getMap,
   closeContextMenu,
-  closeAiStationMenu,
   closeLineSelectionMenu,
   openContextMenu,
   updateRouteDrawPreview,
   clearRouteDrawPreview,
-  addAiStationAt,
-  requestAiCandidatesForStation,
   openLineSelectionMenu,
   refreshRouteDrawPreviewProjectedPoints,
   contextMenu,
-  aiStationMenu,
 }) {
   let dragState = null
   let anchorDragState = null
@@ -80,7 +72,6 @@ export function useMapEventHandlers({
   function handleStationClick(event) {
     if (store.navigation?.active) return
     closeContextMenu()
-    closeAiStationMenu()
     suppressNextMapClick = true
     const stationId = event.features?.[0]?.properties?.id
     if (!stationId) return
@@ -123,16 +114,6 @@ export function useMapEventHandlers({
       return
     }
 
-    if (store.mode === 'ai-add-station') {
-      const station = store.project?.stations?.find((item) => item.id === stationId)
-      if (!station?.lngLat) return
-      void requestAiCandidatesForStation({
-        lngLat: [...station.lngLat],
-        stationId: station.id,
-        screenPoint: event.point,
-      })
-      return
-    }
     if (store.mode === 'route-draw') {
       store.selectStation(stationId)
       return
@@ -328,7 +309,6 @@ export function useMapEventHandlers({
     if (store.navigation?.active) return
     const map = getMap()
     closeContextMenu()
-    closeAiStationMenu()
     if (!map) return
     if (suppressNextMapClick) {
       suppressNextMapClick = false
@@ -342,10 +322,6 @@ export function useMapEventHandlers({
     if (hitEdges.length) return
     if (store.mode === 'add-station') {
       store.addStationAt([event.lngLat.lng, event.lngLat.lat])
-      return
-    }
-    if (store.mode === 'ai-add-station') {
-      void addAiStationAt([event.lngLat.lng, event.lngLat.lat], event.point)
       return
     }
     if (store.mode === 'route-draw') {
@@ -456,7 +432,7 @@ export function useMapEventHandlers({
     if (store.navigation?.active) return
     const map = getMap()
     closeContextMenu()
-    closeAiStationMenu()
+
     if (store.mode !== 'select') return
     const stationId = event.features?.[0]?.properties?.id
     if (!stationId) return
@@ -480,7 +456,7 @@ export function useMapEventHandlers({
   function startEdgeAnchorDrag(event) {
     const map = getMap()
     closeContextMenu()
-    closeAiStationMenu()
+
     if (store.mode !== 'select') return
     const edgeId = event.features?.[0]?.properties?.edgeId
     const anchorIndexRaw = event.features?.[0]?.properties?.anchorIndex
@@ -621,7 +597,7 @@ export function useMapEventHandlers({
   function startBoxSelection(event) {
     const map = getMap()
     closeContextMenu()
-    closeAiStationMenu()
+
     if (store.mode !== 'select' && store.mode !== 'box-select') return
     if (selectionBox.active) return
     const mouseEvent = event.originalEvent
@@ -661,16 +637,13 @@ export function useMapEventHandlers({
     map.getCanvas().style.cursor = ''
   }
 
-  function handleWindowResize(adjustContextMenuPosition, adjustAiStationMenuPosition) {
+  function handleWindowResize(adjustContextMenuPosition) {
     const map = getMap()
     if (map) {
       map.resize()
     }
     if (contextMenu.visible) {
       adjustContextMenuPosition()
-    }
-    if (aiStationMenu.visible) {
-      adjustAiStationMenuPosition()
     }
   }
 

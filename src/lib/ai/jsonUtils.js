@@ -40,46 +40,6 @@ function extractBracePair(text) {
 }
 
 /**
- * 第5层：正则逐字段提取单站点结果
- */
-function regexExtractSingle(text) {
-  const nameZh = text.match(/["']?nameZh["']?\s*[:：]\s*["']([^"']+)["']/)
-  if (!nameZh) return null
-  const basis = text.match(/["']?basis["']?\s*[:：]\s*["']([^"']+)["']/)
-  const reason = text.match(/["']?reason["']?\s*[:：]\s*["']([^"']+)["']/)
-  const nameEn = text.match(/["']?nameEn["']?\s*[:：]\s*["']([^"']+)["']/)
-  return {
-    nameZh: nameZh[1],
-    nameEn: nameEn?.[1] || '',
-    basis: basis?.[1] || '④其它',
-    reason: reason?.[1] || '',
-  }
-}
-
-/**
- * 第5层：正则提取批量结果（多个站点）
- */
-function regexExtractBatch(text) {
-  const pattern = /["']?stationId["']?\s*[:：]\s*["']([^"']+)["'][\s\S]*?["']?nameZh["']?\s*[:：]\s*["']([^"']+)["']/g
-  const results = []
-  let m
-  while ((m = pattern.exec(text)) !== null) {
-    const block = text.slice(m.index, text.indexOf('}', m.index + m[0].length) + 1)
-    const nameEn = block.match(/["']?nameEn["']?\s*[:：]\s*["']([^"']+)["']/)
-    const basis = block.match(/["']?basis["']?\s*[:：]\s*["']([^"']+)["']/)
-    const reason = block.match(/["']?reason["']?\s*[:：]\s*["']([^"']+)["']/)
-    results.push({
-      stationId: m[1],
-      nameZh: m[2],
-      nameEn: nameEn?.[1] || '',
-      basis: basis?.[1] || '④其它',
-      reason: reason?.[1] || '',
-    })
-  }
-  return results.length ? results : null
-}
-
-/**
  * 多层兜底提取 JSON 对象
  * 第1层：直接 parse
  * 第2层：提取 code block 后 parse
@@ -117,37 +77,5 @@ export function extractJsonObject(text) {
   }
 
   // 第5层：正则兜底
-  return regexExtractSingle(text)
-}
-
-/**
- * 多层兜底提取批量结果（stations 数组）
- */
-export function extractBatchResults(text) {
-  if (typeof text !== 'string' || !text.trim()) return null
-
-  // 先尝试标准 JSON 提取
-  const obj = extractJsonObject(text)
-  if (obj) {
-    // 标准格式 { stations: [...] }
-    if (Array.isArray(obj.stations)) return obj.stations
-    // 可能直接返回了数组包在对象里的其他 key
-    for (const key of Object.keys(obj)) {
-      if (Array.isArray(obj[key]) && obj[key].length && obj[key][0]?.stationId) {
-        return obj[key]
-      }
-    }
-    // 可能直接返回了单个站点对象
-    if (obj.stationId && obj.nameZh) return [obj]
-  }
-
-  // 尝试解析为 JSON 数组
-  const arrText = text.match(/\[[\s\S]*\]/)
-  if (arrText) {
-    const arr = safeJsonParse(arrText[0]) || safeJsonParse(cleanJsonText(arrText[0]))
-    if (Array.isArray(arr) && arr.length) return arr
-  }
-
-  // 正则兜底
-  return regexExtractBatch(text)
+  return null
 }

@@ -28,7 +28,6 @@ import { useAutoSave } from './composables/useAutoSave'
 import { useDialog } from './composables/useDialog.js'
 import { useAnimationSettings } from './composables/useAnimationSettings.js'
 import { useShortcuts } from './composables/useShortcuts.js'
-import { useAiAutoBatchNaming } from './composables/useAiAutoBatchNaming'
 
 const store = useProjectStore()
 const { saveState, lastSavedAt, saveNow } = useAutoSave()
@@ -49,8 +48,6 @@ const escapeCallbacks = new Set()
 provide('registerEscapeCallback', (cb) => escapeCallbacks.add(cb))
 provide('unregisterEscapeCallback', (cb) => escapeCallbacks.delete(cb))
 
-const aiAutoBatch = useAiAutoBatchNaming()
-provide('aiAutoBatchNaming', aiAutoBatch)
 
 const WORKSPACE_VIEW_STORAGE_KEY = 'metro_studio_workspace_active_view'
 const activeView = ref('map')
@@ -255,7 +252,6 @@ const { rebuildBindings } = useShortcuts({
   // 工具
   'tool.select': () => store.setMode('select'),
   'tool.addStation': () => store.setMode('add-station'),
-  'tool.aiAddStation': () => store.setMode('ai-add-station'),
   'tool.addEdge': () => store.setMode('add-edge'),
   'tool.routeDraw': () => store.setMode('route-draw'),
   'tool.styleBrush': () => store.setMode('style-brush'),

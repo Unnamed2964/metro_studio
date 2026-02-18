@@ -37,7 +37,6 @@ const lastSavedLabel = computed(() => {
 const MODE_LABELS = {
   select: '选择/拖拽',
   'add-station': '点站',
-  'ai-add-station': 'AI点站',
   'add-edge': '拉线',
   'route-draw': '连续布线',
   'style-brush': '样式刷',
