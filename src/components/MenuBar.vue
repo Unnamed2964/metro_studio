@@ -38,18 +38,21 @@ function normalizeEditYear(year) {
 function onEditYearInput(event) {
   const year = normalizeEditYear(event.target.value)
   store.setCurrentEditYear(year)
+  store.setTimelineFilterYear(year)
   editYearInput.value = year
 }
 
 function incrementEditYear() {
   const y = normalizeEditYear(store.currentEditYear + 1)
   store.setCurrentEditYear(y)
+  store.setTimelineFilterYear(y)
   editYearInput.value = y
 }
 
 function decrementEditYear() {
   const y = normalizeEditYear(store.currentEditYear - 1)
   store.setCurrentEditYear(y)
+  store.setTimelineFilterYear(y)
   editYearInput.value = y
 }
 

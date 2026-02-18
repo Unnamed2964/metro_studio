@@ -29,18 +29,21 @@ export function useToolbarEditYear() {
     const rawValue = event.target.value
     const year = normalizeEditYear(rawValue)
     store.setCurrentEditYear(year)
+    store.setTimelineFilterYear(year)
     editYearInput.value = year
   }
 
   function incrementEditYear() {
     const nextYear = normalizeEditYear(store.currentEditYear + YEAR_STEP)
     store.setCurrentEditYear(nextYear)
+    store.setTimelineFilterYear(nextYear)
     editYearInput.value = nextYear
   }
 
   function decrementEditYear() {
     const nextYear = normalizeEditYear(store.currentEditYear - YEAR_STEP)
     store.setCurrentEditYear(nextYear)
+    store.setTimelineFilterYear(nextYear)
     editYearInput.value = nextYear
   }
 

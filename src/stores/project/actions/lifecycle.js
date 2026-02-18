@@ -31,8 +31,10 @@ function updateEditYearToMax(store) {
     const normalized = Math.floor(Number(maxYear))
     const clamped = Math.max(MIN_YEAR, Math.min(MAX_YEAR, normalized))
     store.currentEditYear = clamped
+    store.timelineFilterYear = clamped
   } else {
     store.currentEditYear = defaultYear
+    store.timelineFilterYear = defaultYear
   }
 }
 

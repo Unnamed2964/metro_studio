@@ -478,6 +478,7 @@ export const edgeActions = {
       sharedByLineIds: [...(edge.sharedByLineIds || [])],
       lengthMeters: haversineDistanceMeters(fromStation.lngLat, newStation.lngLat),
       isCurved: firstEdgeWaypoints.length > 2,
+      openingYear: edge.openingYear,
     }
 
     const secondEdge = {
@@ -488,6 +489,7 @@ export const edgeActions = {
       sharedByLineIds: [...(edge.sharedByLineIds || [])],
       lengthMeters: haversineDistanceMeters(newStation.lngLat, toStation.lngLat),
       isCurved: secondEdgeWaypoints.length > 2,
+      openingYear: edge.openingYear,
     }
 
     this.project.edges = this.project.edges.filter((e) => e.id !== edge.id)
