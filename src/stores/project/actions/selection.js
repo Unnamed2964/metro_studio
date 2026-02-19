@@ -292,11 +292,22 @@ const selectionActions = {
       return
     }
 
+    let startIndex = 0
+    let startFromMiddle = false
+    if (this.selectedStationIds?.length > 0) {
+      const selectedIndex = stationOrder.findIndex(id => id === this.selectedStationIds[0])
+      if (selectedIndex !== -1 && selectedIndex > 0) {
+        startIndex = selectedIndex
+        startFromMiddle = true
+      }
+    }
+
     this.quickRename.active = true
     this.quickRename.stationOrder = stationOrder
-    this.quickRename.currentIndex = 0
-    this.setSelectedStations([stationOrder[0]])
-    this.statusText = `快速改站名模式：第 1 / ${stationOrder.length} 站（${targetLine.nameZh}）`
+    this.quickRename.currentIndex = startIndex
+    this.quickRename.startFromMiddle = startFromMiddle
+    this.setSelectedStations([stationOrder[startIndex]])
+    this.statusText = `快速改站名模式：第 ${startIndex + 1} / ${stationOrder.length} 站（${targetLine.nameZh}）`
   },
 
   getStationOrderFromEdges(edges) {
@@ -368,21 +379,41 @@ const selectionActions = {
 
   quickRenameNext() {
     if (!this.quickRename.active) return
-    if (this.quickRename.currentIndex < this.quickRename.stationOrder.length - 1) {
-      this.quickRename.currentIndex++
-      const stationId = this.quickRename.stationOrder[this.quickRename.currentIndex]
-      this.setSelectedStations([stationId])
-      this.statusText = `快速改站名模式：第 ${this.quickRename.currentIndex + 1} / ${this.quickRename.stationOrder.length} 站`
+    const { stationOrder, currentIndex, startFromMiddle } = this.quickRename
+    if (startFromMiddle) {
+      if (currentIndex > 0) {
+        this.quickRename.currentIndex--
+        const stationId = stationOrder[this.quickRename.currentIndex]
+        this.setSelectedStations([stationId])
+        this.statusText = `快速改站名模式：第 ${this.quickRename.currentIndex + 1} / ${stationOrder.length} 站`
+      }
+    } else {
+      if (currentIndex < stationOrder.length - 1) {
+        this.quickRename.currentIndex++
+        const stationId = stationOrder[this.quickRename.currentIndex]
+        this.setSelectedStations([stationId])
+        this.statusText = `快速改站名模式：第 ${this.quickRename.currentIndex + 1} / ${stationOrder.length} 站`
+      }
     }
   },
 
   quickRenamePrev() {
     if (!this.quickRename.active) return
-    if (this.quickRename.currentIndex > 0) {
-      this.quickRename.currentIndex--
-      const stationId = this.quickRename.stationOrder[this.quickRename.currentIndex]
-      this.setSelectedStations([stationId])
-      this.statusText = `快速改站名模式：第 ${this.quickRename.currentIndex + 1} / ${this.quickRename.stationOrder.length} 站`
+    const { stationOrder, currentIndex, startFromMiddle } = this.quickRename
+    if (startFromMiddle) {
+      if (currentIndex < stationOrder.length - 1) {
+        this.quickRename.currentIndex++
+        const stationId = stationOrder[this.quickRename.currentIndex]
+        this.setSelectedStations([stationId])
+        this.statusText = `快速改站名模式：第 ${this.quickRename.currentIndex + 1} / ${stationOrder.length} 站`
+      }
+    } else {
+      if (currentIndex > 0) {
+        this.quickRename.currentIndex--
+        const stationId = stationOrder[this.quickRename.currentIndex]
+        this.setSelectedStations([stationId])
+        this.statusText = `快速改站名模式：第 ${this.quickRename.currentIndex + 1} / ${stationOrder.length} 站`
+      }
     }
   },
 
@@ -390,6 +421,7 @@ const selectionActions = {
     this.quickRename.active = false
     this.quickRename.currentIndex = 0
     this.quickRename.stationOrder = []
+    this.quickRename.startFromMiddle = false
     this.clearSelection()
     this.statusText = '快速改站名模式已退出'
   },
