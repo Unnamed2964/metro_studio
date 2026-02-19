@@ -190,11 +190,12 @@ function buildStationsGeoJson(project, selectedStationIds = [], filterYear = nul
   }
 }
 
-function buildEdgesGeoJson(project, filterYear = null) {
+function buildEdgesGeoJson(project, filterYear = null, selectedEdgeIds = []) {
   const lines = new Map((project?.lines || []).map((line) => [line.id, line]))
   const allEdges = project?.edges || []
   const edges = filterEdgesByYear(allEdges, filterYear)
   const stations = new Map((project?.stations || []).map((station) => [station.id, station]))
+  const selectedEdgeIdSet = new Set(selectedEdgeIds || [])
 
   return {
     type: 'FeatureCollection',
@@ -218,6 +219,7 @@ function buildEdgesGeoJson(project, filterYear = null) {
             lineStyle: resolvedLineStyle,
             sharedCount: edge.sharedByLineIds.length,
             hasAnchors: linearWaypoints.length > 2,
+            isSelected: selectedEdgeIdSet.has(edge.id),
           },
         }
       })

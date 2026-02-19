@@ -91,7 +91,7 @@ export function ensureSources(map, store) {
   if (!map.getSource(SOURCE_EDGES)) {
     map.addSource(SOURCE_EDGES, {
       type: 'geojson',
-      data: buildEdgesGeoJson(store.project),
+      data: buildEdgesGeoJson(store.project, null, store.selectedEdgeIds),
     })
   }
 
@@ -166,7 +166,7 @@ export function updateMapData(map, store) {
     stationSource.setData(buildStationsGeoJson(store.project, store.selectedStationIds, filterYear))
   }
   if (edgeSource) {
-    edgeSource.setData(buildEdgesGeoJson(store.project, filterYear))
+    edgeSource.setData(buildEdgesGeoJson(store.project, filterYear, store.selectedEdgeIds))
   }
   if (anchorSource) {
     anchorSource.setData(buildEdgeAnchorsGeoJson(store.project, store.selectedEdgeId, store.selectedEdgeAnchor))
@@ -202,14 +202,21 @@ export function ensureMapLayers(map, store) {
       source: SOURCE_EDGES,
       filter: ['==', ['get', 'id'], ''],
       paint: {
-        'line-color': '#F8FAFC',
+        'line-color': ['coalesce', ['get', 'color'], '#2563EB'],
         'line-width': [
           'case',
           ['in', ['get', 'lineStyle'], ['literal', doubleLineStyleIds]],
-          14,
-          11,
+          18,
+          15,
         ],
-        'line-opacity': 0.96,
+        'line-gap-width': [
+          'case',
+          ['in', ['get', 'lineStyle'], ['literal', doubleLineStyleIds]],
+          buildLineStyleNumericExpression('lineGapWidth'),
+          0,
+        ],
+        'line-opacity': 0.88,
+        'line-dasharray': buildLineDasharrayExpression(),
       },
       layout: {
         'line-cap': 'butt',
