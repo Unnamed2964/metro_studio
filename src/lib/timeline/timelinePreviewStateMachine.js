@@ -512,10 +512,14 @@ export class TimelinePreviewEngine {
       }
       const anim = this._stationAnimState.get(sid)
 
-      anim.popT = Math.min(1, elapsed / this._STATION_POP_DURATION)
-
-      const labelElapsed = elapsed - this._STATION_LABEL_DELAY
-      anim.labelAlpha = labelElapsed > 0 ? Math.min(1, labelElapsed / this._STATION_LABEL_DURATION) : 0
+      if (globalProgress >= 1) {
+        anim.popT = 1
+        anim.labelAlpha = 1
+      } else {
+        anim.popT = Math.min(1, elapsed / this._STATION_POP_DURATION)
+        const labelElapsed = elapsed - this._STATION_LABEL_DELAY
+        anim.labelAlpha = labelElapsed > 0 ? Math.min(1, labelElapsed / this._STATION_LABEL_DURATION) : 0
+      }
 
       const currentLineCount = stationLineIds.get(sid)?.size || 0
       if (currentLineCount >= 2 && anim.lineCount < 2) {
@@ -877,19 +881,41 @@ export class TimelinePreviewEngine {
   _precacheTilesForAnimation() {
     if (!this._continuousPlan?.segments?.length || !this._fullBounds) return Promise.resolve()
 
+    // Pre-calculate all needed tile keys for accurate progress
+    const allKeys = new Set()
+    const sampleCount = 30
+    for (let i = 0; i <= sampleCount; i++) {
+      const progress = i / sampleCount
+      const cam = this._computeTipCamera(progress)
+      const z = Math.round(Math.max(0, Math.min(18, cam.zoom)))
+      const halfLng = 0.02 * Math.pow(2, 12 - cam.zoom)
+      const halfLat = 0.015 * Math.pow(2, 12 - cam.zoom)
+      const viewBounds = {
+        minLng: cam.centerLng - halfLng,
+        maxLng: cam.centerLng + halfLng,
+        minLat: cam.centerLat - halfLat,
+        maxLat: cam.centerLat + halfLat,
+      }
+      this._tileCache.collectTileKeysForBounds(viewBounds, z, allKeys)
+      if (z > 0) this._tileCache.collectTileKeysForBounds(viewBounds, z - 1, allKeys)
+      if (z < 18) this._tileCache.collectTileKeysForBounds(viewBounds, z + 1, allKeys)
+    }
+    const baseZoom = Math.round(this._fullCamera.zoom)
+    for (let z = baseZoom; z <= baseZoom + 4; z++) {
+      this._tileCache.collectTileKeysForBounds(this._fullBounds, z, allKeys)
+    }
+
     this._tileCache.startProgressTracking((loaded, total) => {
       this._loadingProgress = { loaded, total }
-      // Notify Vue component of loading progress
       this._onStateChange?.(this._state, {
         year: this._years[this._currentYearIndex] ?? null,
         yearIndex: this._currentYearIndex,
         totalYears: this._years.length,
         loadingProgress: { loaded, total },
       })
-    })
+    }, allKeys.size)
 
     const promises = []
-    const sampleCount = 30
     for (let i = 0; i <= sampleCount; i++) {
       const progress = i / sampleCount
       const cam = this._computeTipCamera(progress)
@@ -906,8 +932,6 @@ export class TimelinePreviewEngine {
       if (z > 0) promises.push(this._tileCache.prefetchForBounds(viewBounds, z - 1))
       if (z < 18) promises.push(this._tileCache.prefetchForBounds(viewBounds, z + 1))
     }
-
-    const baseZoom = Math.round(this._fullCamera.zoom)
     for (let z = baseZoom; z <= baseZoom + 4; z++) {
       promises.push(this._tileCache.prefetchForBounds(this._fullBounds, z))
     }

@@ -8,7 +8,7 @@
  */
 
 const TILE_SIZE = 256
-const TILE_URL_TEMPLATE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const TILE_URL_TEMPLATE = 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
 const MAX_CONCURRENT_FETCHES = 12
 const MAX_CACHE_SIZE = 2048
 const DEG_TO_RAD = Math.PI / 180
@@ -159,9 +159,15 @@ export class TileCache {
   /**
    * Start tracking tile load progress. Resets counters.
    * @param {(loaded: number, total: number) => void} [onProgress]
+   * @param {number} [precomputedTotal] If provided, total is fixed and fetch() won't increment it.
    */
-  startProgressTracking(onProgress) {
-    this._progress = { total: 0, loaded: 0, onProgress: onProgress || null }
+  startProgressTracking(onProgress, precomputedTotal) {
+    this._progress = {
+      total: precomputedTotal || 0,
+      loaded: 0,
+      fixedTotal: precomputedTotal != null,
+      onProgress: onProgress || null,
+    }
   }
 
   /**
@@ -203,9 +209,8 @@ export class TileCache {
   fetch(z, x, y) {
     const key = this._key(z, x, y)
     if (this._cache.has(key)) {
-      // Cache hit: count as both total and loaded immediately
       if (this._progress) {
-        this._progress.total++
+        if (!this._progress.fixedTotal) { this._progress.total++; }
         this._progress.loaded++
         this._progress.onProgress?.(this._progress.loaded, this._progress.total)
       }
@@ -213,8 +218,7 @@ export class TileCache {
     }
     if (this._pending.has(key)) return this._pending.get(key)
 
-    // New fetch: count as total
-    if (this._progress) {
+    if (this._progress && !this._progress.fixedTotal) {
       this._progress.total++
     }
 
@@ -299,6 +303,25 @@ export class TileCache {
     while (this._activeFetches < MAX_CONCURRENT_FETCHES && this._queue.length > 0) {
       const next = this._queue.shift()
       next()
+    }
+  }
+
+  /**
+   * Collect unique tile keys for a bounding box at a given zoom (no fetching).
+   * @param {Set<string>} keySet - Set to add keys into
+   */
+  collectTileKeysForBounds(bbox, zoom, keySet) {
+    if (!bbox) return
+    const z = Math.round(Math.max(0, Math.min(18, zoom)))
+    const topLeft = lngLatToTileXY(bbox.minLng, bbox.maxLat, z)
+    const bottomRight = lngLatToTileXY(bbox.maxLng, bbox.minLat, z)
+    const n = Math.pow(2, z)
+    for (let x = topLeft.tileX; x <= bottomRight.tileX; x++) {
+      for (let y = topLeft.tileY; y <= bottomRight.tileY; y++) {
+        const wrappedX = ((x % n) + n) % n
+        if (y < 0 || y >= n) continue
+        keySet.add(this._key(z, wrappedX, y))
+      }
     }
   }
 
