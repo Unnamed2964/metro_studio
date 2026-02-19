@@ -420,33 +420,46 @@ watch(
   )
 
   watch(
-    () => ({
-      active: store.quickRename?.active,
-      currentIndex: store.quickRename?.currentIndex,
-      stationOrder: store.quickRename?.stationOrder,
-    }),
-    ({ active, currentIndex, stationOrder }) => {
-      if (!map || !map.isStyleLoaded() || !active) return
-      if (currentIndex < 0 || currentIndex >= stationOrder.length) return
-
-      const stationId = stationOrder[currentIndex]
-      const station = store.project?.stations?.find(s => s.id === stationId)
-      if (!station || !station.lngLat) return
-
-      const [lng, lat] = station.lngLat
-      const currentZoom = map.getZoom()
-      const targetZoom = Math.max(14, Math.min(16, currentZoom))
-
-      requestAnimationFrame(() => {
-        map.easeTo({
-          center: [lng, lat],
-          zoom: targetZoom,
-          duration: 300,
-        })
-      })
+    () => store.quickRename?.active,
+    (active) => {
+      if (active && store.quickRename?.stationOrder?.length > 0) {
+        focusOnQuickRenameStation()
+      }
     },
-    { deep: true, immediate: true },
   )
+
+  watch(
+    () => store.quickRename?.currentIndex,
+    (newIndex) => {
+      if (newIndex !== undefined && store.quickRename?.active) {
+        focusOnQuickRenameStation()
+      }
+    },
+  )
+
+  function focusOnQuickRenameStation() {
+    if (!map || !map.isStyleLoaded()) return
+    if (!store.quickRename?.active) return
+
+    const currentIndex = store.quickRename.currentIndex
+    const stationOrder = store.quickRename.stationOrder
+
+    if (currentIndex < 0 || currentIndex >= stationOrder.length) return
+
+    const stationId = stationOrder[currentIndex]
+    const station = store.project?.stations?.find(s => s.id === stationId)
+    if (!station || !station.lngLat) return
+
+    const [lng, lat] = station.lngLat
+    const currentZoom = map.getZoom()
+    const targetZoom = Math.max(14, Math.min(16, currentZoom))
+
+    map.easeTo({
+      center: [lng, lat],
+      zoom: targetZoom,
+      duration: 300,
+    })
+  }
 
   watch(
     () => store.mapTileType,
