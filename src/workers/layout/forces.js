@@ -54,6 +54,13 @@ function estimateDesiredEdgeLength(baseLength, config) {
 }
 
 function applyAnchorForce(forces, positions, original, config) {
+  if (!positions || !original || positions.length !== original.length) {
+    console.error('[FORCE] applyAnchorForce: invalid input arrays', {
+      positionsLength: positions?.length,
+      originalLength: original?.length
+    })
+    return
+  }
   for (let i = 0; i < positions.length; i += 1) {
     const dx = original[i][0] - positions[i][0]
     const dy = original[i][1] - positions[i][1]
@@ -66,6 +73,17 @@ function applySpringAndAngleForce(forces, positions, original, edgeRecords, conf
   for (const edge of edgeRecords) {
     const a = positions[edge.fromIndex]
     const b = positions[edge.toIndex]
+
+    if (!a || !b || edge.fromIndex == null || edge.toIndex == null) {
+      console.error('[FORCE] applySpringAndAngleForce: invalid edge or positions', {
+        edgeId: edge.id,
+        fromIndex: edge.fromIndex,
+        toIndex: edge.toIndex,
+        aExists: !!a,
+        bExists: !!b
+      })
+      continue
+    }
 
     const dx = b[0] - a[0]
     const dy = b[1] - a[1]
@@ -143,9 +161,18 @@ function applyJunctionSpread(forces, positions, adjacency, nodeDegrees, config) 
     if (!neighbors || neighbors.length < 3) continue
 
     const centerPoint = positions[center]
+    if (!centerPoint) {
+      console.error('[FORCE] applyJunctionSpread: missing center point at index', center)
+      continue
+    }
+
     const vectors = neighbors
       .map((neighbor) => {
         const p = positions[neighbor]
+        if (!p) {
+          console.error('[FORCE] applyJunctionSpread: missing neighbor point at index', neighbor, 'for center', center)
+          return null
+        }
         const dx = p[0] - centerPoint[0]
         const dy = p[1] - centerPoint[1]
         const length = Math.max(Math.hypot(dx, dy), 0.00001)
@@ -156,6 +183,7 @@ function applyJunctionSpread(forces, positions, adjacency, nodeDegrees, config) 
           angle: Math.atan2(dy, dx),
         }
       })
+      .filter(v => v !== null)
       .sort((a, b) => a.angle - b.angle)
 
     for (let i = 0; i < vectors.length; i += 1) {
@@ -187,6 +215,16 @@ function applyCrossingRepel(forces, positions, edgeRecords, config) {
     const e1 = edgeRecords[i]
     const a1 = positions[e1.fromIndex]
     const a2 = positions[e1.toIndex]
+    if (!a1 || !a2) {
+      console.error('[FORCES] applyCrossingRepel: missing positions for edge', {
+        edgeId: e1.id,
+        fromIndex: e1.fromIndex,
+        toIndex: e1.toIndex,
+        a1Exists: !!a1,
+        a2Exists: !!a2
+      })
+      continue
+    }
     const aBox = segmentBox(a1, a2)
 
     for (let j = i + 1; j < edgeRecords.length; j += 1) {
@@ -194,6 +232,16 @@ function applyCrossingRepel(forces, positions, edgeRecords, config) {
       if (edgesShareEndpoint(e1, e2)) continue
       const b1 = positions[e2.fromIndex]
       const b2 = positions[e2.toIndex]
+      if (!b1 || !b2) {
+        console.error('[FORCES] applyCrossingRepel: missing positions for edge in inner loop', {
+          edgeId: e2.id,
+          fromIndex: e2.fromIndex,
+          toIndex: e2.toIndex,
+          b1Exists: !!b1,
+          b2Exists: !!b2
+        })
+        continue
+      }
       const bBox = segmentBox(b1, b2)
       if (!boxesOverlap(aBox, bBox)) continue
       if (!segmentsIntersect(a1, a2, b1, b2)) continue
@@ -221,6 +269,14 @@ function applyCrossingPush(target, edgeA, edgeB, ux, uy, amount) {
 }
 
 function shiftNode(target, index, deltaX, deltaY) {
+  if (!target || !target[index]) {
+    console.error('[FORCES] shiftNode - invalid target or target[index]', {
+      targetExists: !!target,
+      index,
+      targetIndexExists: target ? !!target[index] : false
+    })
+    return
+  }
   target[index][0] += deltaX
   target[index][1] += deltaY
 }
@@ -228,6 +284,14 @@ function shiftNode(target, index, deltaX, deltaY) {
 function clampDisplacement(positions, original, maxDisplacement) {
   if (!Number.isFinite(maxDisplacement) || maxDisplacement <= 0) return
   for (let i = 0; i < positions.length; i += 1) {
+    if (!positions[i] || !original[i]) {
+      console.error('[FORCES] clampDisplacement - missing position or original', {
+        index: i,
+        positionExists: !!positions[i],
+        originalExists: !!original[i]
+      })
+      continue
+    }
     const dx = positions[i][0] - original[i][0]
     const dy = positions[i][1] - original[i][1]
     const d = Math.hypot(dx, dy)
@@ -242,6 +306,18 @@ function snapEdgesToEightDirections(positions, edgeRecords, ratio) {
   for (const edge of edgeRecords) {
     const from = positions[edge.fromIndex]
     const to = positions[edge.toIndex]
+
+    if (!from || !to) {
+      console.error('[FORCE] snapEdgesToEightDirections: missing positions', {
+        edgeId: edge.id,
+        fromIndex: edge.fromIndex,
+        toIndex: edge.toIndex,
+        fromExists: !!from,
+        toExists: !!to
+      })
+      continue
+    }
+
     const dx = to[0] - from[0]
     const dy = to[1] - from[1]
     const length = distance(from, to)
@@ -355,11 +431,14 @@ function segmentDistance(a1, a2, b1, b2) {
 
 function applyProximityRepel(forces, positions, edgeRecords, config) {
   const maxDistance = config.proximityRepelMaxDistance || 22
+  const target = forces || positions
   
   for (let i = 0; i < edgeRecords.length; i++) {
     const e1 = edgeRecords[i]
     const a1 = positions[e1.fromIndex]
     const a2 = positions[e1.toIndex]
+    
+    if (!a1 || !a2) continue
     
     for (let j = i + 1; j < edgeRecords.length; j++) {
       const e2 = edgeRecords[j]
@@ -367,6 +446,8 @@ function applyProximityRepel(forces, positions, edgeRecords, config) {
       
       const b1 = positions[e2.fromIndex]
       const b2 = positions[e2.toIndex]
+      
+      if (!b1 || !b2) continue
       
       const minDist = segmentDistance(a1, a2, b1, b2)
       
@@ -382,18 +463,19 @@ function applyProximityRepel(forces, positions, edgeRecords, config) {
       const d = Math.max(Math.hypot(dx, dy), 0.00001)
       
       const force = (maxDistance - minDist) * config.proximityRepelWeight
+      const scaledForce = forces ? force : force * 0.2
       const ux = dx / d
       const uy = dy / d
       
-      forces[e1.fromIndex][0] -= ux * force * 0.5
-      forces[e1.fromIndex][1] -= uy * force * 0.5
-      forces[e1.toIndex][0] -= ux * force * 0.5
-      forces[e1.toIndex][1] -= uy * force * 0.5
+      target[e1.fromIndex][0] -= ux * scaledForce * 0.5
+      target[e1.fromIndex][1] -= uy * scaledForce * 0.5
+      target[e1.toIndex][0] -= ux * scaledForce * 0.5
+      target[e1.toIndex][1] -= uy * scaledForce * 0.5
       
-      forces[e2.fromIndex][0] += ux * force * 0.5
-      forces[e2.fromIndex][1] += uy * force * 0.5
-      forces[e2.toIndex][0] += ux * force * 0.5
-      forces[e2.toIndex][1] += uy * force * 0.5
+      target[e2.fromIndex][0] += ux * scaledForce * 0.5
+      target[e2.fromIndex][1] += uy * scaledForce * 0.5
+      target[e2.toIndex][0] += ux * scaledForce * 0.5
+      target[e2.toIndex][1] += uy * scaledForce * 0.5
     }
   }
 }

@@ -14,6 +14,12 @@ import { snapEdgesToEightDirections } from './forces'
 function enforceOctilinearHardConstraints(positions, edgeRecords, stations, config) {
   if (!edgeRecords.length) return
 
+  console.log('[CONSTRAINT] enforceOctilinearHardConstraints starting:', {
+    positionsLength: positions.length,
+    edgeRecordsLength: edgeRecords.length,
+    stationsLength: stations.length
+  })
+
   const degree = new Array(positions.length).fill(0)
   for (const edge of edgeRecords) {
     degree[edge.fromIndex] += 1
@@ -72,39 +78,49 @@ function enforceOctilinearHardConstraints(positions, edgeRecords, stations, conf
   const maxExactPasses = Math.max(1, Math.floor(config.octilinearExactPasses || 1))
   const strictTolerance = Math.max(1e-7, toFiniteNumber(config.octilinearStrictTolerance, 0.0008))
   for (let pass = 0; pass < maxExactPasses; pass += 1) {
-    let maxResidual = 0
-    for (const edge of edgeRecords) {
-      const from = positions[edge.fromIndex]
-      const to = positions[edge.toIndex]
-      const dx = to[0] - from[0]
-      const dy = to[1] - from[1]
-      const length = Math.max(distance(from, to), 0.00001)
-      const snapped = snapAngle(Math.atan2(dy, dx))
-      const targetDx = Math.cos(snapped) * length
-      const targetDy = Math.sin(snapped) * length
-      const errX = targetDx - dx
-      const errY = targetDy - dy
-      maxResidual = Math.max(maxResidual, Math.hypot(errX, errY))
+      let maxResidual = 0
+      for (const edge of edgeRecords) {
+        const from = positions[edge.fromIndex]
+        const to = positions[edge.toIndex]
+        if (!from || !to) {
+          console.error('[CONSTRAINT] enforceOctilinearHardConstraints - missing positions', {
+            edgeId: edge.id,
+            fromIndex: edge.fromIndex,
+            toIndex: edge.toIndex,
+            fromExists: !!from,
+            toExists: !!to
+          })
+          continue
+        }
+        const dx = to[0] - from[0]
+        const dy = to[1] - from[1]
+        const length = Math.max(distance(from, to), 0.00001)
+        const snapped = snapAngle(Math.atan2(dy, dx))
+        const targetDx = Math.cos(snapped) * length
+        const targetDy = Math.sin(snapped) * length
+        const errX = targetDx - dx
+        const errY = targetDy - dy
+        maxResidual = Math.max(maxResidual, Math.hypot(errX, errY))
 
-      const fromDegree = Math.max(degree[edge.fromIndex], 1)
-      const toDegree = Math.max(degree[edge.toIndex], 1)
-      let fromMove = toDegree / (fromDegree + toDegree)
-      let toMove = fromDegree / (fromDegree + toDegree)
-      if (fromDegree === 1 && toDegree > 1) {
-        fromMove = 1
-        toMove = 0
-      } else if (toDegree === 1 && fromDegree > 1) {
-        fromMove = 0
-        toMove = 1
+        const fromDegree = Math.max(degree[edge.fromIndex], 1)
+        const toDegree = Math.max(degree[edge.toIndex], 1)
+        let fromMove = toDegree / (fromDegree + toDegree)
+        let toMove = fromDegree / (fromDegree + toDegree)
+        if (fromDegree === 1 && toDegree > 1) {
+          fromMove = 1
+          toMove = 0
+        } else if (toDegree === 1 && fromDegree > 1) {
+          fromMove = 0
+          toMove = 1
+        }
+
+        from[0] -= errX * fromMove
+        from[1] -= errY * fromMove
+        to[0] += errX * toMove
+        to[1] += errY * toMove
       }
-
-      from[0] -= errX * fromMove
-      from[1] -= errY * fromMove
-      to[0] += errX * toMove
-      to[1] += errY * toMove
+      if (maxResidual <= strictTolerance) break
     }
-    if (maxResidual <= strictTolerance) break
-  }
 }
 
 function enforceMinStationSpacing(positions, stations, edgeRecords, nodeDegrees, config) {
@@ -114,6 +130,14 @@ function enforceMinStationSpacing(positions, stations, edgeRecords, nodeDegrees,
   const spacingStep = clamp(toFiniteNumber(config.stationSpacingStep, 0.58), 0.05, 1)
   const tolerance = Math.max(0, toFiniteNumber(config.stationSpacingTolerance, 0.06))
   const adjacentPairs = buildAdjacentPairSet(edgeRecords)
+
+  console.log('[CONSTRAINT] enforceMinStationSpacing starting:', {
+    positionsLength: positions.length,
+    stationsLength: stations.length,
+    spacingPasses,
+    minDistance,
+    minEdgeLength
+  })
 
   for (let pass = 0; pass < spacingPasses; pass += 1) {
     const { grid, cellSize } = buildSpatialGrid(positions, minDistance)
@@ -130,8 +154,21 @@ function enforceMinStationSpacing(positions, stations, edgeRecords, nodeDegrees,
         for (const j of bucket) {
           if (j <= i) continue
 
-          const dx = positions[j][0] - positions[i][0]
-          const dy = positions[j][1] - positions[i][1]
+          const posI = positions[i]
+          const posJ = positions[j]
+
+          if (!posI || !posJ) {
+            console.error('[CONSTRAINT] enforceMinStationSpacing: missing position', {
+              indexI: i,
+              indexJ: j,
+              posIExists: !!posI,
+              posJExists: !!posJ
+            })
+            continue
+          }
+
+          const dx = posJ[0] - posI[0]
+          const dy = posJ[1] - posI[1]
           const d = Math.hypot(dx, dy)
           const requiredDistance = requiredStationPairDistance(
             i,

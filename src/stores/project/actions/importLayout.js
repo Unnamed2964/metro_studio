@@ -167,9 +167,8 @@ const importLayoutActions = {
       this.statusText = `自动排版完成，评分 ${safeScore.toFixed(2)}`
       this.touchProject('')
     } catch (error) {
-      this.statusText = `自动排版失败: ${error.message || 'unknown error'}`
-    } finally {
-      this.isLayoutRunning = false
+      const stackTrace = error.stack || '无调用栈信息'
+      this.statusText = `自动排版失败: ${error.message || 'unknown error'}\n\n调用栈:\n${stackTrace}`
     }
   },
 

@@ -13,7 +13,15 @@ function getWorker() {
       if (ok) {
         resolve(result)
       } else {
-        reject(new Error(error || 'layout-worker-failed'))
+        const errorMessage = error || 'layout-worker-failed'
+        const fullError = new Error(errorMessage)
+        if (event.data?.errorStack) {
+          fullError.stack = event.data.errorStack
+        }
+        if (event.data?.errorName) {
+          fullError.name = event.data.errorName
+        }
+        reject(fullError)
       }
     }
   }
