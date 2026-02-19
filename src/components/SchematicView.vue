@@ -327,9 +327,9 @@ onBeforeUnmount(() => {
               </template>
               <template v-else>
                 <rect
-                  :x="label.x - 36"
+                  :x="label.x - 42"
                   :y="label.y - 16"
-                  width="72"
+                  width="84"
                   height="32"
                   rx="6"
                   :fill="label.color"
@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
 
 .schematic-view__line-fullname-zh {
   fill: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   font-family: 'Source Han Sans SC', 'Noto Sans CJK SC', '微软雅黑', 'Microsoft YaHei', sans-serif;
 }
