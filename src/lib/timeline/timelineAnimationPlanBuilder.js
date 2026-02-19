@@ -501,12 +501,24 @@ export function buildTimelineAnimationPlan(project) {
         }
       }
 
+      // Collect phase from edges (pick the most common non-empty phase)
+      const phases = new Map()
+      for (const entry of orderedEntries) {
+        const edge = edgeMap.get(entry.edgeId)
+        if (edge?.phase) phases.set(edge.phase, (phases.get(edge.phase) || 0) + 1)
+      }
+      let phase = ''
+      if (phases.size > 0) {
+        phase = [...phases.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      }
+
       lineDrawPlans.push({
         lineId,
         color: line.color || '#2563EB',
         nameZh: getDisplayLineName(line, 'zh') || line.nameZh || '',
         nameEn: line.nameEn || '',
         style: line.style || 'solid',
+        phase,
         segments,
         totalLength,
         stationReveals,

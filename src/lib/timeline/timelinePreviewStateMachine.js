@@ -378,6 +378,7 @@ export class TimelinePreviewEngine {
       nameZh: primary.nameZh || '',
       nameEn: primary.nameEn || '',
       color: primary.color || '#2563EB',
+      phase: primary.phase || '',
       deltaKm: totalNewKm,
     }
   }
@@ -624,6 +625,7 @@ export class TimelinePreviewEngine {
       renderOverlayEvent(this._ctx, eventText || null, lineColor, overlayAlpha, this._logicalWidth, this._logicalHeight, {
         nameZh: lineInfo?.nameZh || '',
         nameEn: lineInfo?.nameEn || '',
+        phase: lineInfo?.phase || '',
         deltaKm: lineInfo?.deltaKm || 0,
         slideT: this._bannerSlideT,
       })

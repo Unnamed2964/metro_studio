@@ -115,7 +115,7 @@ export function renderOverlayStats(ctx, stats, alpha, width, height) {
 
 export function renderOverlayEvent(ctx, text, lineColor, alpha, width, height, opts = {}) {
   if (alpha <= 0) return
-  const { nameZh, nameEn, deltaKm, slideT = 1 } = opts
+  const { nameZh, nameEn, phase, deltaKm, slideT = 1 } = opts
   const s = uiScale(width, height)
 
   const swatchW = 8 * s
@@ -125,7 +125,7 @@ export function renderOverlayEvent(ctx, text, lineColor, alpha, width, height, o
   // Build main text: either custom event text, or "线路名 开通运营 (+km)"
   let mainText = text || ''
   if (!mainText && nameZh) {
-    mainText = `${nameZh} 开通运营`
+    mainText = `${nameZh}${phase ? ' ' + phase : ''} 开通运营`
     if (deltaKm != null && deltaKm > 0) {
       mainText += ` (+${deltaKm.toFixed(1)}km)`
     }
