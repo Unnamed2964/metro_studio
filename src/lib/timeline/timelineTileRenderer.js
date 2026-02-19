@@ -411,7 +411,7 @@ export function renderTiles(ctx, camera, width, height, tileCache) {
   const supportsFilter = typeof ctx.filter === 'string' || ctx.filter !== undefined
   if (supportsFilter) {
     ctx.save()
-    ctx.filter = 'grayscale(0.82) brightness(1.08)'
+    ctx.filter = 'contrast(1.1)'
   }
 
   // Track whether any tiles are still loading

@@ -132,8 +132,8 @@ export function renderOverlayEvent(ctx, text, lineColor, alpha, width, height, o
   }
   if (!mainText) return
 
-  const mainFont = `${30 * s}px 微软雅黑, "Source Han Sans SC", "Microsoft YaHei", sans-serif`
-  const subFont = `500 ${20 * s}px "Roboto Condensed", "Arial Narrow", sans-serif`
+  const mainFont = `700 ${42 * s}px 微软雅黑, "Source Han Sans SC", "Microsoft YaHei", sans-serif`
+  const subFont = `500 ${24 * s}px "Roboto Condensed", "Arial Narrow", sans-serif`
 
   ctx.font = mainFont
   const mainW = ctx.measureText(mainText).width
@@ -147,7 +147,7 @@ export function renderOverlayEvent(ctx, text, lineColor, alpha, width, height, o
 
   const contentW = Math.max(mainW, subW)
   const bannerW = swatchW + contentW + padH * 2 + lineGap
-  const bannerH = subText ? (96 * s) : (72 * s)
+  const bannerH = subText ? (116 * s) : (88 * s)
 
   // Slide-in animation: translate from left
   const easedSlide = easeOutCubic(Math.max(0, Math.min(1, slideT)))
@@ -299,11 +299,11 @@ export function renderOverlayLineInfo(ctx, yearPlan, stats, alpha, width, height
   const availableH = pillsRowTop - gapBetween - topMargin
 
   // Base dimensions at scale 1.0
-  const BASE_CARD_H = 52 * s
+  const BASE_CARD_H = 64 * s
   const BASE_CARD_PAD_H = 22 * s
   const BASE_CARD_GAP = 10 * s
-  const BASE_NAME_FONT_SIZE = 24 * s
-  const BASE_STAT_FONT_SIZE = 14 * s
+  const BASE_NAME_FONT_SIZE = 36 * s
+  const BASE_STAT_FONT_SIZE = 28 * s
   const BASE_STAT_GAP = 14 * s
   const MIN_SCALE = 0.7
 
@@ -341,7 +341,7 @@ export function renderOverlayLineInfo(ctx, yearPlan, stats, alpha, width, height
   const statGap = BASE_STAT_GAP * cardScale
   const scaledCornerR = cornerR * cardScale
 
-  const nameFont = `${nameFontSize}px 微软雅黑, "Source Han Sans SC", "Microsoft YaHei", sans-serif`
+  const nameFont = `700 ${nameFontSize}px 微软雅黑, "Source Han Sans SC", "Microsoft YaHei", sans-serif`
   const statFont = `600 ${statFontSize}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", monospace`
 
   // Build card data with display names
