@@ -421,12 +421,14 @@ watch(
 
   watch(
     () => store.selectedStationId,
-    () => {
-      if (store.quickRename?.active && store.quickRename?.stationOrder?.length > 0) {
-        nextTick(() => {
-          focusOnQuickRenameStation()
-        })
-      }
+    (stationId) => {
+      if (!stationId) return
+      if (!store.quickRename?.active) return
+      if (!store.quickRename?.stationOrder?.length) return
+
+      setTimeout(() => {
+        focusOnQuickRenameStation()
+      }, 100)
     },
   )
 

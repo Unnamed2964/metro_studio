@@ -273,6 +273,7 @@ const selectionActions = {
 
   getStationOrderFromEdges(edges) {
     const adjacency = new Map()
+    const degree = new Map()
     const stationIds = new Set()
 
     for (const edge of edges) {
@@ -288,29 +289,49 @@ const selectionActions = {
 
       adjacency.get(edge.fromStationId).push(edge.toStationId)
       adjacency.get(edge.toStationId).push(edge.fromStationId)
+
+      degree.set(edge.fromStationId, (degree.get(edge.fromStationId) || 0) + 1)
+      degree.set(edge.toStationId, (degree.get(edge.toStationId) || 0) + 1)
     }
 
     const order = []
     const visited = new Set()
     const stationIdArray = Array.from(stationIds)
 
-    for (const startId of stationIdArray) {
-      if (visited.has(startId)) continue
+    let startId = null
+    for (const id of stationIdArray) {
+      const deg = degree.get(id) || 0
+      if (deg === 1) {
+        startId = id
+        break
+      }
+    }
 
-      const queue = [startId]
+    if (!startId && stationIdArray.length > 0) {
+      startId = stationIdArray[0]
+    }
+
+    if (startId) {
       visited.add(startId)
+      order.push(startId)
 
-      while (queue.length > 0) {
-        const currentId = queue.shift()
-        order.push(currentId)
-
+      let currentId = startId
+      while (true) {
         const neighbors = adjacency.get(currentId) || []
-        for (const neighborId of neighbors) {
-          if (!visited.has(neighborId)) {
-            visited.add(neighborId)
-            queue.push(neighborId)
-          }
-        }
+        const nextId = neighbors.find(nid => !visited.has(nid))
+
+        if (!nextId) break
+
+        visited.add(nextId)
+        order.push(nextId)
+        currentId = nextId
+      }
+    }
+
+    for (const id of stationIdArray) {
+      if (!visited.has(id)) {
+        visited.add(id)
+        order.push(id)
       }
     }
 
