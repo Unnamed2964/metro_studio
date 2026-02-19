@@ -8,6 +8,7 @@ import TimelineEventEditor from '../TimelineEventEditor.vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
 import { LINE_STYLE_OPTIONS, normalizeLineStyle } from '../../lib/lineStyles'
+import { downloadLineIntroPng } from '../../lib/export/exportLineIntro'
 
 const store = useProjectStore()
 
@@ -109,6 +110,9 @@ watch(
             <button class="pp-btn pp-btn--danger" @click="deleteActiveLine">删除线路</button>
           </TooltipWrapper>
         </div>
+        <TooltipWrapper text="导出线介绍图 PNG" placement="bottom">
+          <button class="pp-btn pp-btn--primary" style="width:100%" @click="downloadLineIntroPng(store.project, activeLine.id)">导出线介绍图</button>
+        </TooltipWrapper>
       </template>
     </AccordionSection>
 

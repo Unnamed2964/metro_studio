@@ -4,7 +4,7 @@
  */
 
 import { metersPerPixel } from './timelineTileRenderer'
-import { easeOutCubic } from './timelineCanvasEasing'
+import { easeOutCubic, easeOutBack } from './timelineCanvasEasing'
 import { roundRect, uiScale, measurePillWidth, drawStatPill } from './timelineCanvasGeometry'
 
 // ─── Overlay: Year + Stats block (bottom-left, reference layout) ─
@@ -119,8 +119,8 @@ export function renderOverlayEvent(ctx, text, lineColor, alpha, width, height, o
   const s = uiScale(width, height)
 
   const swatchW = 8 * s
-  const padH = 28 * s
-  const lineGap = 18 * s
+  const padH = 36 * s
+  const lineGap = 22 * s
 
   // Build main text: either custom event text, or "线路名 开通运营 (+km)"
   let mainText = text || ''
@@ -132,11 +132,23 @@ export function renderOverlayEvent(ctx, text, lineColor, alpha, width, height, o
   }
   if (!mainText) return
 
-  const mainFont = `700 ${42 * s}px 微软雅黑, "Source Han Sans SC", "Microsoft YaHei", sans-serif`
+  const CJK_FONT = '微软雅黑, "Source Han Sans SC", "Microsoft YaHei", sans-serif'
+  const nameFont = `700 ${42 * s}px ${CJK_FONT}`
+  const phaseFont = `700 ${30 * s}px ${CJK_FONT}`
+  const opFont = `400 ${42 * s}px ${CJK_FONT}`
   const subFont = `500 ${24 * s}px "Roboto Condensed", "Arial Narrow", sans-serif`
 
-  ctx.font = mainFont
-  const mainW = ctx.measureText(mainText).width
+  // Measure composite main text width
+  let mainW = 0
+  if (nameZh) {
+    const sp = 14 * s
+    ctx.font = nameFont; mainW += ctx.measureText(nameZh).width
+    if (phase) { ctx.font = phaseFont; mainW += sp + ctx.measureText(phase).width }
+    const opText = deltaKm != null && deltaKm > 0 ? `+${deltaKm.toFixed(1)}km` : ''
+    if (opText) { ctx.font = opFont; mainW += sp + ctx.measureText(opText).width }
+  } else {
+    ctx.font = nameFont; mainW = ctx.measureText(mainText).width
+  }
 
   let subText = nameEn || ''
   let subW = 0
@@ -147,7 +159,7 @@ export function renderOverlayEvent(ctx, text, lineColor, alpha, width, height, o
 
   const contentW = Math.max(mainW, subW)
   const bannerW = swatchW + contentW + padH * 2 + lineGap
-  const bannerH = subText ? (116 * s) : (88 * s)
+  const bannerH = subText ? (130 * s) : (100 * s)
 
   // Slide-in animation: translate from left
   const easedSlide = easeOutCubic(Math.max(0, Math.min(1, slideT)))
@@ -176,19 +188,36 @@ export function renderOverlayEvent(ctx, text, lineColor, alpha, width, height, o
   // Main text — white on dark
   const textX = swatchX + swatchW + lineGap
   ctx.fillStyle = '#ffffff'
-  ctx.font = mainFont
   ctx.textAlign = 'left'
+  const mainY = subText ? bannerY + bannerH * 0.38 : bannerY + bannerH / 2
+  ctx.textBaseline = 'middle'
+
+  if (nameZh) {
+    const sp = 14 * s
+    const opText = deltaKm != null && deltaKm > 0 ? `+${deltaKm.toFixed(1)}km` : ''
+    let cx = textX
+    ctx.font = nameFont
+    ctx.fillText(nameZh, cx, mainY)
+    cx += ctx.measureText(nameZh).width + sp
+    if (phase) {
+      ctx.font = phaseFont
+      ctx.fillText(phase, cx, mainY)
+      cx += ctx.measureText(phase).width + sp
+    }
+    if (opText) {
+      ctx.font = opFont
+      ctx.fillText(opText, cx, mainY)
+    }
+  } else {
+    ctx.font = nameFont
+    ctx.fillText(mainText, textX, mainY)
+  }
+
   if (subText) {
-    ctx.textBaseline = 'bottom'
-    ctx.fillText(mainText, textX, bannerY + bannerH * 0.52)
-    // English subtitle
     ctx.fillStyle = 'rgba(255, 255, 255, 0.65)'
     ctx.font = subFont
     ctx.textBaseline = 'top'
-    ctx.fillText(subText, textX, bannerY + bannerH * 0.56)
-  } else {
-    ctx.textBaseline = 'middle'
-    ctx.fillText(mainText, textX, bannerY + bannerH / 2)
+    ctx.fillText(subText, textX, bannerY + bannerH * 0.56 + 5 * s)
   }
 
   ctx.restore()
@@ -267,7 +296,7 @@ export function renderOverlayLineInfo(ctx, yearPlan, stats, alpha, width, height
   const s = uiScale(width, height)
 
   // ── Stats pills (between line cards and year block) ──
-  const pillFontSize = 16 * s
+  const pillFontSize = 32 * s
   const pillFont = `700 ${pillFontSize}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", monospace`
   const pillH = 32 * s
   const pillR = pillH / 2
@@ -288,7 +317,7 @@ export function renderOverlayLineInfo(ctx, yearPlan, stats, alpha, width, height
   const yearBlockBottom = height - 48 * s
   const yearBlockTop = yearBlockBottom - yearBlockH
 
-  const gapBetween = 10 * s
+  const gapBetween = 20 * s
   const pillsRowH = hasPills ? pillH : 0
   const pillsRowTop = yearBlockTop - gapBetween - pillsRowH
   const baseX = 48 * s
@@ -301,7 +330,7 @@ export function renderOverlayLineInfo(ctx, yearPlan, stats, alpha, width, height
   // Base dimensions at scale 1.0
   const BASE_CARD_H = 64 * s
   const BASE_CARD_PAD_H = 22 * s
-  const BASE_CARD_GAP = 10 * s
+  const BASE_CARD_GAP = 20 * s
   const BASE_NAME_FONT_SIZE = 36 * s
   const BASE_STAT_FONT_SIZE = 28 * s
   const BASE_STAT_GAP = 14 * s
@@ -361,7 +390,7 @@ export function renderOverlayLineInfo(ctx, yearPlan, stats, alpha, width, height
   // Compute per-column layout
   const perCol = columns >= 2 ? Math.ceil(cards.length / 2) : cards.length
   const totalCardsH = perCol * (cardH + cardGap) - cardGap
-  const baseY = pillsRowTop - gapBetween - totalCardsH
+  const baseY = pillsRowTop - gapBetween - totalCardsH - 12 * s
 
   // Column gap for multi-column
   const colGap = 8 * s
@@ -435,12 +464,14 @@ export function renderOverlayLineInfo(ctx, yearPlan, stats, alpha, width, height
       progress = lineAppearProgress.get(card.lineId)
     }
 
+    const easedProgress = easeOutBack(progress)
     const translateX = -(1 - progress) * (card.cardW + cardPadH)
-    const cardAlpha = progress
+    const translateY = (1 - progress) * 12 * s
+    const cardAlpha = easeOutCubic(progress)
 
     ctx.save()
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha * cardAlpha))
-    ctx.translate(translateX, 0)
+    ctx.translate(translateX, translateY)
 
     // Card background = line color
     ctx.fillStyle = card.color || '#2563EB'
@@ -456,9 +487,8 @@ export function renderOverlayLineInfo(ctx, yearPlan, stats, alpha, width, height
 
     // KM and ST stats — only in single-column mode
     if (!multiCol) {
-      const dispStats = displayLineStats?.get(card.lineId)
-      const dispKm = dispStats ? dispStats.km : card.km
-      const dispSt = dispStats ? dispStats.stations : card.stations
+      const dispKm = card.km
+      const dispSt = card.stations
 
       const statX = cardX + card.cardW + statGap
       ctx.font = statFont

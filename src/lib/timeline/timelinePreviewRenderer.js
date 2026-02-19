@@ -39,6 +39,7 @@ export function createTimelinePreviewRenderer(canvas, project, options = {}) {
   })
 
   return {
+    skipLoading: () => engine.skipLoading(),
     play: () => engine.play(),
     pause: () => engine.pause(),
     stop: () => engine.stop(),

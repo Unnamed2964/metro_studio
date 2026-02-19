@@ -134,6 +134,10 @@ export function useTimelinePlayback(containerRef, canvasRef, { hasData, active, 
     renderer?.pause()
   }
 
+  function onSkipLoading() {
+    renderer?.skipLoading()
+  }
+
   function onStop() {
     renderer?.stop()
   }
@@ -274,6 +278,7 @@ export function useTimelinePlayback(containerRef, canvasRef, { hasData, active, 
     onPlay,
     onPause,
     onStop,
+    onSkipLoading,
     onSpeedChange,
     onZoomOffsetChange,
     startPseudoPreview,

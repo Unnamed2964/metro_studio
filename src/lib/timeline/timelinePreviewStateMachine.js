@@ -91,6 +91,12 @@ export class TimelinePreviewEngine {
     this._YEAR_TRANSITION_DURATION = 0.0075
     this._yearPauseUntil = 0
     this._yearPauseLastIndex = -1
+    this._pauseLastLineId = null
+    this._isLinePaused = false
+    // Camera travel phase (after hold, before new line draws)
+    this._camTravelUntil = 0
+    this._camTravelFrom = null
+    this._camTravelTarget = null
 
     // Outro: holdLast → zoomOut → holdFull → idle
     this._outroPhase = null
@@ -318,6 +324,42 @@ export class TimelinePreviewEngine {
       : computeStatsForYear(this._project, year)
   }
 
+  _computeLiveLineStats(globalProgress, yearMarkerIndex) {
+    const cp = this._continuousPlan
+    if (!cp?.segments?.length) return []
+    const totalM = cp.totalLengthMeters
+    const lineKm = new Map()
+    const lineStations = new Map()
+    const lineInfo = new Map()
+
+    for (const seg of cp.segments) {
+      if (seg.globalStart >= globalProgress) break
+      if (!lineInfo.has(seg.lineId)) {
+        const line = this._lineMap.get(seg.lineId)
+        lineInfo.set(seg.lineId, { name: seg.nameZh || seg.lineId, color: seg.color || '#2563EB' })
+        lineKm.set(seg.lineId, 0)
+        lineStations.set(seg.lineId, new Set())
+      }
+      const segSpan = seg.globalEnd - seg.globalStart
+      const segProgress = segSpan > 0 ? Math.min(1, (globalProgress - seg.globalStart) / segSpan) : 1
+      const segM = (seg.globalEnd - seg.globalStart) * totalM
+      lineKm.set(seg.lineId, lineKm.get(seg.lineId) + segM * segProgress)
+      const stSet = lineStations.get(seg.lineId)
+      if (segProgress >= 1) { stSet.add(seg.fromStationId); stSet.add(seg.toStationId) }
+      else if (segProgress > 0) stSet.add(seg.fromStationId)
+    }
+
+    const orderedLineIds = (this._project?.lines || []).map(l => l.id)
+    const result = []
+    for (const lid of orderedLineIds) {
+      if (lineInfo.has(lid)) {
+        const info = lineInfo.get(lid)
+        result.push({ lineId: lid, name: info.name, color: info.color, km: (lineKm.get(lid) || 0) / 1000, stations: lineStations.get(lid)?.size || 0 })
+      }
+    }
+    return result
+  }
+
   _computeCumulativeLineStats(yearMarkerIndex) {
     if (!this._continuousPlan?.yearMarkers?.length) return []
     const lineKm = new Map()
@@ -362,24 +404,31 @@ export class TimelinePreviewEngine {
     return result
   }
 
-  _getCurrentYearLineInfo(yearMarkerIndex) {
+  _getCurrentYearLineInfo(yearMarkerIndex, globalProgress) {
     if (!this._continuousPlan?.yearMarkers?.length) return null
     const marker = this._continuousPlan.yearMarkers[yearMarkerIndex]
     const yp = marker?.yearPlan
     if (!yp?.lineDrawPlans?.length) return null
 
-    let totalNewKm = 0
-    for (const lp of yp.lineDrawPlans) {
-      totalNewKm += (lp.totalLength || 0) / 1000
+    // Find the line currently being drawn based on globalProgress
+    let activeLp = yp.lineDrawPlans[0]
+    if (globalProgress != null) {
+      for (const seg of this._continuousPlan.segments) {
+        if (seg.globalStart > globalProgress) break
+        if (seg.year === marker.year) activeLp = yp.lineDrawPlans.find(lp => lp.lineId === seg.lineId) || activeLp
+      }
     }
 
-    const primary = yp.lineDrawPlans[0]
+    let totalNewKm = 0
+    for (const lp of yp.lineDrawPlans) totalNewKm += (lp.totalLength || 0) / 1000
+
     return {
-      nameZh: primary.nameZh || '',
-      nameEn: primary.nameEn || '',
-      color: primary.color || '#2563EB',
-      phase: primary.phase || '',
+      nameZh: activeLp.nameZh || '',
+      nameEn: activeLp.nameEn || '',
+      color: activeLp.color || '#2563EB',
+      phase: activeLp.phase || '',
       deltaKm: totalNewKm,
+      activeLineId: activeLp.lineId,
     }
   }
 
@@ -402,11 +451,17 @@ export class TimelinePreviewEngine {
     this._yearPauseUntil = 0
     this._yearPauseLastIndex = -1
     this._yearPauseProgress = 0
+    this._pauseLastLineId = null
+    this._isLinePaused = false
+    this._camTravelUntil = 0
+    this._camTravelFrom = null
+    this._camTravelTarget = null
     this._outroPhase = null
     this._outroStart = 0
     this._outroCamFrom = null
     this._smoothCamera = null
     this._stationAnimState.clear()
+    this._lineFirstSeen = new Map()
     this._prevYearLabel = null
     this._yearTransitionT = 1
     this._displayStats = null
@@ -436,8 +491,8 @@ export class TimelinePreviewEngine {
     const cp = this._continuousPlan
     if (!cp || !cp.segments.length) return
 
-    // Dynamic camera: track drawing tip (skip during outro zoom)
-    if (!this._outroPhase || this._outroPhase === 'holdLast') {
+    // Dynamic camera: track drawing tip (skip during outro zoom and line pause)
+    if ((!this._outroPhase || this._outroPhase === 'holdLast') && !this._isLinePaused) {
       this._camera = this._computeCameraAtProgress(globalProgress, now)
     }
 
@@ -513,7 +568,7 @@ export class TimelinePreviewEngine {
       }
       const anim = this._stationAnimState.get(sid)
 
-      if (globalProgress >= 1) {
+      if (globalProgress >= 1 || this._isLinePaused) {
         anim.popT = 1
         anim.labelAlpha = 1
       } else {
@@ -563,22 +618,15 @@ export class TimelinePreviewEngine {
       this._prevYearLabel = yearLabel
     }
 
-    // Stats counting-up animation
-    const rawStats = this._computeStatsAtProgress(globalProgress)
+    // Stats counting-up animation — computed live from drawn segments
+    const cumulativeLineStats = this._computeLiveLineStats(globalProgress, index)
+    const rawStats = cumulativeLineStats.length > 0 ? {
+      km: cumulativeLineStats.reduce((s, e) => s + e.km, 0),
+      stations: cumulativeLineStats.reduce((s, e) => s + e.stations, 0),
+      lines: cumulativeLineStats.length,
+    } : this._computeStatsAtProgress(globalProgress)
     if (rawStats) {
-      this._targetStats = rawStats
-      if (!this._displayStats) {
-        this._displayStats = { ...rawStats }
-      } else {
-        this._displayStats.km += (this._targetStats.km - this._displayStats.km) * this._STATS_LERP_SPEED
-        this._displayStats.stations = Math.round(
-          this._displayStats.stations + (this._targetStats.stations - this._displayStats.stations) * this._STATS_LERP_SPEED
-        )
-        if (Math.abs(this._displayStats.km - this._targetStats.km) < 0.05) this._displayStats.km = this._targetStats.km
-        if (this._displayStats.stations === this._targetStats.stations - 1 || this._displayStats.stations === this._targetStats.stations + 1) {
-          this._displayStats.stations = this._targetStats.stations
-        }
-      }
+      this._displayStats = rawStats
     }
 
     const overlayAlpha = globalProgress < 0.01 ? globalProgress / 0.01 : globalProgress > 0.99 ? (1 - globalProgress) / 0.01 : 1
@@ -606,8 +654,11 @@ export class TimelinePreviewEngine {
 
     // Event banner slide-in
     if (curMarker) {
-      if (this._bannerSlideYear !== year) {
-        this._bannerSlideYear = year
+      const eventText = this._eventMap.get(year)
+      const lineInfo = this._getCurrentYearLineInfo(index, globalProgress)
+      const bannerKey = `${year}:${lineInfo?.activeLineId}`
+      if (this._bannerSlideYear !== bannerKey) {
+        this._bannerSlideYear = bannerKey
         this._bannerSlideT = 0
       }
       if (yearLocalT < 0.075) {
@@ -617,49 +668,51 @@ export class TimelinePreviewEngine {
       } else {
         this._bannerSlideT = 1
       }
-
-      const eventText = this._eventMap.get(year)
-      const lineInfo = this._getCurrentYearLineInfo(index)
       const lineColor = lineInfo?.color || this._continuousPlan.segments.find(s => s.year === year)?.color || '#2563EB'
 
       renderOverlayEvent(this._ctx, eventText || null, lineColor, overlayAlpha, this._logicalWidth, this._logicalHeight, {
         nameZh: lineInfo?.nameZh || '',
         nameEn: lineInfo?.nameEn || '',
         phase: lineInfo?.phase || '',
-        deltaKm: lineInfo?.deltaKm || 0,
+        deltaKm: (lineInfo?.activeLineId && cumulativeLineStats.find(e => e.lineId === lineInfo.activeLineId)?.km) || lineInfo?.deltaKm || 0,
         slideT: this._bannerSlideT,
       })
     }
 
     // Compute per-line appearance progress for slide-in animation
     const lineAppearProgress = new Map()
+    const APPEAR_SPAN = 0.055 // globalProgress units for the animation
     for (let i = 0; i <= index && i < this._continuousPlan.yearMarkers.length; i++) {
       const marker = this._continuousPlan.yearMarkers[i]
       for (const lp of marker.yearPlan.lineDrawPlans) {
         if (i < index) {
           lineAppearProgress.set(lp.lineId, 1)
         } else {
-          lineAppearProgress.set(lp.lineId, easeOutCubic(Math.min(yearLocalT * 18, 1)))
+          // Record first time this line's segments start drawing
+          if (!this._lineFirstSeen.has(lp.lineId)) {
+            const firstSeg = this._continuousPlan.segments.find(s => s.lineId === lp.lineId && s.year === marker.year)
+            if (firstSeg && globalProgress >= firstSeg.globalStart) {
+              this._lineFirstSeen.set(lp.lineId, firstSeg.globalStart)
+            }
+          }
+          const seenAt = this._lineFirstSeen.get(lp.lineId)
+          if (seenAt == null) {
+            lineAppearProgress.set(lp.lineId, 0)
+          } else {
+            lineAppearProgress.set(lp.lineId, easeOutCubic(Math.min((globalProgress - seenAt) / APPEAR_SPAN, 1)))
+          }
         }
       }
     }
 
-    // Per-line stats counting-up
-    const cumulativeLineStats = this._computeCumulativeLineStats(index)
+    // Per-line stats — reuse cumulativeLineStats already computed above
     for (const entry of cumulativeLineStats) {
-      if (!this._targetLineStats.has(entry.lineId)) {
-        this._targetLineStats.set(entry.lineId, { km: entry.km, stations: entry.stations })
-        this._displayLineStats.set(entry.lineId, { km: entry.km, stations: entry.stations })
-      } else {
-        const target = this._targetLineStats.get(entry.lineId)
-        target.km = entry.km
-        target.stations = entry.stations
-        const disp = this._displayLineStats.get(entry.lineId)
-        disp.km += (target.km - disp.km) * this._STATS_LERP_SPEED
-        disp.stations = Math.round(disp.stations + (target.stations - disp.stations) * this._STATS_LERP_SPEED)
-        if (Math.abs(disp.km - target.km) < 0.05) disp.km = target.km
-        if (Math.abs(disp.stations - target.stations) <= 1) disp.stations = target.stations
+      if (!this._displayLineStats.has(entry.lineId)) {
+        this._displayLineStats.set(entry.lineId, { km: 0, stations: 0 })
       }
+      const disp = this._displayLineStats.get(entry.lineId)
+      disp.km = entry.km
+      disp.stations = entry.stations
     }
 
     // Bottom-left line cards with slide-in + counting stats + stats pills
@@ -756,6 +809,30 @@ export class TimelinePreviewEngine {
       this._renderContinuousFrame(this._yearPauseProgress, now)
       return
     }
+
+    // Camera travel phase: after hold, pan to next line's start before drawing resumes
+    if (this._camTravelUntil > now) {
+      this._phaseStart += now - this._lastPlayingTick
+      this._lastPlayingTick = now
+      const CAM_TRAVEL_MS = 800
+      if (!this._camTravelFrom) {
+        this._camTravelFrom = { ...this._smoothCamera || this._camera }
+      }
+      const t = 1 - (this._camTravelUntil - now) / CAM_TRAVEL_MS
+      const ease = t * t * (3 - 2 * t)
+      const from = this._camTravelFrom
+      const to = this._camTravelTarget
+      if (from && to) {
+        this._camera = this._smoothCamera = {
+          centerLng: from.centerLng + (to.centerLng - from.centerLng) * ease,
+          centerLat: from.centerLat + (to.centerLat - from.centerLat) * ease,
+          zoom: from.zoom + (to.zoom - from.zoom) * ease,
+        }
+      }
+      this._renderContinuousFrame(this._yearPauseProgress, now)
+      return
+    }
+    this._isLinePaused = false
     this._lastPlayingTick = now
 
     const totalMs = this._getTotalDrawMs()
@@ -769,20 +846,42 @@ export class TimelinePreviewEngine {
       return
     }
 
-    // Detect year/line change and pause so the viewer can see the completed line
+    // Detect line change (across or within years) and pause + camera travel
     const { index } = this._findCurrentYear(rawProgress)
-    if (index > this._yearPauseLastIndex && this._yearPauseLastIndex >= 0) {
-      // Freeze at the boundary (just before the new year starts)
-      const marker = this._continuousPlan.yearMarkers[index]
-      const freezeProgress = marker ? Math.max(0, marker.globalStart - 1e-6) : rawProgress
-      this._yearPauseUntil = now + 1500
+    // Find the lineId currently being drawn
+    let curLineId = null
+    let curLineFirstSeg = null
+    for (const seg of this._continuousPlan.segments) {
+      if (seg.globalStart > rawProgress) break
+      if (seg.lineId !== curLineId) {
+        curLineId = seg.lineId
+        curLineFirstSeg = seg
+      }
+    }
+
+    if (curLineId && this._pauseLastLineId && curLineId !== this._pauseLastLineId) {
+      // Freeze: use a progress slightly past the boundary so last station is revealed
+      const freezeProgress = curLineFirstSeg ? curLineFirstSeg.globalStart + 1e-4 : rawProgress
+      this._isLinePaused = true
+      this._yearPauseUntil = now + 1200
       this._yearPauseProgress = freezeProgress
+      this._pauseLastLineId = curLineId
       this._yearPauseLastIndex = index
-      // Push phaseStart forward so elapsed time doesn't accumulate during pause
       this._phaseStart += (rawProgress - freezeProgress) * this._getTotalDrawMs()
+
+      // Camera travel to new line's start
+      const CAM_TRAVEL_MS = 800
+      if (curLineFirstSeg?.waypoints?.length) {
+        const [lng, lat] = curLineFirstSeg.waypoints[0]
+        this._camTravelFrom = null
+        this._camTravelTarget = { centerLng: lng, centerLat: lat, zoom: this._fullCamera.zoom + this._zoomOffset }
+        this._camTravelUntil = this._yearPauseUntil + CAM_TRAVEL_MS
+      }
+
       this._renderContinuousFrame(freezeProgress, now)
       return
     }
+    this._pauseLastLineId = curLineId
     this._yearPauseLastIndex = index
 
     this._renderContinuousFrame(rawProgress, now)
@@ -992,6 +1091,14 @@ export class TimelinePreviewEngine {
       this._tileCache.stopProgressTracking()
       this._loadingComplete = true
     })
+  }
+
+  skipLoading() {
+    if (this._state !== 'loading') return
+    this._tileCache.stopProgressTracking()
+    this._loadingComplete = true
+    this._loadingSmoothedProgress = 1
+    this._loadingCompleteTime = 0
   }
 
   pause() {

@@ -14,6 +14,20 @@ const canvasRef = ref(null)
 
 const hasData = computed(() => store.timelineHasData)
 
+let _skipClickCount = 0
+let _skipClickTimer = null
+function onCanvasClick() {
+  if (playbackState.value !== 'loading') return
+  _skipClickCount++
+  clearTimeout(_skipClickTimer)
+  if (_skipClickCount >= 3) {
+    _skipClickCount = 0
+    onSkipLoading()
+  } else {
+    _skipClickTimer = setTimeout(() => { _skipClickCount = 0 }, 600)
+  }
+}
+
 const {
   pseudoMode,
   playbackState,
@@ -30,6 +44,7 @@ const {
   onPlay,
   onPause,
   onStop,
+  onSkipLoading,
   onSpeedChange,
   onZoomOffsetChange,
   startPseudoPreview,
@@ -123,7 +138,7 @@ const {
     </header>
 
     <div ref="containerRef" class="preview-view__canvas-container">
-      <canvas ref="canvasRef" class="preview-view__canvas" />
+      <canvas ref="canvasRef" class="preview-view__canvas" @click="onCanvasClick" />
 
       <div v-if="!hasData && !pseudoMode" class="preview-view__empty">
         <IconBase name="clock" :size="32" />
