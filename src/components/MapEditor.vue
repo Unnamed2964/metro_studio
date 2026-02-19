@@ -420,19 +420,12 @@ watch(
   )
 
   watch(
-    () => store.quickRename?.active,
-    (active) => {
-      if (active && store.quickRename?.stationOrder?.length > 0) {
-        focusOnQuickRenameStation()
-      }
-    },
-  )
-
-  watch(
-    () => store.quickRename?.currentIndex,
-    (newIndex) => {
-      if (newIndex !== undefined && store.quickRename?.active) {
-        focusOnQuickRenameStation()
+    () => store.selectedStationId,
+    () => {
+      if (store.quickRename?.active && store.quickRename?.stationOrder?.length > 0) {
+        nextTick(() => {
+          focusOnQuickRenameStation()
+        })
       }
     },
   )
