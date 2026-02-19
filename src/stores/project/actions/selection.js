@@ -147,6 +147,19 @@ const selectionActions = {
     this.statusText = `已全选 ${this.selectedStationIds.length} 个站点`
   },
 
+  selectAllLines() {
+    if (!this.project) return
+    const allEdgeIds = this.project.lines.flatMap((l) => l.edgeIds || [])
+    const allStationIds = new Set()
+    for (const edge of this.project.edges || []) {
+      if (edge.fromStationId) allStationIds.add(edge.fromStationId)
+      if (edge.toStationId) allStationIds.add(edge.toStationId)
+    }
+    this.setSelectedEdges([...new Set(allEdgeIds)], { keepStations: false })
+    this.setSelectedStations([...allStationIds], { keepEdges: true })
+    this.statusText = `已全选所有线路`
+  },
+
   selectLineStationsOnly(lineId) {
     if (!this.project) return
     const line = this.project.lines.find((l) => l.id === lineId)

@@ -110,19 +110,6 @@ export function ensureSources(map, store) {
   } else {
     map.getSource('region-boundary').setData(buildBoundaryGeoJson(store.regionBoundary))
   }
-
-  if (!map.getLayer('region-boundary-line')) {
-    map.addLayer({
-      id: 'region-boundary-line',
-      type: 'line',
-      source: 'region-boundary',
-      paint: {
-        'line-color': '#0EA5E9',
-        'line-width': 1.5,
-        'line-dasharray': [1.2, 1.2],
-      },
-    })
-  }
 }
 
 function updateSelectedEdgeFilter(map, store) {

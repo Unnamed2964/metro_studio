@@ -205,6 +205,7 @@ const { rebuildBindings } = useShortcuts({
   'edit.redo': () => store.redo(),
   'edit.redoAlt': () => store.redo(),
   'edit.selectAll': () => store.selectAllStations(),
+  'edit.selectAllLines': () => store.selectAllLines(),
   'edit.escape': () => {
     // Let registered escape callbacks handle first (context menus, AI menus, etc.)
     for (const cb of escapeCallbacks) {

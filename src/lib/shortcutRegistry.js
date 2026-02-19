@@ -13,6 +13,7 @@ const DEFAULT_SHORTCUTS = [
   { id: 'edit.redo',          label: '重做',           defaultBinding: 'Ctrl+Shift+Z', category: '编辑', when: 'global' },
   { id: 'edit.redoAlt',       label: '重做',           defaultBinding: 'Ctrl+Y',       category: '编辑', when: 'global', hidden: true },
   { id: 'edit.selectAll',     label: '全选站点',       defaultBinding: 'Ctrl+A',       category: '编辑', when: 'global' },
+  { id: 'edit.selectAllLines', label: '全选所有线路',  defaultBinding: 'Alt+A',        category: '编辑', when: 'global' },
   { id: 'edit.escape',        label: '取消/清空选择',  defaultBinding: 'Escape',       category: '编辑', when: 'global' },
   { id: 'edit.delete',        label: '删除选中',       defaultBinding: 'Delete',       category: '编辑', when: 'global' },
   { id: 'edit.deleteAlt',     label: '删除选中',       defaultBinding: 'Backspace',    category: '编辑', when: 'global', hidden: true },
