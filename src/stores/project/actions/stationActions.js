@@ -154,6 +154,28 @@ export const stationActions = {
     this.touchProject('已删除选中站点')
   },
 
+  deleteNewStations() {
+    if (!this.project) return
+    const removing = new Set(
+      this.project.stations.filter((s) => s.nameZh?.startsWith('新站 ')).map((s) => s.id)
+    )
+    if (!removing.size) return
+    this.project.stations = this.project.stations.filter((s) => !removing.has(s.id))
+    this.project.manualTransfers = (this.project.manualTransfers || []).filter(
+      (t) => !removing.has(t?.stationAId) && !removing.has(t?.stationBId),
+    )
+    this.project.edges = this.project.edges.filter(
+      (e) => !removing.has(e.fromStationId) && !removing.has(e.toStationId),
+    )
+    const edgeIdSet = new Set(this.project.edges.map((e) => e.id))
+    for (const line of this.project.lines) {
+      line.edgeIds = (line.edgeIds || []).filter((id) => edgeIdSet.has(id))
+    }
+    this.recomputeStationLineMembership()
+    this.clearSelection()
+    this.touchProject(`已删除 ${removing.size} 个未命名新站`)
+  },
+
   deleteStation(stationId) {
     if (!this.project || !stationId) return
     const removing = new Set([stationId])

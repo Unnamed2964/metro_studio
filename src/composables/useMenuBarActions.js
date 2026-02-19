@@ -111,6 +111,8 @@ export function useMenuBarActions(store, emit, refs) {
       { type: 'item', label: '删除选中线段', action: 'deleteEdges', shortcut: shortcutOf('edit.delete'), icon: 'trash', disabled: !(store.selectedEdgeIds?.length) },
       { type: 'separator' },
       { type: 'item', label: '批量编辑站名', action: 'batchNameEdit', icon: 'edit', disabled: !store.project?.stations?.length },
+      { type: 'separator' },
+      { type: 'item', label: '删除所有未命名新站', action: 'deleteNewStations', icon: 'trash', disabled: !store.project?.stations?.some((s) => s.nameZh?.startsWith('新站 ')) },
     ]
   })
 
@@ -250,6 +252,7 @@ export function useMenuBarActions(store, emit, refs) {
       selectAll: () => store.selectAllStations(),
       clearSelection: () => store.clearSelection(),
       deleteStations: () => store.deleteSelectedStations(),
+      deleteNewStations: () => store.deleteNewStations(),
       deleteEdges: () => store.deleteSelectedEdge(),
       exportActualRoute: () => store.exportActualRoutePng(),
       exportSchematic: () => store.exportOfficialSchematicPng(),
