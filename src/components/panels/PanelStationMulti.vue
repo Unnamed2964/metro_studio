@@ -46,7 +46,9 @@ function applyBatchStationRename() {
 }
 
 function copyStationNames() {
-  const names = selectedStationsInOrder.value.map((s) => s.nameZh).join(' ')
+  const names = [...selectedStationsInOrder.value]
+    .sort((a, b) => (a.lngLat?.[0] ?? 0) - (b.lngLat?.[0] ?? 0) || (b.lngLat?.[1] ?? 0) - (a.lngLat?.[1] ?? 0))
+    .map((s) => s.nameZh).join(' ')
   navigator.clipboard.writeText(names)
 }
 
