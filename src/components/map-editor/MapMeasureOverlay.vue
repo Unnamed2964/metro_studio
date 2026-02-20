@@ -67,7 +67,7 @@ defineProps({
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+  background: var(--ark-pink);
   color: white;
   display: flex;
   align-items: center;

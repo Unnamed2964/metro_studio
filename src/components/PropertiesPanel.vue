@@ -78,6 +78,7 @@ function toggleCollapse() {
   <aside class="properties-panel" :class="{ 'properties-panel--collapsed': collapsed }" :style="collapsed ? {} : { width: `${width}px` }">
     <div v-if="!collapsed" class="properties-panel__resize-handle" @pointerdown="onPointerDown" />
     <div class="properties-panel__header">
+      <div class="properties-panel__header-indicator" :class="{ 'properties-panel__header-indicator--active': panelType !== 'none' }"></div>
       <template v-if="!collapsed">
         <IconBase :name="panelIcon" :size="14" class="properties-panel__header-icon" />
         <span class="properties-panel__title">{{ panelTitle }}</span>
@@ -133,7 +134,7 @@ function toggleCollapse() {
 
 .properties-panel__resize-handle:hover,
 .properties-panel__resize-handle:active {
-  background: var(--toolbar-tab-active-border);
+  background: var(--ark-pink);
 }
 
 .properties-panel__header {
@@ -148,12 +149,15 @@ function toggleCollapse() {
 
 .properties-panel__header-icon {
   flex-shrink: 0;
-  color: var(--toolbar-muted);
+  color: var(--ark-pink);
 }
 
 .properties-panel__title {
-  font-size: 13px;
+  font-family: var(--app-font-mono);
+  font-size: 12px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--toolbar-text);
   flex: 1;
   min-width: 0;
@@ -185,6 +189,24 @@ function toggleCollapse() {
   min-height: 0;
   overflow-y: auto;
   padding: 10px 12px;
+  background-image:
+    linear-gradient(var(--ark-border-dim) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ark-border-dim) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: -1px -1px;
+}
+
+.properties-panel__header-indicator {
+  width: 3px;
+  align-self: stretch;
+  background: var(--ark-border-dim);
+  transition: background 150ms, box-shadow 150ms;
+  flex-shrink: 0;
+}
+
+.properties-panel__header-indicator--active {
+  background: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
 }
 
 .properties-panel__body::-webkit-scrollbar {

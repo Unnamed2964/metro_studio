@@ -4,7 +4,6 @@
   left: 16px;
   background: var(--toolbar-card-bg);
   border: 1px solid var(--toolbar-border);
-  border-radius: 8px;
   padding: 8px 10px;
   max-width: 200px;
   z-index: 1000;

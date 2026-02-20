@@ -132,16 +132,18 @@ defineExpose({ menuEl })
   max-height: calc(100% - 16px);
   overflow: auto;
   border: 1px solid var(--toolbar-border);
-  border-radius: 12px;
-  background: var(--toolbar-card-bg);
+  background: var(--ark-bg-card);
   color: var(--toolbar-text);
   padding: 10px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
 }
 
 .map-editor__context-menu h3 {
   margin: 0 0 6px;
-  font-size: 14px;
+  font-family: var(--app-font-mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .map-editor__context-meta {
@@ -172,9 +174,9 @@ defineExpose({ menuEl })
 
 .map-editor__context-row button {
   border: 1px solid var(--toolbar-button-border);
-  border-radius: 7px;
   background: var(--toolbar-button-bg);
   color: var(--toolbar-button-text);
+  font-family: var(--app-font-mono);
   font-size: 11px;
   padding: 5px 7px;
   cursor: pointer;
@@ -182,7 +184,8 @@ defineExpose({ menuEl })
 }
 
 .map-editor__context-row button:hover:not(:disabled) {
-  border-color: var(--toolbar-button-hover-border);
+  border-color: var(--ark-pink);
+  color: var(--ark-pink);
 }
 
 .map-editor__context-row button:disabled {

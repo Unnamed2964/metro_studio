@@ -139,18 +139,16 @@ watch(
   gap: 6px;
   width: 100%;
   padding: 8px 12px;
-  border: 1.5px dashed var(--toolbar-primary-border);
-  border-radius: 6px;
+  border: 1.5px dashed var(--ark-pink);
   background: transparent;
-  color: var(--toolbar-primary-bg);
+  color: var(--ark-pink);
   font-size: 12px;
   cursor: pointer;
-  transition: background var(--transition-fast, 0.1s ease), border-color var(--transition-fast, 0.1s ease);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .add-line-btn:hover {
-  background: rgba(29, 78, 216, 0.08);
-  border-color: var(--toolbar-primary-bg);
+  background: rgba(255, 45, 120, 0.08);
 }
 
 .line-list {
@@ -172,18 +170,16 @@ watch(
   width: 100%;
   padding: 6px 8px 6px 12px;
   border: 1px solid var(--toolbar-input-border);
-  border-radius: 6px;
   background: var(--toolbar-input-bg);
   color: var(--toolbar-text);
   font-size: 12px;
   cursor: pointer;
-  transition: all var(--transition-fast, 0.1s ease);
+  transition: all var(--transition-fast);
 }
 
 .line-item:hover {
-  border-color: var(--toolbar-button-hover-border);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.12));
+  border-color: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
 }
 
 .line-item:hover::before {
@@ -192,15 +188,14 @@ watch(
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: var(--indicator-width, 2px);
+  width: 2px;
   height: 16px;
-  background: var(--indicator-color, var(--toolbar-primary-bg));
-  border-radius: 0 1px 1px 0;
+  background: var(--ark-pink);
 }
 
 .line-item.active {
   background: var(--toolbar-tab-active-bg);
-  border-color: var(--toolbar-tab-active-border);
+  border-color: var(--ark-pink);
 }
 
 .line-item.active::before {
@@ -209,10 +204,10 @@ watch(
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: var(--indicator-width, 2px);
+  width: 2px;
   height: 16px;
-  background: var(--indicator-color, var(--toolbar-primary-bg));
-  border-radius: 0 1px 1px 0;
+  background: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
 }
 
 .line-swatch {

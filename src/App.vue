@@ -388,8 +388,8 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: #060b14;
-  color: #e4edf8;
+  background: var(--ark-bg-deep, #0a0a0f);
+  color: var(--ark-text, #e8e4f0);
   flex-direction: column;
   align-items: center;
   justify-content: center;

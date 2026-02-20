@@ -335,10 +335,10 @@ const {
   align-items: center;
   gap: 6px;
   padding: 8px 18px;
-  border: 1px solid var(--toolbar-primary-bg, #8b5cf6);
+  border: 1px solid var(--toolbar-primary-bg, #ff2d78);
   border-radius: 6px;
   background: transparent;
-  color: var(--toolbar-primary-bg, #8b5cf6);
+  color: var(--toolbar-primary-bg, #ff2d78);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -346,7 +346,7 @@ const {
 }
 
 .preview-view__pseudo-btn:hover {
-  background: var(--toolbar-primary-bg, #8b5cf6);
+  background: var(--toolbar-primary-bg, #ff2d78);
   color: #fff;
 }
 

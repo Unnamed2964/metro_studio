@@ -331,6 +331,7 @@ function statusLabel(status) {
 
 .stats-value {
   color: var(--toolbar-text);
+  font-family: var(--app-font-mono);
   font-size: 12px;
 }
 
@@ -390,6 +391,7 @@ function statusLabel(status) {
 
 .line-ranking-index {
   color: var(--toolbar-muted);
+  font-family: var(--app-font-mono);
   font-size: 10px;
   font-weight: 600;
   min-width: 14px;

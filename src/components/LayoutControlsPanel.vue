@@ -19,6 +19,7 @@ function toggleCollapse() {
   <aside class="layout-controls-panel" :class="{ 'layout-controls-panel--collapsed': collapsed }" :style="collapsed ? {} : { width: `${width}px` }">
     <div v-if="!collapsed" class="layout-controls-panel__resize-handle" @pointerdown="onPointerDown" />
     <div class="layout-controls-panel__header">
+      <div class="layout-controls-panel__header-indicator"></div>
       <template v-if="!collapsed">
         <IconBase name="sliders" :size="14" class="layout-controls-panel__header-icon" />
         <span class="layout-controls-panel__title">排版控制</span>
@@ -81,7 +82,7 @@ function toggleCollapse() {
 
 .layout-controls-panel__resize-handle:hover,
 .layout-controls-panel__resize-handle:active {
-  background: var(--toolbar-tab-active-border);
+  background: var(--ark-pink);
 }
 
 .layout-controls-panel__header {
@@ -96,12 +97,15 @@ function toggleCollapse() {
 
 .layout-controls-panel__header-icon {
   flex-shrink: 0;
-  color: var(--toolbar-muted);
+  color: var(--ark-pink);
 }
 
 .layout-controls-panel__title {
-  font-size: 13px;
+  font-family: var(--app-font-mono);
+  font-size: 12px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--toolbar-text);
   flex: 1;
   min-width: 0;
@@ -152,5 +156,12 @@ function toggleCollapse() {
 
 .pp-btn--full {
   width: 100%;
+}
+
+.layout-controls-panel__header-indicator {
+  width: 3px;
+  align-self: stretch;
+  background: var(--ark-border-dim);
+  flex-shrink: 0;
 }
 </style>

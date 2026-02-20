@@ -181,7 +181,11 @@ function toggleNavigation() {
 <template>
   <header ref="menuBarRef" class="menu-bar">
     <div class="menu-bar__left">
-      <span class="menu-bar__brand">Metro Studio</span>
+      <div class="menu-bar__brand">
+        <span class="menu-bar__brand-mark">[</span>
+        <span class="menu-bar__brand-text">METRO STUDIO</span>
+        <span class="menu-bar__brand-mark">]</span>
+      </div>
       <span class="menu-bar__brand-sep" />
 
       <nav class="menu-bar__menus">
@@ -310,19 +314,6 @@ function toggleNavigation() {
         </NTooltip>
       </div>
 
-      <NTooltip placement="bottom" :delay="300">
-        <template #trigger>
-          <button
-            class="menu-bar__theme-btn"
-            type="button"
-            @click="toggleTheme"
-            aria-label="切换主题"
-          >
-            <IconBase :name="uiTheme === 'light' ? 'moon' : 'sun'" :size="16" />
-          </button>
-        </template>
-        切换主题
-      </NTooltip>
     </div>
 
     <input
@@ -332,18 +323,20 @@ function toggleNavigation() {
       class="menu-bar__file-input"
       @change="onFileSelected"
     />
+    <div class="menu-bar__edge-line"></div>
   </header>
 </template>
 
 <style scoped>
 .menu-bar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 40px;
   padding: 0 8px;
   background: var(--toolbar-header-bg);
-  border-bottom: 1px solid var(--toolbar-border);
+  backdrop-filter: blur(12px) saturate(1.2);
   flex-shrink: 0;
   z-index: 100;
 }
@@ -355,11 +348,25 @@ function toggleNavigation() {
 }
 
 .menu-bar__brand {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--toolbar-text);
+  display: flex;
+  align-items: center;
+  gap: 2px;
   padding: 0 8px 0 4px;
-  letter-spacing: 0.05em;
+}
+
+.menu-bar__brand-text {
+  font-family: var(--app-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ark-pink);
+  letter-spacing: 0.15em;
+}
+
+.menu-bar__brand-mark {
+  font-family: var(--app-font-mono);
+  font-size: 14px;
+  color: var(--ark-pink);
+  opacity: 0.4;
 }
 
 .menu-bar__brand-sep {
@@ -381,20 +388,21 @@ function toggleNavigation() {
   border: none;
   background: transparent;
   color: var(--toolbar-muted);
-  font-size: 12px;
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   padding: 6px 12px;
-  border-radius: 4px;
   cursor: pointer;
-  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease);
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .menu-bar__menu-btn:hover {
-  backdrop-filter: brightness(1.2);
-  color: var(--toolbar-text);
+  color: var(--ark-pink);
 }
 
 .menu-bar__menu-btn--open {
-  color: var(--toolbar-text);
+  color: var(--ark-text);
   background: var(--toolbar-tab-active-bg);
 }
 
@@ -406,8 +414,7 @@ function toggleNavigation() {
   transform: translateX(-50%);
   width: calc(100% - 16px);
   height: 2px;
-  background: var(--indicator-color, var(--toolbar-primary-bg));
-  border-radius: 1px 1px 0 0;
+  background: var(--ark-pink);
 }
 
 .menu-bar__right {
@@ -491,6 +498,7 @@ function toggleNavigation() {
 .menu-bar__view-btn--active {
   background: var(--toolbar-tab-active-bg);
   color: var(--toolbar-tab-active-text);
+  box-shadow: inset 0 -2px 0 var(--ark-pink);
 }
 
 .menu-bar__year-selector {
@@ -543,6 +551,7 @@ function toggleNavigation() {
   border: none;
   background: transparent;
   color: var(--toolbar-text);
+  font-family: var(--app-font-mono);
   font-size: 12px;
   font-weight: 600;
   text-align: center;
@@ -565,48 +574,39 @@ function toggleNavigation() {
   display: none;
 }
 
-.menu-bar__theme-btn {
-  border: 1px solid var(--toolbar-input-border);
-  background: var(--toolbar-input-bg);
-  color: var(--toolbar-muted);
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease);
-  display: flex;
-  align-items: center;
-  border-radius: 6px;
-}
-
-.menu-bar__theme-btn:hover {
-  color: var(--toolbar-text);
-  background: rgba(255, 255, 255, 0.04);
-}
-
 .menu-bar__nav-btn {
   border: 1px solid var(--toolbar-input-border);
   background: var(--toolbar-input-bg);
   color: var(--toolbar-muted);
   padding: 6px 10px;
   cursor: pointer;
-  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease), border-color var(--transition-fast, 0.1s ease);
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
   display: flex;
   align-items: center;
-  border-radius: 6px;
 }
 
 .menu-bar__nav-btn:hover {
-  color: var(--toolbar-text);
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--ark-pink);
+  border-color: var(--ark-pink);
 }
 
 .menu-bar__nav-btn--active {
-  color: var(--toolbar-tab-active-text);
-  background: var(--toolbar-primary-bg, #8b5cf6);
-  border-color: var(--toolbar-primary-bg, #8b5cf6);
+  color: #fff;
+  background: var(--ark-pink);
+  border-color: var(--ark-pink);
 }
 
 .menu-bar__nav-btn--active:hover {
-  background: var(--toolbar-primary-bg, #8b5cf6);
   opacity: 0.9;
+}
+
+.menu-bar__edge-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--ark-pink);
+  opacity: 0.3;
 }
 </style>

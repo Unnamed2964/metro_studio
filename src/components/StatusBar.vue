@@ -77,19 +77,20 @@ const projectSummary = computed(() => {
 
 <template>
   <footer class="status-bar">
+    <div class="status-bar__edge-line"></div>
     <div class="status-bar__section">
-      <span class="status-bar__label">模式</span>
-      <span class="status-bar__badge">{{ modeLabel }}</span>
+      <span class="status-bar__label">[模式]</span>
+      <span class="status-bar__badge ark-chamfer">{{ modeLabel }}</span>
       <span v-if="store.currentEditYear != null" class="status-bar__badge status-bar__badge--year">编辑年份: {{ store.currentEditYear }}</span>
     </div>
     <div class="status-bar__divider"></div>
     <div class="status-bar__section">
-      <span class="status-bar__label">选中</span>
+      <span class="status-bar__label">[选中]</span>
       <span class="status-bar__value">{{ selectionSummary }}</span>
     </div>
     <div class="status-bar__divider"></div>
     <div class="status-bar__section status-bar__section--grow">
-      <span class="status-bar__label">工程</span>
+      <span class="status-bar__label">[工程]</span>
       <span class="status-bar__value">{{ projectSummary }}</span>
     </div>
     <div class="status-bar__divider"></div>
@@ -104,7 +105,7 @@ const projectSummary = computed(() => {
     </div>
     <div class="status-bar__divider"></div>
     <div class="status-bar__section">
-      <span class="status-bar__label">全球排名</span>
+      <span class="status-bar__label">[排名]</span>
       <NTooltip placement="top">
         <template #trigger>
           <span class="status-bar__value status-bar__value--ranking" @click="refreshRanking" style="cursor: pointer;">
@@ -116,7 +117,7 @@ const projectSummary = computed(() => {
     </div>
     <div class="status-bar__divider"></div>
     <div class="status-bar__section">
-      <span class="status-bar__label">版本</span>
+      <span class="status-bar__label">[版本]</span>
       <span class="status-bar__value status-bar__value--version">{{ appVersion }}</span>
     </div>
   </footer>
@@ -124,15 +125,27 @@ const projectSummary = computed(() => {
 
 <style scoped>
 .status-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 4px 12px;
-  background: var(--workspace-panel-header-bg);
-  border-top: 1px solid var(--workspace-panel-header-border);
-  font-size: 11px;
+  background: var(--toolbar-header-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  font-family: var(--app-font-mono);
+  font-size: 10px;
   line-height: 1.4;
   min-height: 28px;
+}
+
+.status-bar__edge-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--ark-pink);
+  opacity: 0.2;
 }
 
 .status-bar__section {
@@ -154,17 +167,20 @@ const projectSummary = computed(() => {
 }
 
 .status-bar__label {
-  color: var(--workspace-panel-muted);
+  color: var(--ark-text-dim);
+  font-size: 9px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   flex-shrink: 0;
 }
 
 .status-bar__badge {
-  color: var(--toolbar-tab-active-text);
+  color: #fff;
   font-weight: 500;
-  background: var(--toolbar-tab-active-bg);
+  background: rgba(255, 45, 120, 0.15);
+  border: 1px solid rgba(255, 45, 120, 0.3);
   padding: 1px 6px;
-  border-radius: var(--radius-sm, 4px);
   font-size: 10px;
 }
 
@@ -222,26 +238,24 @@ const projectSummary = computed(() => {
 }
 
 .status-bar__save-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  width: 5px;
+  height: 5px;
   flex-shrink: 0;
 }
 
 .status-bar__save--saved {
-  background: #34d399;
-  box-shadow: 0 0 4px rgba(52, 211, 153, 0.4);
+  background: var(--ark-text-dim);
 }
 
 .status-bar__save--unsaved {
-  background: #fbbf24;
-  box-shadow: 0 0 4px rgba(251, 191, 36, 0.4);
+  background: var(--ark-pink);
+  box-shadow: 0 0 4px var(--ark-pink-glow);
 }
 
 .status-bar__save--saving {
-  background: #60a5fa;
-  box-shadow: 0 0 4px rgba(96, 165, 250, 0.4);
-  animation: save-pulse 1s ease-in-out infinite;
+  background: var(--ark-purple);
+  box-shadow: 0 0 4px var(--ark-purple-glow);
+  animation: ark-pulse 1s ease-in-out infinite;
 }
 
 .status-bar__save--error {
@@ -250,13 +264,8 @@ const projectSummary = computed(() => {
 }
 
 .status-bar__save-time {
-  color: var(--workspace-panel-muted);
+  color: var(--ark-text-dim);
   font-size: 10px;
-}
-
-@keyframes save-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
 }
 
 @media (max-width: 960px) {

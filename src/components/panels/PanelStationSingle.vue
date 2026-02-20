@@ -167,8 +167,8 @@ watch(
 }
 
 .station-badge--interchange {
-  background: var(--toolbar-active-bg);
-  border: 1px solid var(--toolbar-active-border);
-  color: var(--toolbar-status);
+  background: rgba(255, 45, 120, 0.1);
+  border: 1px solid rgba(255, 45, 120, 0.3);
+  color: var(--ark-pink);
 }
 </style>

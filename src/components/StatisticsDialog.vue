@@ -320,7 +320,7 @@ watch(
 
 .stats-dialog__tab--active {
   color: var(--toolbar-text);
-  border-bottom-color: #8b5cf6;
+  border-bottom-color: var(--ark-pink);
 }
 
 .stats-dialog__body {
@@ -502,7 +502,7 @@ watch(
 
 .interchange-item__count {
   padding: 4px 10px;
-  background: #8b5cf6;
+  background: var(--ark-pink);
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;
@@ -571,13 +571,12 @@ watch(
 }
 
 .stats-dialog__btn--primary {
-  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #6366f1 100%);
-  border-color: var(--toolbar-primary-border);
+  background: var(--ark-pink);
+  border-color: var(--ark-pink);
   color: #fff;
 }
 
 .stats-dialog__btn--primary:hover {
-  background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #818cf8 100%);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
+  box-shadow: 0 2px 8px var(--ark-pink-glow);
 }
 </style>

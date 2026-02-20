@@ -66,6 +66,7 @@ const redoShortcut = computed(() => {
 
 <template>
   <aside class="tool-strip">
+    <div class="tool-strip__accent-bar"></div>
     <div class="tool-strip__tools">
       <NTooltip
         v-for="tool in tools"
@@ -116,10 +117,19 @@ const redoShortcut = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0;
-  background: var(--toolbar-bg);
+  padding: 0 0 8px;
+  background: var(--ark-bg-base);
   border-right: 1px solid var(--toolbar-border);
   overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.tool-strip__accent-bar {
+  width: 100%;
+  height: 2px;
+  background: var(--ark-pink);
+  opacity: 0.5;
+  margin-bottom: 4px;
   flex-shrink: 0;
 }
 
@@ -154,36 +164,35 @@ const redoShortcut = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: var(--radius-md, 8px);
   background: transparent;
   color: var(--toolbar-muted);
   cursor: pointer;
-  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease);
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .tool-strip__btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 45, 120, 0.08);
   color: var(--toolbar-text);
 }
 
 .tool-strip__btn--active {
-  color: var(--toolbar-tab-active-text);
+  color: var(--ark-pink);
   background: transparent;
 }
 
 .tool-strip__btn--active::before {
   content: '';
   position: absolute;
-  left: -6px;
+  left: -7px;
   top: 50%;
   transform: translateY(-50%);
   width: var(--indicator-width, 2px);
   height: 20px;
-  background: var(--indicator-color, var(--toolbar-primary-bg));
-  border-radius: 0 1px 1px 0;
+  background: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
 }
 
 .tool-strip__btn:disabled {

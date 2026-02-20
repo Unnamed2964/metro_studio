@@ -1,5 +1,6 @@
 :root {
-  --app-font-family: 'Source Han Sans SC', 'Noto Sans CJK SC', 'Segoe UI', sans-serif;
+  --app-font-family: 'Inter', 'Source Han Sans SC', 'Noto Sans CJK SC', sans-serif;
+  --app-font-mono: 'JetBrains Mono', monospace;
   font-family: var(--app-font-family);
   line-height: 1.4;
   font-weight: 400;
@@ -8,130 +9,91 @@
   -moz-osx-font-smoothing: grayscale;
   color-scheme: dark;
 
-  --app-bg: #060b14;
-  --app-shell-gradient: linear-gradient(144deg, #0a1323 0%, #0c1628 45%, #101d31 100%);
-  --app-text: #e4edf8;
-  --workspace-bg: #0a1220;
+  /* ── Ark palette ── */
+  --ark-bg-deep: #0a0a0f;
+  --ark-bg-base: #0e0e16;
+  --ark-bg-raised: #14141f;
+  --ark-bg-card: #1a1a28;
+  --ark-pink: #ff2d78;
+  --ark-purple: #a855f7;
+  --ark-text: #e8e4f0;
+  --ark-text-muted: #6b6880;
+  --ark-text-dim: #4a4760;
+  --ark-border: #2a2838;
+  --ark-border-hot: #ff2d78;
+  --ark-border-dim: #1e1c2a;
+  --ark-pink-glow: rgba(255,45,120,0.25);
+  --ark-purple-glow: rgba(168,85,247,0.2);
 
-  --toolbar-bg: #0a1220;
-  --toolbar-header-bg: rgba(14, 24, 40, 0.88);
-  --toolbar-border: #27354b;
-  --toolbar-card-bg: #111c2e;
-  --toolbar-card-border: #2a3c55;
-  --toolbar-text: #e5eefb;
-  --toolbar-muted: #9ab2ce;
+  /* ── Mapped legacy tokens ── */
+  --app-bg: var(--ark-bg-deep);
+  --app-shell-gradient: linear-gradient(144deg, var(--ark-bg-deep) 0%, var(--ark-bg-base) 45%, var(--ark-bg-raised) 100%);
+  --app-text: var(--ark-text);
+  --workspace-bg: var(--ark-bg-base);
+
+  --toolbar-bg: var(--ark-bg-base);
+  --toolbar-header-bg: rgba(14, 14, 22, 0.92);
+  --toolbar-border: var(--ark-border);
+  --toolbar-card-bg: var(--ark-bg-card);
+  --toolbar-card-border: var(--ark-border);
+  --toolbar-text: var(--ark-text);
+  --toolbar-muted: var(--ark-text-muted);
   --toolbar-status: #c8f6da;
-  --toolbar-hint: #a8d4ff;
-  --toolbar-input-bg: #0b1526;
-  --toolbar-input-border: #334865;
-  --toolbar-input-text: #eff6ff;
-  --toolbar-scrollbar-thumb: #405777;
-  --toolbar-divider: #334865;
-  --toolbar-tab-bg: #0d182b;
-  --toolbar-tab-active-bg: #1f3559;
-  --toolbar-tab-active-border: #4f79b1;
-  --toolbar-tab-active-text: #f8fbff;
-  --toolbar-button-bg: #13243b;
-  --toolbar-button-border: #3b5577;
-  --toolbar-button-text: #e7f0ff;
-  --toolbar-button-hover-border: #7696bf;
-  --toolbar-primary-bg: #8b5cf6;
-  --toolbar-primary-border: #a78bfa;
+  --toolbar-hint: var(--ark-purple);
+  --toolbar-input-bg: var(--ark-bg-deep);
+  --toolbar-input-border: var(--ark-border);
+  --toolbar-input-text: var(--ark-text);
+  --toolbar-scrollbar-thumb: #3a3850;
+  --toolbar-divider: var(--ark-border);
+  --toolbar-tab-bg: var(--ark-bg-deep);
+  --toolbar-tab-active-bg: rgba(255,45,120,0.08);
+  --toolbar-tab-active-border: var(--ark-pink);
+  --toolbar-tab-active-text: #fff;
+  --toolbar-button-bg: var(--ark-bg-raised);
+  --toolbar-button-border: var(--ark-border);
+  --toolbar-button-text: var(--ark-text);
+  --toolbar-button-hover-border: var(--ark-pink);
+  --toolbar-primary-bg: var(--ark-pink);
+  --toolbar-primary-border: var(--ark-pink);
   --toolbar-danger-bg: #8d2430;
   --toolbar-danger-border: #b53242;
   --toolbar-active-bg: #0f5335;
   --toolbar-active-border: #24c97b;
-  --toolbar-item-bg: #0c1728;
+  --toolbar-item-bg: var(--ark-bg-deep);
 
-  --workspace-panel-bg: #111a2c;
-  --workspace-panel-border: #2a3a53;
-  --workspace-panel-header-bg: #111b2f;
-  --workspace-panel-header-border: #2a3a53;
-  --workspace-panel-text: #e4edf8;
-  --workspace-panel-muted: #b0c1d6;
-  --workspace-canvas-bg: #0d1729;
+  --workspace-panel-bg: var(--ark-bg-raised);
+  --workspace-panel-border: var(--ark-border);
+  --workspace-panel-header-bg: var(--ark-bg-raised);
+  --workspace-panel-header-border: var(--ark-border);
+  --workspace-panel-text: var(--ark-text);
+  --workspace-panel-muted: var(--ark-text-muted);
+  --workspace-canvas-bg: var(--ark-bg-deep);
 
   /* ── Design tokens ── */
   --transition-instant: 0ms cubic-bezier(0.16,1,0.3,1);
   --transition-fast: 120ms cubic-bezier(0.16,1,0.3,1);
   --transition-normal: 200ms cubic-bezier(0.16,1,0.3,1);
   --transition-slow: 300ms cubic-bezier(0.16,1,0.3,1);
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35);
-  --focus-ring: 0 0 0 2px rgba(139, 92, 246, 0.25);
-  --indicator-color: var(--toolbar-primary-bg);
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --focus-ring: 0 0 0 1px var(--ark-pink), 0 0 6px var(--ark-pink-glow);
+  --indicator-color: var(--ark-pink);
   --indicator-width: 2px;
-}
 
-:root[data-ui-theme='light'] {
-  color-scheme: light;
-
-  --app-bg: #ecf1f7;
-  --app-shell-gradient: linear-gradient(144deg, #e3ebf4 0%, #edf3f9 48%, #f6f9fc 100%);
-  --app-text: #0f172a;
-  --workspace-bg: #edf3fa;
-
-  --toolbar-bg: #edf3fa;
-  --toolbar-header-bg: rgba(255, 255, 255, 0.9);
-  --toolbar-border: #cfd9e6;
-  --toolbar-card-bg: #f8fbff;
-  --toolbar-card-border: #d3deec;
-  --toolbar-text: #0f1a2e;
-  --toolbar-muted: #54657f;
-  --toolbar-status: #0f6b43;
-  --toolbar-hint: #8b5cf6;
-  --toolbar-input-bg: #ffffff;
-  --toolbar-input-border: #bfccdd;
-  --toolbar-input-text: #0f172a;
-  --toolbar-scrollbar-thumb: #a8b6c8;
-  --toolbar-divider: #d2deeb;
-  --toolbar-tab-bg: #ffffff;
-  --toolbar-tab-active-bg: #d7e7fb;
-  --toolbar-tab-active-border: #7aa7de;
-  --toolbar-tab-active-text: #11335d;
-  --toolbar-button-bg: #ffffff;
-  --toolbar-button-border: #b8c8dd;
-  --toolbar-button-text: #1a273a;
-  --toolbar-button-hover-border: #7093bd;
-  --toolbar-primary-bg: #8b5cf6;
-  --toolbar-primary-border: #7c3aed;
-  --toolbar-danger-bg: #c94959;
-  --toolbar-danger-border: #bc3348;
-  --toolbar-active-bg: #1b8f5a;
-  --toolbar-active-border: #16784a;
-  --toolbar-item-bg: #ffffff;
-
-  --workspace-panel-bg: #ffffff;
-  --workspace-panel-border: #cfdae7;
-  --workspace-panel-header-bg: #f9fbfe;
-  --workspace-panel-header-border: #d8e2ee;
-  --workspace-panel-text: #0f172a;
-  --workspace-panel-muted: #334155;
-  --workspace-canvas-bg: #ecf1f5;
-
-  /* ── Design tokens (light overrides) ── */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.15);
-  --focus-ring: 0 0 0 2px rgba(139, 92, 246, 0.2);
-}
-
-:root[data-ui-theme='light'] .pp-context {
-  border-bottom-color: rgba(0,0,0,0.08);
-}
-
-:root[data-ui-theme='light'] .pp-actions {
-  border-top-color: rgba(0,0,0,0.08);
+  /* ── Clip-path chamfers ── */
+  --clip-chamfer-sm: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+  --clip-chamfer-md: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
 }
 
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+  border-radius: 0 !important;
 }
 
 body {
@@ -165,8 +127,11 @@ body {
 .pp-kv-label {
   flex-shrink: 0;
   width: 56px;
-  color: var(--toolbar-muted);
-  font-size: 11px;
+  color: var(--ark-text-muted);
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .pp-kv-value {
@@ -197,8 +162,8 @@ body {
 }
 
 .pp-input:focus {
-  border-color: var(--toolbar-tab-active-border);
-  box-shadow: var(--focus-ring);
+  border-color: var(--ark-pink);
+  box-shadow: 0 0 0 1px var(--ark-pink), 0 0 6px var(--ark-pink-glow);
 }
 
 .pp-select {
@@ -220,8 +185,8 @@ body {
 }
 
 .pp-select:focus {
-  border-color: var(--toolbar-tab-active-border);
-  box-shadow: var(--focus-ring);
+  border-color: var(--ark-pink);
+  box-shadow: 0 0 0 1px var(--ark-pink), 0 0 6px var(--ark-pink-glow);
 }
 
 .pp-color {
@@ -301,10 +266,12 @@ body {
 .pp-btn {
   padding: 6px 12px;
   border: 1px solid var(--toolbar-button-border);
-  border-radius: 6px;
   background: var(--toolbar-button-bg);
   color: var(--toolbar-button-text);
-  font-size: 12px;
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
   white-space: nowrap;
   transition: all var(--transition-normal);
@@ -333,7 +300,8 @@ body {
 
 .pp-btn--primary:hover:not(:disabled) {
   background: var(--toolbar-primary-border);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
+  box-shadow: 0 2px 8px var(--ark-pink-glow);
+  animation: ark-glitch 0.15s ease-in-out;
 }
 
 .pp-btn--primary:active:not(:disabled) {
@@ -458,7 +426,7 @@ body {
   flex-direction: column;
   gap: 6px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid var(--ark-border);
 }
 
 .pp-fields {
@@ -476,8 +444,11 @@ body {
 
 .pp-section-title {
   margin: 0;
-  font-size: 12px;
+  font-family: var(--app-font-mono);
+  font-size: 10px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--toolbar-muted);
 }
 
@@ -486,9 +457,130 @@ body {
   flex-direction: column;
   gap: 6px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid var(--ark-border);
 }
 
 .pp-actions-danger {
   margin-top: 4px;
+}
+
+/* ── Ark structural utilities ── */
+
+.ark-frame {
+  position: relative;
+  border: 1px solid var(--ark-border);
+}
+.ark-frame::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid var(--ark-border-dim);
+  pointer-events: none;
+}
+
+.ark-chamfer {
+  clip-path: var(--clip-chamfer-sm);
+}
+
+.ark-glass {
+  background: rgba(14, 14, 22, 0.75);
+  backdrop-filter: blur(12px) saturate(1.2);
+}
+
+.ark-indicator {
+  height: 2px;
+  background: var(--ark-border-dim);
+  transition: background 150ms;
+}
+.ark-indicator--active {
+  background: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
+}
+
+/* ── Grid layout for panels ── */
+
+.pp-grid {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 4px 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.pp-grid-label {
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ark-text-muted);
+}
+.pp-grid-value {
+  color: var(--ark-text);
+  font-family: var(--app-font-mono);
+  min-width: 0;
+}
+
+/* ── Field group with tags ── */
+
+.pp-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pp-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.pp-field-tag {
+  flex-shrink: 0;
+  width: 32px;
+  padding: 7px 0;
+  text-align: center;
+  font-family: var(--app-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ark-text-dim);
+  background: var(--ark-bg-card);
+  border: 1px solid var(--ark-border);
+  border-right: none;
+}
+.pp-field-row .pp-input,
+.pp-field-row .pp-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Actions indicator ── */
+
+.pp-actions__indicator {
+  height: 1px;
+  background: var(--ark-border);
+  margin-bottom: 8px;
+  position: relative;
+}
+.pp-actions__indicator::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 1px;
+  background: var(--ark-pink);
+}
+
+/* ── Animations ── */
+
+@keyframes ark-glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-1px, 1px); }
+  40% { transform: translate(1px, -1px); }
+  60% { transform: translate(-1px, 0); }
+  80% { transform: translate(1px, 1px); }
+}
+
+@keyframes ark-pulse {
+  0%, 100% { box-shadow: 0 0 4px var(--ark-pink-glow); }
+  50% { box-shadow: 0 0 12px var(--ark-pink-glow); }
 }

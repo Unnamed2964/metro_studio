@@ -94,10 +94,12 @@ function doClose() {
 
 .about-hero__title {
   margin: 0;
+  font-family: var(--app-font-mono);
   font-size: 18px;
   font-weight: 700;
-  color: var(--toolbar-text);
+  color: var(--ark-pink);
   line-height: 1.3;
+  letter-spacing: 0.08em;
 }
 
 .about-hero__author {
@@ -110,7 +112,7 @@ function doClose() {
   display: inline-block;
   margin-top: 4px;
   font-size: 12px;
-  color: #8b5cf6;
+  color: var(--ark-purple);
   text-decoration: none;
 }
 
@@ -161,21 +163,21 @@ function doClose() {
 
 .about-btn {
   padding: 7px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
+  font-family: var(--app-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
-  border: 1px solid transparent;
-  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #6366f1 100%);
-  border-color: var(--toolbar-primary-border);
+  border: 1px solid var(--ark-pink);
+  background: var(--ark-pink);
   color: #fff;
   transition: all var(--transition-normal);
   outline: none;
 }
 
 .about-btn:hover {
-  background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #818cf8 100%);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
+  box-shadow: 0 2px 8px var(--ark-pink-glow);
 }
 
 .about-btn:focus-visible {

@@ -282,8 +282,8 @@ watch(
 }
 
 .shortcut-dialog__binding--custom {
-  border-color: #8b5cf6;
-  color: #a78bfa;
+  border-color: var(--ark-pink);
+  color: var(--ark-pink);
 }
 
 .shortcut-dialog__binding--recording {
@@ -357,13 +357,12 @@ watch(
 }
 
 .shortcut-dialog__btn--primary {
-  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #6366f1 100%);
-  border-color: var(--toolbar-primary-border);
+  background: var(--ark-pink);
+  border-color: var(--ark-pink);
   color: #fff;
 }
 
 .shortcut-dialog__btn--primary:hover {
-  background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #818cf8 100%);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
+  box-shadow: 0 2px 8px var(--ark-pink-glow);
 }
 </style>
