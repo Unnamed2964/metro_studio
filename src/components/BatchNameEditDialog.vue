@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { NModal } from 'naive-ui'
 import { useProjectStore } from '../stores/projectStore'
 
 const props = defineProps({
@@ -8,7 +9,6 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const store = useProjectStore()
-const dialogRef = ref(null)
 const searchQuery = ref('')
 
 const stations = computed(() => {
@@ -88,39 +88,20 @@ function doSave() {
 function doClose() {
   emit('close')
 }
-
-function onKeydown(e) {
-  if (e.key === 'Escape') doClose()
-}
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="dialog-transition">
-      <div
-        v-if="visible"
-        class="bne-overlay"
-        @mousedown.self="doClose"
-        @keydown="onKeydown"
-      >
-        <div
-          ref="dialogRef"
-          class="bne-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-label="批量编辑站名"
-        >
-          <header class="bne-dialog__header">
-            <h2 class="bne-dialog__title">批量编辑站名</h2>
-            <input
-              v-model="searchQuery"
-              class="bne-dialog__search"
-              type="text"
-              placeholder="搜索站名..."
-            />
-          </header>
+  <NModal :show="visible" preset="card" title="批量编辑站名" style="width:720px;max-width:calc(100vw - 32px)" @close="doClose" @mask-click="doClose">
+    <template #header-extra>
+      <input
+        v-model="searchQuery"
+        class="bne-dialog__search"
+        type="text"
+        placeholder="搜索站名..."
+      />
+    </template>
 
-          <div class="bne-dialog__body">
+    <div class="bne-dialog__body">
             <div v-if="!stations.length" class="bne-dialog__empty">暂无站点</div>
             <div v-else-if="!filtered.length" class="bne-dialog__empty">无匹配站点</div>
             <table v-else class="bne-table">
@@ -153,64 +134,24 @@ function onKeydown(e) {
             </table>
           </div>
 
-          <footer class="bne-dialog__footer">
-            <span class="bne-dialog__hint">共 {{ stations.length }} 站，已修改 {{ changeCount }} 项</span>
-            <button class="bne-dialog__btn" type="button" @click="doClose">取消</button>
-            <button
-              class="bne-dialog__btn bne-dialog__btn--primary"
-              type="button"
-              :disabled="!changeCount"
-              @click="doSave"
-            >
-              保存
-            </button>
-          </footer>
-        </div>
+    <template #footer>
+      <div class="bne-dialog__footer">
+        <span class="bne-dialog__hint">共 {{ stations.length }} 站，已修改 {{ changeCount }} 项</span>
+        <button class="bne-dialog__btn" type="button" @click="doClose">取消</button>
+        <button
+          class="bne-dialog__btn bne-dialog__btn--primary"
+          type="button"
+          :disabled="!changeCount"
+          @click="doSave"
+        >
+          保存
+        </button>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+  </NModal>
 </template>
 
 <style scoped>
-.bne-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9500;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.bne-dialog {
-  width: 720px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 64px);
-  background: var(--toolbar-card-bg);
-  border: 1px solid var(--toolbar-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.bne-dialog__header {
-  padding: 16px 20px 14px;
-  border-bottom: 1px solid var(--toolbar-divider);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.bne-dialog__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--toolbar-text);
-  white-space: nowrap;
-}
-
 .bne-dialog__search {
   flex: 1;
   padding: 6px 10px;
@@ -223,7 +164,7 @@ function onKeydown(e) {
 }
 
 .bne-dialog__search:focus {
-  border-color: #2563eb;
+  border-color: #8b5cf6;
 }
 
 .bne-dialog__body {
@@ -286,7 +227,7 @@ function onKeydown(e) {
 }
 
 .bne-table__input:focus {
-  border-color: #2563eb;
+  border-color: #8b5cf6;
   background: var(--toolbar-input-bg);
 }
 
@@ -321,14 +262,14 @@ function onKeydown(e) {
 }
 
 .bne-dialog__btn--primary {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #6366f1 100%);
   border-color: var(--toolbar-primary-border);
   color: #fff;
 }
 
 .bne-dialog__btn--primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
+  background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #818cf8 100%);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
 }
 
 .bne-dialog__btn--primary:disabled {

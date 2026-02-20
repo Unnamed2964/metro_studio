@@ -19,7 +19,7 @@ Metro Studio 是一个地铁线路图编辑器，专为轨道交通爱好者设�
 - √ 多视图：地图视图 / 示意图视图 / 车载 HUD 视图 / 时间线视图
 - √ 框选、多选、批量编辑
 - √ 导出 PNG 高清图片和视频
-- √ AI 辅助生成站点名称
+- √ AI 辅助翻译站点英文名
 - √ 从 OpenStreetMap 导入真实数据
 - √ 搜索 OSM 地标、地点、POI
 
@@ -53,7 +53,7 @@ Metro Studio 是一个地铁线路图编辑器，专为轨道交通爱好者设�
 
 **AI 辅助**
 
-根据站点周边地理信息，自动生成中英文站点名称。
+自动翻译站点中文名为规范英文名。
 
 <img width="1017" height="763" alt="image" src="https://github.com/user-attachments/assets/19c181a0-0c70-4379-ac27-c685d96c27bf" />
 
@@ -107,6 +107,10 @@ Vue 3 · Pinia · MapLibre GL JS · OpenStreetMap
 ## 贡献
 
 欢迎贡献代码、报告问题或提出建议。详见 [贡献指南](CONTRIBUTING.md)。
+
+## 更新日志
+
+查看完整的版本更新历史：[CHANGELOG.md](CHANGELOG.md)
 
 ## 许可证
 

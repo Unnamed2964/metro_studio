@@ -30,15 +30,22 @@ import { useRouteDrawPreview } from '../composables/useRouteDrawPreview.js'
 import { useMapTimelinePlayer } from '../composables/useMapTimelinePlayer.js'
 import { useMapNavigation } from '../composables/useMapNavigation.js'
 import { useAnimationSettings } from '../composables/useAnimationSettings.js'
-import { setMapGetter } from '../composables/useMapSearch.js'
+import { setMapGetter, setStoreGetter } from '../composables/useMapSearch.js'
 import IconBase from './IconBase.vue'
 import TimelineSlider from './TimelineSlider.vue'
 import LanduseLegend from './LanduseLegend.vue'
+import MapContextMenu from './map-editor/MapContextMenu.vue'
+import MapLineSelectionMenu from './map-editor/MapLineSelectionMenu.vue'
+import MapMeasureOverlay from './map-editor/MapMeasureOverlay.vue'
+import MapAnnotationMarkers from './map-editor/MapAnnotationMarkers.vue'
+import MapNavigationOverlay from './map-editor/MapNavigationOverlay.vue'
 
 const store = useProjectStore()
 const mapContainer = ref(null)
-const contextMenuRef = ref(null)
-const lineSelectionMenuRef = ref(null)
+const contextMenuCompRef = ref(null)
+const lineSelectionMenuCompRef = ref(null)
+const contextMenuRef = computed(() => contextMenuCompRef.value?.menuEl ?? null)
+const lineSelectionMenuRef = computed(() => lineSelectionMenuCompRef.value?.menuEl ?? null)
 const showHint = ref(false)
 let map = null
 let scaleControl = null
@@ -275,6 +282,7 @@ onMounted(() => {
   lockMapNorthUp()
 
   setMapGetter(getMap)
+  setStoreGetter(() => store)
 
   map.addControl(new maplibregl.NavigationControl(), 'top-right')
   scaleControl = new maplibregl.ScaleControl({
@@ -400,6 +408,14 @@ watch(
   setupBoundaryWatcher()
 
   watch(
+    () => store.fitToNetworkTrigger,
+    () => {
+      if (!store.regionBoundary) return
+      fitMapToBoundary(store.regionBoundary)
+    },
+  )
+
+  watch(
     () => ({
       showLanduseOverlay: store.showLanduseOverlay,
       protomapsApiKey: store.protomapsApiKey,
@@ -510,200 +526,63 @@ watch(
         {{ routeDrawDistanceLabel }}
       </div>
 
-      <div
-        v-if="contextMenu.visible"
-        class="map-editor__context-mask"
-        @mousedown="onContextOverlayMouseDown"
-        @contextmenu.prevent="onContextOverlayMouseDown"
-      >
-        <div
-          ref="contextMenuRef"
-          class="map-editor__context-menu"
-          :style="contextMenuStyle"
-          @mousedown.stop
-          @contextmenu.prevent
-        >
-          <h3>{{ contextTargetLabel }}菜单</h3>
-          <p class="map-editor__context-meta">模式: {{ store.mode }} | 已选: {{ hasSelection ? '是' : '否' }}</p>
-          <p v-if="contextMenu.stationId" class="map-editor__context-meta">站点: {{ contextMenu.stationId }}</p>
-          <p v-if="contextMenu.edgeId" class="map-editor__context-meta">线段: {{ contextMenu.edgeId }}</p>
-          <p v-if="contextMenu.anchorIndex != null" class="map-editor__context-meta">锚点序号: {{ contextMenu.anchorIndex }}</p>
-          <p v-if="contextMenu.lngLat" class="map-editor__context-meta">
-            坐标: {{ contextMenu.lngLat[0].toFixed(6) }}, {{ contextMenu.lngLat[1].toFixed(6) }}
-          </p>
+      <MapContextMenu
+        ref="contextMenuCompRef"
+        :visible="contextMenu.visible"
+        :menu-style="contextMenuStyle"
+        :context-menu="contextMenu"
+        :mode="store.mode"
+        :has-selection="hasSelection"
+        :context-target-label="contextTargetLabel"
+        :context-station="contextStation"
+        :can-merge-at-context-station="canMergeAtContextStation"
+        :is-station-english-retranslating="store.isStationEnglishRetranslating"
+        @overlay-mousedown="onContextOverlayMouseDown"
+        @set-mode="setModeFromContext"
+        @add-station="addStationAtContext"
+        @clear-selection="clearSelectionFromContext"
+        @add-anchor="addEdgeAnchorFromContext"
+        @remove-anchor="removeEdgeAnchorFromContext"
+        @clear-anchors="clearContextEdgeAnchorsFromContext"
+        @rename-station="renameContextStationFromContext"
+        @delete-station="deleteContextStationFromContext"
+        @delete-edge="deleteContextEdgeFromContext"
+        @split-edge="splitEdgeAtContext"
+        @merge-edges="mergeEdgesAtContextStation"
+        @ai-translate="aiTranslateContextStationEnglishFromContext"
+      />
 
-          <div class="map-editor__context-section">
-            <p>模式</p>
-            <div class="map-editor__context-row">
-              <button @click="setModeFromContext('select')">选择/拖拽</button>
-              <button @click="setModeFromContext('add-station')">点站</button>
-              <button @click="setModeFromContext('add-edge')">拉线</button>
-              <button @click="setModeFromContext('route-draw')">连续布线</button>
-            </div>
-          </div>
+      <MapLineSelectionMenu
+        ref="lineSelectionMenuCompRef"
+        :visible="lineSelectionMenu.visible"
+        :menu-style="lineSelectionMenuStyle"
+        :line-options="lineSelectionMenu.lineOptions"
+        @overlay-mousedown="onLineSelectionMenuOverlayMouseDown"
+        @select-line="selectLineFromMenu"
+        @close="closeLineSelectionMenu"
+      />
 
-          <div v-if="contextMenu.targetType === 'map'" class="map-editor__context-section">
-            <p>空白处操作</p>
-            <div class="map-editor__context-row">
-              <button @click="addStationAtContext" :disabled="!contextMenu.lngLat">在此新增站点</button>
-              <button @click="clearSelectionFromContext">清空选择</button>
-            </div>
-          </div>
+      <MapMeasureOverlay
+        :measure-lines="measureLines"
+        :measure-markers-key="measureMarkersKey"
+        :measure-points="store.measure.points"
+        :get-marker-style="getMeasureMarkerStyle"
+      />
 
-          <div v-if="contextMenu.targetType === 'station'" class="map-editor__context-section">
-            <p>站点操作</p>
-            <div class="map-editor__context-row">
-              <button
-                @click="aiTranslateContextStationEnglishFromContext"
-                :disabled="!contextStation || store.isStationEnglishRetranslating"
-              >
-                {{ store.isStationEnglishRetranslating ? '翻译中...' : 'AI翻译英文' }}
-              </button>
-              <button @click="renameContextStationFromContext" :disabled="!contextStation">重命名站点</button>
-              <button @click="deleteContextStationFromContext" :disabled="!contextMenu.stationId">删除该站点</button>
-            </div>
-            <div class="map-editor__context-row">
-              <button @click="mergeEdgesAtContextStation" :disabled="!canMergeAtContextStation">合并相邻线段</button>
-            </div>
-          </div>
+      <MapAnnotationMarkers
+        :annotations="store.project?.annotations || []"
+        :annotation-markers-key="annotationMarkersKey"
+        :selected-annotation-id="store.selectedAnnotationId"
+        :get-marker-style="getAnnotationMarkerStyle"
+      />
 
-          <div v-if="contextMenu.targetType === 'edge'" class="map-editor__context-section">
-            <p>线段操作</p>
-            <div class="map-editor__context-row">
-              <button @click="splitEdgeAtContext" :disabled="!contextMenu.edgeId || !contextMenu.lngLat">在此处插入站点</button>
-              <button @click="addEdgeAnchorFromContext" :disabled="!contextMenu.edgeId || !contextMenu.lngLat">在此加锚点</button>
-              <button @click="deleteContextEdgeFromContext" :disabled="!contextMenu.edgeId">删除该线段</button>
-            </div>
-            <div class="map-editor__context-row">
-              <button @click="clearContextEdgeAnchorsFromContext" :disabled="!contextMenu.edgeId">清空该线段锚点</button>
-            </div>
-          </div>
-
-          <div v-if="contextMenu.targetType === 'anchor'" class="map-editor__context-section">
-            <p>锚点操作</p>
-            <div class="map-editor__context-row">
-              <button @click="removeEdgeAnchorFromContext" :disabled="contextMenu.anchorIndex == null || !contextMenu.edgeId">
-                删除该锚点
-              </button>
-              <button @click="addEdgeAnchorFromContext" :disabled="!contextMenu.edgeId || !contextMenu.lngLat">在此加锚点</button>
-            </div>
-            <div class="map-editor__context-row">
-              <button @click="clearContextEdgeAnchorsFromContext" :disabled="!contextMenu.edgeId">清空该线段锚点</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        v-if="lineSelectionMenu.visible"
-        class="map-editor__context-mask"
-        @mousedown="onLineSelectionMenuOverlayMouseDown"
-        @contextmenu.prevent="onLineSelectionMenuOverlayMouseDown"
-      >
-        <div
-          class="map-editor__line-selection-menu"
-          :style="lineSelectionMenuStyle"
-          @mousedown.stop
-          @contextmenu.prevent
-        >
-          <h3>选择线路</h3>
-          <p class="map-editor__context-meta">该线段被多条线路共享，请选择</p>
-          <div class="map-editor__line-selection-list">
-            <button
-              v-for="option in lineSelectionMenu.lineOptions"
-              :key="option.id"
-              class="map-editor__line-selection-option"
-              @click="selectLineFromMenu(option.id)"
-            >
-              <span class="map-editor__line-selection-color" :style="{ background: option.color }"></span>
-              <span class="map-editor__line-selection-name">{{ option.nameZh }}</span>
-              <span class="map-editor__line-selection-name-en">{{ option.nameEn }}</span>
-            </button>
-          </div>
-          <div class="map-editor__context-row">
-            <button @click="closeLineSelectionMenu()">取消</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 测量连线 -->
-      <svg v-if="measureLines.length > 0" class="map-editor__measure-lines" aria-hidden="true">
-        <line
-          v-for="(line, index) in measureLines"
-          :key="`measure-line-${index}-${measureMarkersKey}`"
-          :x1="line.x1"
-          :y1="line.y1"
-          :x2="line.x2"
-          :y2="line.y2"
-          stroke="#3b82f6"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-dasharray="8 4"
-        />
-      </svg>
-
-      <!-- 测量点标记 -->
-      <div
-        v-for="(point, index) in store.measure.points"
-        :key="`measure-${index}-${measureMarkersKey}`"
-        class="map-editor__measure-marker"
-        :style="getMeasureMarkerStyle(point.lngLat)"
-      >
-        <div class="map-editor__measure-marker-icon">{{ index + 1 }}</div>
-      </div>
-
-      <!-- 注释标记 -->
-      <div
-        v-for="annotation in (store.project?.annotations || [])"
-        :key="`annotation-${annotation.id}-${annotationMarkersKey}`"
-        class="map-editor__annotation-marker"
-        :class="{ active: annotation.id === store.selectedAnnotationId }"
-        :style="getAnnotationMarkerStyle(annotation.lngLat)"
-      >
-        <div class="map-editor__annotation-marker-icon">
-          <IconBase name="message-circle" :size="16" />
-        </div>
-        <div v-if="annotation.text" class="map-editor__annotation-marker-text">{{ annotation.text }}</div>
-      </div>
-
-      <div v-if="navPrompt" class="map-editor__nav-prompt">
-        <IconBase name="navigation" :size="14" />
-        <span>{{ navPrompt }}</span>
-        <button class="map-editor__nav-prompt-close" @click="store.exitNavigation()">Esc 退出</button>
-      </div>
-
-      <div v-if="navResultVisible" class="map-editor__nav-panel">
-        <div class="map-editor__nav-panel-header">
-          <h3>导航结果</h3>
-          <button class="map-editor__nav-panel-close" @click="store.exitNavigation()" aria-label="关闭导航">
-            <IconBase name="x" :size="14" />
-          </button>
-        </div>
-        <div v-if="store.navigation.result" class="map-editor__nav-panel-body">
-          <div class="map-editor__nav-summary">
-            <span class="map-editor__nav-total">总距离 {{ formatNavDistance(store.navigation.result.totalMeters) }}</span>
-            <span class="map-editor__nav-detail">
-              步行 {{ formatNavDistance(store.navigation.result.walkToOriginMeters) }}
-              → 地铁 {{ formatNavDistance(store.navigation.result.transitMeters) }}
-              → 步行 {{ formatNavDistance(store.navigation.result.walkFromDestMeters) }}
-            </span>
-          </div>
-          <div
-            v-for="(seg, i) in store.navigation.result.segments"
-            :key="i"
-            class="map-editor__nav-segment"
-          >
-            <span class="map-editor__nav-seg-color" :style="{ background: seg.lineColor }"></span>
-            <span class="map-editor__nav-seg-text">
-              {{ seg.lineName }}：{{ seg.fromStation }} → {{ seg.toStation }}（{{ seg.stationCount }}站，{{ formatNavDistance(seg.distanceMeters) }}）
-            </span>
-          </div>
-        </div>
-        <div v-else class="map-editor__nav-panel-body">
-          <p class="map-editor__nav-no-route">未找到可达路径，请尝试更近的位置</p>
-        </div>
-      </div>
+      <MapNavigationOverlay
+        :nav-prompt="navPrompt"
+        :nav-result-visible="navResultVisible"
+        :navigation-result="store.navigation.result"
+        :format-nav-distance="formatNavDistance"
+        @exit-navigation="store.exitNavigation()"
+      />
 
       <button
         class="map-editor__hint-toggle"
@@ -785,24 +664,6 @@ watch(
   z-index: 13;
 }
 
-.map-editor__context-mask {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-}
-
-.map-editor__context-menu {
-  position: absolute;
-  width: 268px;
-  max-height: calc(100% - 16px);
-  overflow: auto;
-  border: 1px solid var(--toolbar-border);
-  border-radius: 12px;
-  background: var(--toolbar-card-bg);
-  color: var(--toolbar-text);
-  padding: 10px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
-}
 
 .map-editor__ai-menu {
   position: absolute;
@@ -815,63 +676,6 @@ watch(
   color: var(--toolbar-text);
   padding: 10px;
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
-}
-
-.map-editor__context-menu h3 {
-  margin: 0 0 6px;
-  font-size: 14px;
-}
-
-.map-editor__ai-menu h3 {
-  margin: 0 0 6px;
-  font-size: 14px;
-}
-
-.map-editor__context-meta {
-  margin: 0;
-  font-size: 11px;
-  color: var(--toolbar-hint);
-  line-height: 1.35;
-}
-
-.map-editor__context-section {
-  margin-top: 10px;
-  border-top: 1px solid var(--toolbar-divider);
-  padding-top: 8px;
-}
-
-.map-editor__context-section > p {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: var(--toolbar-muted);
-}
-
-.map-editor__context-row {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-}
-
-.map-editor__context-row button,
-.map-editor__context-row button {
-  border: 1px solid var(--toolbar-button-border);
-  border-radius: 7px;
-  background: var(--toolbar-button-bg);
-  color: var(--toolbar-button-text);
-  font-size: 11px;
-  padding: 5px 7px;
-  cursor: pointer;
-  transition: border-color var(--transition-normal);
-}
-
-.map-editor__context-row button:hover:not(:disabled) {
-  border-color: var(--toolbar-button-hover-border);
-}
-
-.map-editor__context-row button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .map-editor__ai-loading {
@@ -929,63 +733,6 @@ watch(
   color: var(--toolbar-hint);
 }
 
-.map-editor__line-selection-menu {
-  position: absolute;
-  width: 268px;
-  max-height: calc(100% - 16px);
-  overflow: auto;
-  border: 1px solid var(--toolbar-border);
-  border-radius: 12px;
-  background: var(--toolbar-card-bg);
-  color: var(--toolbar-text);
-  padding: 10px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
-}
-
-.map-editor__line-selection-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 8px 0;
-}
-
-.map-editor__line-selection-option {
-  border: 1px solid var(--toolbar-input-border);
-  border-radius: 8px;
-  background: var(--toolbar-input-bg);
-  color: var(--toolbar-text);
-  text-align: left;
-  padding: 8px 10px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: border-color var(--transition-normal), background-color var(--transition-normal);
-}
-
-.map-editor__line-selection-option:hover {
-  border-color: var(--toolbar-button-hover-border);
-  background: var(--toolbar-button-bg);
-}
-
-.map-editor__line-selection-color {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  border: 1.5px solid rgba(0, 0, 0, 0.15);
-  flex-shrink: 0;
-}
-
-.map-editor__line-selection-name {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.map-editor__line-selection-name-en {
-  font-size: 12px;
-  color: var(--toolbar-muted);
-  margin-left: auto;
-}
 
 .map-editor__hint-toggle {
   position: absolute;
@@ -1043,257 +790,30 @@ watch(
   line-height: 1.25;
 }
 
-.map-editor__nav-prompt {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
-  border: 1px solid var(--toolbar-border);
-  border-radius: 999px;
-  background: var(--toolbar-card-bg);
-  color: var(--toolbar-text);
-  font-size: 12px;
-  font-weight: 500;
-  z-index: 20;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  pointer-events: auto;
-}
-
-.map-editor__nav-prompt-close {
-  border: none;
-  background: transparent;
-  color: var(--toolbar-muted);
-  font-size: 11px;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: color var(--transition-fast), background var(--transition-fast);
-}
-
-.map-editor__nav-prompt-close:hover {
-  color: var(--toolbar-text);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.map-editor__nav-panel {
-  position: absolute;
-  top: 12px;
-  right: 56px;
-  width: 280px;
-  max-height: calc(100% - 24px);
-  overflow: auto;
-  border: 1px solid var(--toolbar-border);
-  border-radius: 12px;
-  background: var(--toolbar-card-bg);
-  color: var(--toolbar-text);
-  padding: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
-  z-index: 20;
-}
-
-.map-editor__nav-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.map-editor__nav-panel-header h3 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.map-editor__nav-panel-close {
-  border: none;
-  background: transparent;
-  color: var(--toolbar-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  transition: color var(--transition-fast), background var(--transition-fast);
-}
-
-.map-editor__nav-panel-close:hover {
-  color: var(--toolbar-text);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.map-editor__nav-panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.map-editor__nav-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--toolbar-divider);
-}
-
-.map-editor__nav-total {
-  font-size: 15px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.map-editor__nav-detail {
-  font-size: 11px;
-  color: var(--toolbar-muted);
-  line-height: 1.4;
-}
-
-.map-editor__nav-segment {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 4px 0;
-}
-
-.map-editor__nav-seg-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  border: 1.5px solid rgba(0, 0, 0, 0.12);
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.map-editor__nav-seg-text {
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.map-editor__nav-no-route {
-  margin: 0;
-  font-size: 12px;
-  color: var(--toolbar-muted);
-  text-align: center;
-  padding: 12px 0;
-}
-
-.map-editor__measure-lines {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 18;
-}
-
-.map-editor__measure-marker {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 20;
-  animation: measure-marker-appear 0.2s ease-out;
-}
-
-@keyframes measure-marker-appear {
-  from {
-    transform: translate(-50%, -50%) scale(0);
-    opacity: 0;
-  }
-  to {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
-  }
-}
-
-.map-editor__measure-marker-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  border: 3px solid white;
-  box-shadow: 0 3px 12px rgba(59, 130, 246, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-.map-editor__annotation-marker {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  pointer-events: none;
-  z-index: 19;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  max-width: 200px;
-}
-
-.map-editor__annotation-marker-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #f59e0b;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 3px solid white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  transition: all 0.2s ease;
-}
-
-.map-editor__annotation-marker:hover .map-editor__annotation-marker-icon {
-  background: #d97706;
-  transform: scale(1.1);
-}
-
-.map-editor__annotation-marker.active .map-editor__annotation-marker-icon {
-  background: #dc2626;
-  border-color: #fca5a5;
-}
-
-.map-editor__annotation-marker-text {
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  font-size: 11px;
-  line-height: 1.3;
-  max-width: 100%;
-  word-break: break-word;
-  text-align: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
 .search-marker {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
   pointer-events: auto;
-  animation: search-marker-blink 0.6s ease-in-out infinite;
+  animation: search-marker-rotate 8s linear infinite;
+  opacity: 0.95;
 }
 
 .search-marker:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
+  animation-play-state: paused;
+  opacity: 1;
 }
 
 .search-marker svg {
   display: block;
 }
 
-@keyframes search-marker-blink {
-  0%, 100% {
-    opacity: 1;
+@keyframes search-marker-rotate {
+  from {
+    transform: rotate(0deg);
   }
-  50% {
-    opacity: 0.3;
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>

@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import IconBase from './IconBase.vue'
-import TooltipWrapper from './TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 import { getEffectiveBindings, formatBindingDisplay } from '../lib/shortcutRegistry'
 
 const props = defineProps({
@@ -67,48 +67,45 @@ const redoShortcut = computed(() => {
 <template>
   <aside class="tool-strip">
     <div class="tool-strip__tools">
-      <TooltipWrapper
+      <NTooltip
         v-for="tool in tools"
         :key="tool.mode"
-        :text="tool.label"
-        :shortcut="tool.shortcut"
         placement="right"
         :delay="300"
       >
-        <button
-          class="tool-strip__btn"
-          :class="{ 'tool-strip__btn--active': mode === tool.mode }"
-          type="button"
-          @click="emit('set-mode', tool.mode)"
-        >
-          <IconBase :name="tool.icon" :size="18" />
-        </button>
-      </TooltipWrapper>
+        <template #trigger>
+          <button
+            class="tool-strip__btn"
+            :class="{ 'tool-strip__btn--active': mode === tool.mode }"
+            type="button"
+            @click="emit('set-mode', tool.mode)"
+          >
+            <IconBase :name="tool.icon" :size="18" />
+          </button>
+        </template>
+        {{ tool.label }}{{ tool.shortcut ? ` (${tool.shortcut})` : '' }}
+      </NTooltip>
     </div>
 
     <div class="tool-strip__divider" />
 
     <div class="tool-strip__actions">
-      <TooltipWrapper text="撤销" :shortcut="undoShortcut" placement="right" :delay="300">
-        <button
-          class="tool-strip__btn"
-          :disabled="!canUndo"
-          type="button"
-          @click="emit('undo')"
-        >
-          <IconBase name="undo" :size="18" />
-        </button>
-      </TooltipWrapper>
-      <TooltipWrapper text="重做" :shortcut="redoShortcut" placement="right" :delay="300">
-        <button
-          class="tool-strip__btn"
-          :disabled="!canRedo"
-          type="button"
-          @click="emit('redo')"
-        >
-          <IconBase name="redo" :size="18" />
-        </button>
-      </TooltipWrapper>
+      <NTooltip placement="right" :delay="300">
+        <template #trigger>
+          <button class="tool-strip__btn" :disabled="!canUndo" type="button" @click="emit('undo')">
+            <IconBase name="undo" :size="18" />
+          </button>
+        </template>
+        撤销 ({{ undoShortcut }})
+      </NTooltip>
+      <NTooltip placement="right" :delay="300">
+        <template #trigger>
+          <button class="tool-strip__btn" :disabled="!canRedo" type="button" @click="emit('redo')">
+            <IconBase name="redo" :size="18" />
+          </button>
+        </template>
+        重做 ({{ redoShortcut }})
+      </NTooltip>
     </div>
   </aside>
 </template>

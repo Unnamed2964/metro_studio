@@ -5,6 +5,7 @@ import {
   UI_THEME_STORAGE_KEY,
   normalizeUiTheme,
 } from '../lib/uiPreferences'
+import { setNaiveThemeDark } from '../lib/naiveTheme'
 import { useAnimationSettings } from './useAnimationSettings.js'
 import { useDialog } from './useDialog.js'
 import { getEffectiveBindings, formatBindingDisplay } from '../lib/shortcutRegistry'
@@ -57,6 +58,7 @@ export function useMenuBarActions(store, emit, refs) {
     const next = normalizeUiTheme(theme)
     uiTheme.value = next
     document.documentElement.setAttribute('data-ui-theme', next)
+    setNaiveThemeDark(next === 'dark')
     try { window.localStorage.setItem(UI_THEME_STORAGE_KEY, next) } catch { /* noop */ }
   }
 
@@ -90,6 +92,8 @@ export function useMenuBarActions(store, emit, refs) {
         { type: 'submenu', label: '国际城市', icon: 'git-branch', children: buildCityMenuItems(INTERNATIONAL_CITY_PRESETS, importing) },
       ]},
       { type: 'separator' },
+      { type: 'item', label: '重置视图到线网', action: 'fitToNetwork', icon: 'focus', disabled: !store.regionBoundary },
+      { type: 'separator' },
       { type: 'item', label: '查看本地库', action: 'showProjectList', icon: 'layers' },
     ]
   })
@@ -121,8 +125,6 @@ export function useMenuBarActions(store, emit, refs) {
   })
 
   const aiMenuItems = computed(() => [
-    { type: 'separator' },
-    { type: 'item', label: 'AI全自动批量命名', action: 'aiAutoBatchNaming', icon: 'sparkles', disabled: !store.selectedStationIds.length },
     { type: 'separator' },
     { type: 'item', label: 'AI翻译选中站英文', action: 'aiTranslateSelected', icon: 'languages', disabled: !store.selectedStationIds.length || store.isStationEnglishRetranslating },
     { type: 'item', label: '按规范重译全图英文', action: 'aiTranslateAll', icon: 'languages', disabled: !store.project?.stations?.length || store.isStationEnglishRetranslating },
@@ -156,10 +158,13 @@ export function useMenuBarActions(store, emit, refs) {
     { type: 'separator' },
     { type: 'submenu', label: '地图瓦片类型', icon: 'layers', children: [
       { type: 'toggle', label: 'OpenStreetMap 标准', checked: store.mapTileType === 'osm', action: 'mapTileOsm', icon: 'map' },
-      { type: 'toggle', label: 'ESRI 卫星影像', checked: store.mapTileType === 'satellite', action: 'mapTileSatellite', icon: 'globe' },
-      { type: 'toggle', label: 'OpenTopoMap 地形图', checked: store.mapTileType === 'topo', action: 'mapTileTopo', icon: 'mountain' },
+      { type: 'separator' },
+      { type: 'toggle', label: 'CartoDB Voyager', checked: store.mapTileType === 'voyager', action: 'mapTileVoyager', icon: 'compass' },
       { type: 'toggle', label: 'CartoDB 浅色', checked: store.mapTileType === 'positron', action: 'mapTilePositron', icon: 'sun' },
       { type: 'toggle', label: 'CartoDB 深色', checked: store.mapTileType === 'dark', action: 'mapTileDark', icon: 'moon' },
+      { type: 'separator' },
+      { type: 'toggle', label: 'ESRI 卫星影像', checked: store.mapTileType === 'satellite', action: 'mapTileSatellite', icon: 'globe' },
+      { type: 'toggle', label: 'OpenTopoMap 地形图', checked: store.mapTileType === 'topo', action: 'mapTileTopo', icon: 'mountain' },
     ]},
     { type: 'separator' },
     { type: 'toggle', label: '显示区域', checked: store.showLanduseOverlay, action: 'toggleLanduseOverlay', icon: 'map' },
@@ -222,6 +227,7 @@ export function useMenuBarActions(store, emit, refs) {
     if (action === 'openFile') {
       refs.fileInputRef.value?.click()
       return }
+    if (action === 'fitToNetwork') { store.fitToNetwork(); return }
     if (action.startsWith('importCity_')) { emit('action', action); return }
     if (action.startsWith('exportTimeline_')) {
       const resolution = action.slice('exportTimeline_'.length)
@@ -232,6 +238,7 @@ export function useMenuBarActions(store, emit, refs) {
     if (action === 'stationVisInterchange') { store.setExportStationVisibilityMode('interchange'); return }
     if (action === 'stationVisNone') { store.setExportStationVisibilityMode('none'); return }
     if (action === 'mapTileOsm') { store.setMapTileType('osm'); return }
+    if (action === 'mapTileVoyager') { store.setMapTileType('voyager'); return }
     if (action === 'mapTileSatellite') { store.setMapTileType('satellite'); return }
     if (action === 'mapTileTopo') { store.setMapTileType('topo'); return }
     if (action === 'mapTilePositron') { store.setMapTileType('positron'); return }

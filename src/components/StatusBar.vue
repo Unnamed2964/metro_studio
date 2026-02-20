@@ -2,7 +2,7 @@
 import { computed, inject } from 'vue'
 import { useProjectStore } from '../stores/projectStore'
 import { useWorldMetroRanking } from '../composables/useWorldMetroRanking'
-import TooltipWrapper from './TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 
 const store = useProjectStore()
 const { state: ranking, rankingMessage, comparisonMessage, timestamp, refresh: refreshRanking } = useWorldMetroRanking()
@@ -105,11 +105,14 @@ const projectSummary = computed(() => {
     <div class="status-bar__divider"></div>
     <div class="status-bar__section">
       <span class="status-bar__label">全球排名</span>
-      <TooltipWrapper :text="`${comparisonMessage || ''}${timestamp ? ` · ${timestamp}` : ''}`" placement="top">
-        <span class="status-bar__value status-bar__value--ranking" @click="refreshRanking" style="cursor: pointer;">
-          {{ ranking.loading ? '加载中...' : rankingMessage }}
-        </span>
-      </TooltipWrapper>
+      <NTooltip placement="top">
+        <template #trigger>
+          <span class="status-bar__value status-bar__value--ranking" @click="refreshRanking" style="cursor: pointer;">
+            {{ ranking.loading ? '加载中...' : rankingMessage }}
+          </span>
+        </template>
+        {{ `${comparisonMessage || ''}${timestamp ? ` · ${timestamp}` : ''}` }}
+      </NTooltip>
     </div>
     <div class="status-bar__divider"></div>
     <div class="status-bar__section">

@@ -204,8 +204,8 @@ function goToPrev() {
 }
 
 .panel-quick-rename__input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
 }
 
 .panel-quick-rename__hints {

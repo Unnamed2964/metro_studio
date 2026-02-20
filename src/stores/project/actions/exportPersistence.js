@@ -81,9 +81,9 @@ const exportPersistenceActions = {
     this.statusText = '官方风格图 PNG 已导出'
   },
 
-  async exportAllLineHudZip() {
+  async exportAllLineHudZip(lineId) {
     if (!this.project) return
-    const result = await downloadAllLineHudZip(this.project)
+    const result = await downloadAllLineHudZip(this.project, lineId ? { lineId } : {})
     this.statusText = `车辆 HUD 打包已导出（${result.exportedCount} 张）`
   },
 

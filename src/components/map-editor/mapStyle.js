@@ -57,6 +57,18 @@ const TILE_SOURCES = {
     maxzoom: 19,
     attribution: '© OpenStreetMap, © CARTO',
   },
+  voyager: {
+    type: 'raster',
+    tiles: [
+      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+      'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+      'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+    ],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 19,
+    attribution: '© OpenStreetMap, © CARTO',
+  },
 }
 
 function buildMapStyle(tileType = 'osm') {

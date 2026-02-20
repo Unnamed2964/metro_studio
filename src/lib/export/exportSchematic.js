@@ -114,9 +114,13 @@ async function downloadSchematicPng(project, options = {}) {
 }
 
 export async function downloadAllLineHudZip(project, options = {}) {
-  const lines = project?.lines || []
-  if (!lines.length) {
+  const allLines = project?.lines || []
+  if (!allLines.length) {
     throw new Error('当前工程没有可导出的线路')
+  }
+  const lines = options.lineId ? allLines.filter((l) => l.id === options.lineId) : allLines
+  if (!lines.length) {
+    throw new Error('指定线路不存在')
   }
 
   const scale = Number.isFinite(options.scale) ? Math.max(1, options.scale) : 2

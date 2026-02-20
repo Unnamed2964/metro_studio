@@ -1,6 +1,9 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, provide, ref } from 'vue'
 import { useAutoAnimate } from '@formkit/auto-animate/vue'
+import { NConfigProvider, NMessageProvider, NDialogProvider } from 'naive-ui'
+import { naiveTheme, naiveThemeOverrides } from './lib/naiveTheme'
+import NaiveApiBridge from './components/NaiveApiBridge.vue'
 import IconSprite from './components/IconSprite.vue'
 import MenuBar from './components/MenuBar.vue'
 import ToolStrip from './components/ToolStrip.vue'
@@ -13,9 +16,6 @@ import TimelinePreviewView from './components/TimelinePreviewView.vue'
 import ErrorBoundary from './components/ErrorBoundary.vue'
 import StatusBar from './components/StatusBar.vue'
 import ProjectListDialog from './components/ProjectListDialog.vue'
-import ToastContainer from './components/ToastContainer.vue'
-import ConfirmDialog from './components/ConfirmDialog.vue'
-import PromptDialog from './components/PromptDialog.vue'
 import ProgressBar from './components/ProgressBar.vue'
 import AiConfigDialog from './components/AiConfigDialog.vue'
 import ShortcutSettingsDialog from './components/ShortcutSettingsDialog.vue'
@@ -32,7 +32,7 @@ import { useShortcuts } from './composables/useShortcuts.js'
 import { useMapSearch } from './composables/useMapSearch.js'
 
 const store = useProjectStore()
-const { searchVisible, mapViewbox, openSearchDialog, closeSearchDialog, onSearchResultSelect } = useMapSearch()
+const { searchVisible, mapViewbox, targetProvince, openSearchDialogWithProvince, closeSearchDialog, onSearchResultSelect } = useMapSearch()
 const { saveState, lastSavedAt, saveNow } = useAutoSave()
 const { confirm, prompt } = useDialog()
 const { enabled, getAutoAnimateConfig } = useAnimationSettings()
@@ -151,7 +151,6 @@ function handleMenuAction(action) {
     importOsm: () => {
       store.importJinanNetwork()
     },
-    aiAutoBatchNaming: () => { /* handled in PanelStationMulti */ },
     aiConfig: () => {
       aiConfigVisible.value = true
     },
@@ -289,6 +288,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <NConfigProvider :theme="naiveTheme" :theme-overrides="naiveThemeOverrides">
+  <NDialogProvider>
+  <NMessageProvider>
+  <NaiveApiBridge>
+  <div class="unsupported-screen">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9ab2ce" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    <div>请在桌面浏览器中访问</div>
+    <div style="font-size:12px;color:#9ab2ce">需要至少 768px 的屏幕宽度</div>
+  </div>
   <IconSprite />
   <main class="app">
     <MenuBar
@@ -302,7 +310,7 @@ onBeforeUnmount(() => {
       @show-statistics="statisticsVisible = true"
       @show-about="aboutVisible = true"
       @show-batch-name-edit="batchNameEditVisible = true"
-      @show-search="openSearchDialog"
+      @show-search="openSearchDialogWithProvince"
     />
     <div class="app__body">
       <ToolStrip
@@ -360,10 +368,7 @@ onBeforeUnmount(() => {
   <AboutDialog :visible="aboutVisible" @close="aboutVisible = false" />
   <BatchNameEditDialog :visible="batchNameEditVisible" @close="batchNameEditVisible = false" />
   <StationTTSDialog ref="ttsDialogRef" :project="store.project" :visible="ttsDialogVisible" @close="ttsDialogVisible = false" />
-  <MapSearchDialog :visible="searchVisible" :viewbox="mapViewbox" @close="closeSearchDialog" @select="onSearchResultSelect" />
-  <ToastContainer />
-  <ConfirmDialog />
-  <PromptDialog />
+  <MapSearchDialog :visible="searchVisible" :viewbox="mapViewbox" :target-province="targetProvince" @close="closeSearchDialog" @select="onSearchResultSelect" />
   <input
     ref="globalFileInputRef"
     type="file"
@@ -371,9 +376,38 @@ onBeforeUnmount(() => {
     style="display: none"
     @change="onGlobalFileSelected"
   />
+  </NaiveApiBridge>
+  </NMessageProvider>
+  </NDialogProvider>
+  </NConfigProvider>
 </template>
 
 <style scoped>
+.unsupported-screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #060b14;
+  color: #e4edf8;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 15px;
+  text-align: center;
+  padding: 24px;
+}
+
+@media (max-width: 767px) {
+  .unsupported-screen {
+    display: flex;
+  }
+  .app {
+    display: none;
+  }
+}
+
 .app {
   min-height: 100vh;
   height: 100vh;

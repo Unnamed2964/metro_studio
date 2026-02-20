@@ -55,6 +55,7 @@ export async function searchLocation(query, options = {}) {
   const limit = options.limit ?? 10
   const signal = options.signal
   const viewbox = options.viewbox
+  const provinceFilter = options.provinceFilter
   const trimmedQuery = String(query || '').trim()
 
   if (!trimmedQuery) return []
@@ -106,7 +107,16 @@ export async function searchLocation(query, options = {}) {
       }
 
       const data = await response.json()
-      const results = Array.isArray(data) ? data : []
+      let results = Array.isArray(data) ? data : []
+
+      if (provinceFilter && results.length > 0) {
+        results = results.filter(item => {
+          if (!item.address) return false
+          const state = item.address.state || item.address.province
+          if (!state) return false
+          return state.includes(provinceFilter) || provinceFilter.includes(state)
+        })
+      }
 
       cache.set(key, { data: results, expireAt: Date.now() + NOMINATIM_CACHE_TTL_MS })
       return results

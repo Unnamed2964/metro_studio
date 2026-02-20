@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { NModal } from 'naive-ui'
 import { buildAnnouncementTexts } from '../lib/tts/announcementTemplates.js'
 import { generateTTS, generateTTSBatch, getTTSAudioUrl, checkTTSHealth, concatenateAudioFiles } from '../lib/tts/ttsClient.js'
 
@@ -453,17 +454,13 @@ defineExpose({ onOpen })
 </script>
 
 <template>
-  <teleport to="body">
-    <div v-if="visible" class="tts-overlay" @mousedown.self="close">
-      <div class="tts-panel">
-        <div class="tts-header">
-          <h3>报站生成</h3>
-          <div class="tts-mode-toggle">
-            <button :class="['tts-dir-btn', { active: panelMode === 'station' }]" @click="panelMode = 'station'">单站模式</button>
-            <button :class="['tts-dir-btn', { active: panelMode === 'onboard' }]" @click="panelMode = 'onboard'">车上模式</button>
-          </div>
-          <button class="tts-close" @click="close">✕</button>
-        </div>
+  <NModal :show="visible" preset="card" title="报站生成" style="width:620px;max-height:85vh;max-width:calc(100vw - 32px)" @close="close" @mask-click="close">
+    <template #header-extra>
+      <div class="tts-mode-toggle">
+        <button :class="['tts-dir-btn', { active: panelMode === 'station' }]" @click="panelMode = 'station'">单站模式</button>
+        <button :class="['tts-dir-btn', { active: panelMode === 'onboard' }]" @click="panelMode = 'onboard'">车上模式</button>
+      </div>
+    </template>
 
         <div v-if="serverOk === false" class="tts-warning">
           TTS 服务未启动，请先运行 tts/start_server.bat
@@ -554,14 +551,6 @@ defineExpose({ onOpen })
             </template>
             <p v-else class="tts-empty">请先选择线路和站点</p>
           </div>
-          <div class="tts-footer">
-            <button class="pp-btn pp-btn--primary" :disabled="generating || serverOk === false || !announcementData" @click="generateAll">
-              {{ batchProgress.total > 0 ? `生成中... (${batchProgress.current}/${batchProgress.total})` : (generating ? '生成中...' : '整段生成') }}
-            </button>
-            <button class="pp-btn" :disabled="!hasGeneratedFiles" @click="playAllStation">播放全部</button>
-            <button class="pp-btn" :disabled="!hasGeneratedFiles" @click="downloadAllAudio">批量下载</button>
-            <button class="pp-btn" @click="close">关闭</button>
-          </div>
         </template>
 
         <!-- 车上模式 -->
@@ -578,42 +567,26 @@ defineExpose({ onOpen })
             <p v-else-if="!fromStationId || !toStationId" class="tts-empty">请选择上车站和下车站</p>
             <p v-else-if="fromStationId === toStationId" class="tts-empty">上车站和下车站不能相同</p>
           </div>
-          <div class="tts-footer">
-            <button class="pp-btn pp-btn--primary" :disabled="generating || serverOk === false || !fromStationId || !toStationId || fromStationId === toStationId" @click="generateOnboard">{{ generating ? '生成中...' : '生成并播放' }}</button>
-            <button class="pp-btn" @click="close">关闭</button>
-          </div>
         </template>
+
+    <template #footer>
+      <div v-if="panelMode === 'station'" class="tts-footer">
+        <button class="pp-btn pp-btn--primary" :disabled="generating || serverOk === false || !announcementData" @click="generateAll">
+          {{ batchProgress.total > 0 ? `生成中... (${batchProgress.current}/${batchProgress.total})` : (generating ? '生成中...' : '整段生成') }}
+        </button>
+        <button class="pp-btn" :disabled="!hasGeneratedFiles" @click="playAllStation">播放全部</button>
+        <button class="pp-btn" :disabled="!hasGeneratedFiles" @click="downloadAllAudio">批量下载</button>
+        <button class="pp-btn" @click="close">关闭</button>
       </div>
-    </div>
-  </teleport>
+      <div v-else class="tts-footer">
+        <button class="pp-btn pp-btn--primary" :disabled="generating || serverOk === false || !fromStationId || !toStationId || fromStationId === toStationId" @click="generateOnboard">{{ generating ? '生成中...' : '生成并播放' }}</button>
+        <button class="pp-btn" @click="close">关闭</button>
+      </div>
+    </template>
+  </NModal>
 </template>
 
 <style scoped>
-.tts-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 10000;
-}
-.tts-panel {
-  background: var(--workspace-panel-bg);
-  border: 1px solid var(--workspace-panel-border);
-  border-radius: 12px;
-  width: 620px; max-height: 85vh;
-  display: flex; flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-.tts-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--workspace-panel-border);
-}
-.tts-header h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--toolbar-text); }
-.tts-close {
-  background: none; border: none; font-size: 18px; cursor: pointer;
-  padding: 4px 8px; color: var(--toolbar-text); opacity: 0.6;
-}
-.tts-close:hover { opacity: 1; }
 .tts-warning {
   background: #fff3cd; color: #856404;
   padding: 10px 20px; font-size: 13px;
@@ -669,7 +642,5 @@ defineExpose({ onOpen })
 .tts-empty { text-align: center; color: var(--toolbar-muted); font-size: 13px; padding: 24px 0; }
 .tts-footer {
   display: flex; gap: 8px; justify-content: flex-end;
-  padding: 14px 20px;
-  border-top: 1px solid var(--workspace-panel-border);
 }
 </style>

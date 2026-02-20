@@ -2,7 +2,7 @@
 import { computed, inject, nextTick, reactive, ref, watch } from 'vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
-import TooltipWrapper from '../TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 
 const store = useProjectStore()
 const nameZhInputRef = ref(null)
@@ -108,12 +108,18 @@ watch(
     <div class="pp-divider" />
 
     <div class="pp-row">
-      <TooltipWrapper text="保存站名" placement="bottom">
-        <button class="pp-btn pp-btn--primary" @click="applyStationRename">保存站名</button>
-      </TooltipWrapper>
-      <TooltipWrapper text="删除站点" placement="bottom">
-        <button class="pp-btn pp-btn--danger" @click="deleteStation">删除站点</button>
-      </TooltipWrapper>
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button class="pp-btn pp-btn--primary" @click="applyStationRename">保存站名</button>
+        </template>
+        保存站名
+      </NTooltip>
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button class="pp-btn pp-btn--danger" @click="deleteStation">删除站点</button>
+        </template>
+        删除站点
+      </NTooltip>
     </div>
   </div>
 </template>

@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import IconBase from '../IconBase.vue'
-import TooltipWrapper from '../TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 import { useProjectStore } from '../../stores/projectStore'
 import { useToolbarStationOps } from '../../composables/useToolbarStationOps.js'
 import { useToolbarEdgeOps } from '../../composables/useToolbarEdgeOps.js'
@@ -35,87 +35,125 @@ function redoEdit() {
       <h3>工具</h3>
       <p class="toolbar__section-intro">选择编辑模式，执行选择与排版控制</p>
       <div class="toolbar__row">
-        <TooltipWrapper text="选择/拖拽工具" shortcut="V">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'select' }" @click="store.setMode('select')">
-            <IconBase name="cursor" :size="14" />
-            <span>选择</span>
-          </button>
-        </TooltipWrapper>
-        <TooltipWrapper text="点击添加站点" shortcut="S">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'add-station' }" @click="store.setMode('add-station')">
-            <IconBase name="plus-circle" :size="14" />
-            <span>点站</span>
-          </button>
-        </TooltipWrapper>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'select' }" @click="store.setMode('select')">
+              <IconBase name="cursor" :size="14" />
+              <span>选择</span>
+            </button>
+          </template>
+          选择/拖拽工具 (V)
+        </NTooltip>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'add-station' }" @click="store.setMode('add-station')">
+              <IconBase name="plus-circle" :size="14" />
+              <span>点站</span>
+            </button>
+          </template>
+          点击添加站点 (S)
+        </NTooltip>
       </div>
       <div class="toolbar__row">
-        <TooltipWrapper text="连续布线模式" shortcut="R">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'route-draw' }" @click="store.setMode('route-draw')">
-            <IconBase name="route" :size="14" />
-            <span>连续布线</span>
-          </button>
-        </TooltipWrapper>
-        <TooltipWrapper text="样式刷模式" shortcut="M">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'style-brush' || store.styleBrush.active }" @click="store.setMode('style-brush')">
-            <IconBase name="paintbrush" :size="14" />
-            <span>样式刷</span>
-          </button>
-        </TooltipWrapper>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'route-draw' }" @click="store.setMode('route-draw')">
+              <IconBase name="route" :size="14" />
+              <span>连续布线</span>
+            </button>
+          </template>
+          连续布线模式 (R)
+        </NTooltip>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'style-brush' || store.styleBrush.active }" @click="store.setMode('style-brush')">
+              <IconBase name="paintbrush" :size="14" />
+              <span>样式刷</span>
+            </button>
+          </template>
+          样式刷模式 (M)
+        </NTooltip>
       </div>
       <div class="toolbar__row">
-        <TooltipWrapper text="框选工具" shortcut="B">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'box-select' }" @click="store.setMode('box-select')">
-            <IconBase name="box-select" :size="14" />
-            <span>框选</span>
-          </button>
-        </TooltipWrapper>
-        <TooltipWrapper text="快速连线" shortcut="L">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'quick-link' }" @click="store.setMode('quick-link')">
-            <IconBase name="link" :size="14" />
-            <span>连线</span>
-          </button>
-        </TooltipWrapper>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'box-select' }" @click="store.setMode('box-select')">
+              <IconBase name="box-select" :size="14" />
+              <span>框选</span>
+            </button>
+          </template>
+          框选工具 (B)
+        </NTooltip>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'quick-link' }" @click="store.setMode('quick-link')">
+              <IconBase name="link" :size="14" />
+              <span>连线</span>
+            </button>
+          </template>
+          快速连线 (L)
+        </NTooltip>
       </div>
       <div class="toolbar__row">
-        <TooltipWrapper text="锚点编辑" shortcut="P">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'anchor-edit' }" @click="store.setMode('anchor-edit')">
-            <IconBase name="edit-3" :size="14" />
-            <span>锚点</span>
-          </button>
-        </TooltipWrapper>
-        <TooltipWrapper text="删除工具" shortcut="D">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'delete-mode' }" @click="store.setMode('delete-mode')">
-            <IconBase name="trash" :size="14" />
-            <span>删除</span>
-          </button>
-        </TooltipWrapper>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'anchor-edit' }" @click="store.setMode('anchor-edit')">
+              <IconBase name="edit-3" :size="14" />
+              <span>锚点</span>
+            </button>
+          </template>
+          锚点编辑 (P)
+        </NTooltip>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'delete-mode' }" @click="store.setMode('delete-mode')">
+              <IconBase name="trash" :size="14" />
+              <span>删除</span>
+            </button>
+          </template>
+          删除工具 (D)
+        </NTooltip>
       </div>
       <div class="toolbar__row">
 <<<<<<< HEAD
-        <TooltipWrapper text="两点测量工具" shortcut="T">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'measure-two-point' }" @click="store.setMode('measure-two-point')">
-            <IconBase name="ruler" :size="14" />
-            <span>两点测</span>
-          </button>
-        </TooltipWrapper>
-        <TooltipWrapper text="多点测量工具" shortcut="Y">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'measure-multi-point' }" @click="store.setMode('measure-multi-point')">
-            <IconBase name="gauge" :size="14" />
-            <span>多点测</span>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'measure-two-point' }" @click="store.setMode('measure-two-point')">
+              <IconBase name="ruler" :size="14" />
+              <span>两点测</span>
+            </button>
+          </template>
+          两点测量工具 (T)
+        </NTooltip>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'measure-multi-point' }" @click="store.setMode('measure-multi-point')">
+              <IconBase name="gauge" :size="14" />
+              <span>多点测</span>
+            </button>
+          </template>
+          多点测量工具 (Y)
+        </NTooltip>
 =======
-        <TooltipWrapper text="测量工具" shortcut="T">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'measure' }" @click="store.setMode('measure')">
-            <IconBase name="ruler" :size="14" />
-            <span>测量</span>
-          </button>
-        </TooltipWrapper>
-        <TooltipWrapper text="注释工具" shortcut="N">
-          <button class="toolbar__btn" :class="{ active: store.mode === 'annotation' }" @click="store.setMode('annotation')">
-            <IconBase name="message-square" :size="14" />
-            <span>注释</span>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'measure' }" @click="store.setMode('measure')">
+              <IconBase name="ruler" :size="14" />
+              <span>测量</span>
+            </button>
+          </template>
+          测量工具 (T)
+        </NTooltip>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :class="{ active: store.mode === 'annotation' }" @click="store.setMode('annotation')">
+              <IconBase name="message-square" :size="14" />
+              <span>注释</span>
+            </button>
+          </template>
+          注释工具 (N)
+        </NTooltip>
 >>>>>>> cb452e972aa7c00c57050ae65acadc9a3661c04e
-          </button>
-        </TooltipWrapper>
       </div>
       <div v-if="store.styleBrush.active" class="toolbar__row">
         <span class="toolbar__hint">已拾取样式源：{{ store.getObjectTypeLabel(store.styleBrush.sourceType) }}</span>
@@ -134,16 +172,22 @@ function redoEdit() {
         <span class="toolbar__meta">已选线段: {{ selectedEdgeCount }}</span>
       </div>
       <div class="toolbar__row">
-        <TooltipWrapper text="撤销上一步操作" shortcut="Ctrl+Z">
-          <button class="toolbar__btn" :disabled="!store.canUndo" @click="undoEdit">
-            <IconBase name="undo" :size="14" />
-          </button>
-        </TooltipWrapper>
-        <TooltipWrapper text="重做上一步操作" shortcut="Ctrl+Shift+Z">
-          <button class="toolbar__btn" :disabled="!store.canRedo" @click="redoEdit">
-            <IconBase name="redo" :size="14" />
-          </button>
-        </TooltipWrapper>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :disabled="!store.canUndo" @click="undoEdit">
+              <IconBase name="undo" :size="14" />
+            </button>
+          </template>
+          撤销上一步操作 (Ctrl+Z)
+        </NTooltip>
+        <NTooltip>
+          <template #trigger>
+            <button class="toolbar__btn" :disabled="!store.canRedo" @click="redoEdit">
+              <IconBase name="redo" :size="14" />
+            </button>
+          </template>
+          重做上一步操作 (Ctrl+Shift+Z)
+        </NTooltip>
         <button class="toolbar__btn" @click="selectAllStations">全选站点</button>
         <button class="toolbar__btn" @click="store.clearSelection()">清空选择</button>
       </div>

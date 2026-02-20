@@ -1,7 +1,7 @@
 <script setup>
 import { computed, inject, reactive } from 'vue'
-import AccordionSection from '../AccordionSection.vue'
-import TooltipWrapper from '../TooltipWrapper.vue'
+import { NCollapse, NCollapseItem } from 'naive-ui'
+import { NTooltip } from 'naive-ui'
 import { useProjectStore } from '../../stores/projectStore'
 
 const store = useProjectStore()
@@ -78,22 +78,29 @@ function translateNonNewStations() {
   <div class="panel-station-multi">
     <p class="pp-hint">已选 {{ selectedStationCount }} 个站点</p>
 
-    <AccordionSection title="导出">
-      <TooltipWrapper text="复制选中站中文名（空格分隔）" placement="bottom">
-        <button class="pp-btn" :disabled="!selectedStationCount" @click="copyStationNames">复制站名</button>
-      </TooltipWrapper>
-    </AccordionSection>
+    <NCollapse :default-expanded-names="['export', 'translate', 'rename']">
+    <NCollapseItem title="导出" name="export">
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button class="pp-btn" :disabled="!selectedStationCount" @click="copyStationNames">复制站名</button>
+        </template>
+        复制选中站中文名（空格分隔）
+      </NTooltip>
+    </NCollapseItem>
 
-    <AccordionSection title="英文翻译">
-      <TooltipWrapper text="AI翻译选中站英文名" placement="bottom">
-        <button
-          class="pp-btn"
-          :disabled="!selectedStationCount || store.isStationEnglishRetranslating"
-          @click="translateNonNewStations"
-        >
-          {{ store.isStationEnglishRetranslating ? '翻译中...' : 'AI翻译选中站英文' }}
-        </button>
-      </TooltipWrapper>
+    <NCollapseItem title="英文翻译" name="translate">
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button
+            class="pp-btn"
+            :disabled="!selectedStationCount || store.isStationEnglishRetranslating"
+            @click="translateNonNewStations"
+          >
+            {{ store.isStationEnglishRetranslating ? '翻译中...' : 'AI翻译选中站英文' }}
+          </button>
+        </template>
+        AI翻译选中站英文名
+      </NTooltip>
       <div v-if="stationEnglishRetranslateProgress.total > 0" class="pp-progress">
         <div class="pp-progress-head">
           <span>{{ stationEnglishRetranslateProgress.message || '处理中...' }}</span>
@@ -107,47 +114,60 @@ function translateNonNewStations() {
         </div>
         <p class="pp-hint">{{ stationEnglishRetranslateProgress.done || 0 }} / {{ stationEnglishRetranslateProgress.total || 0 }}</p>
       </div>
-    </AccordionSection>
+    </NCollapseItem>
 
-    <AccordionSection title="批量重命名">
+    <NCollapseItem title="批量重命名" name="rename">
       <p class="pp-hint">使用模板批量重命名（`{n}` 为序号）。</p>
       <input v-model="stationBatchForm.zhTemplate" class="pp-input" placeholder="中文模板，例如：站点 {n}" />
       <input v-model="stationBatchForm.enTemplate" class="pp-input" placeholder="English template, e.g. Station {n}" />
       <label class="pp-label">起始序号</label>
       <input v-model.number="stationBatchForm.startIndex" type="number" min="1" class="pp-input" />
       <div class="pp-row">
-        <TooltipWrapper text="按模板批量重命名" placement="bottom">
-          <button class="pp-btn pp-btn--primary" @click="applyBatchStationRename">批量重命名</button>
-        </TooltipWrapper>
-        <TooltipWrapper text="删除选中站点" placement="bottom">
-          <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedStations()">删除选中站点</button>
-        </TooltipWrapper>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn pp-btn--primary" @click="applyBatchStationRename">批量重命名</button>
+          </template>
+          按模板批量重命名
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedStations()">删除选中站点</button>
+          </template>
+          删除选中站点
+        </NTooltip>
       </div>
-    </AccordionSection>
+    </NCollapseItem>
 
-    <AccordionSection title="换乘工具" :default-open="false">
+    <NCollapseItem title="换乘工具" name="transfer">
       <p class="pp-hint">选择 2 个站点后，可将其视作换乘（不改原线路拓扑）。</p>
       <div class="pp-row">
-        <TooltipWrapper text="将选中两站设为换乘" placement="bottom">
-          <button
-            class="pp-btn"
-            :disabled="!canEditSelectedManualTransfer || selectedManualTransferExists"
-            @click="store.addManualTransferForSelectedStations()"
-          >
-            设为换乘
-          </button>
-        </TooltipWrapper>
-        <TooltipWrapper text="取消选中两站的换乘" placement="bottom">
-          <button
-            class="pp-btn"
-            :disabled="!canEditSelectedManualTransfer || !selectedManualTransferExists"
-            @click="store.removeManualTransferForSelectedStations()"
-          >
-            取消换乘
-          </button>
-        </TooltipWrapper>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button
+              class="pp-btn"
+              :disabled="!canEditSelectedManualTransfer || selectedManualTransferExists"
+              @click="store.addManualTransferForSelectedStations()"
+            >
+              设为换乘
+            </button>
+          </template>
+          将选中两站设为换乘
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button
+              class="pp-btn"
+              :disabled="!canEditSelectedManualTransfer || !selectedManualTransferExists"
+              @click="store.removeManualTransferForSelectedStations()"
+            >
+              取消换乘
+            </button>
+          </template>
+          取消选中两站的换乘
+        </NTooltip>
       </div>
-    </AccordionSection>
+    </NCollapseItem>
+    </NCollapse>
   </div>
 </template>
 

@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import AccordionSection from './AccordionSection.vue'
-import TooltipWrapper from './TooltipWrapper.vue'
+import { NCollapse, NCollapseItem } from 'naive-ui'
 import { useProjectStore } from '../stores/projectStore'
 
 const store = useProjectStore()
@@ -21,7 +20,8 @@ function updateConfig(key, value) {
 
 <template>
   <div class="schematic-controls">
-    <AccordionSection title="站点显示" :default-open="true">
+    <NCollapse :default-expanded-names="['station', 'line', 'layout']">
+      <NCollapseItem title="站点显示" name="station">
       <label class="pp-row">
         <input
           type="checkbox"
@@ -59,9 +59,9 @@ function updateConfig(key, value) {
         <option value="circle">圆形</option>
         <option value="square">方形</option>
       </select>
-    </AccordionSection>
+    </NCollapseItem>
 
-    <AccordionSection title="线路显示" :default-open="true">
+      <NCollapseItem title="线路显示" name="line">
       <label class="pp-row">
         <input
           type="checkbox"
@@ -94,11 +94,11 @@ function updateConfig(key, value) {
         />
         <span class="pp-range-value">{{ Math.round((displayConfig.edgeOpacity ?? 1.0) * 100) }}%</span>
       </div>
-    </AccordionSection>
+    </NCollapseItem>
 
 
 
-    <AccordionSection title="布局参数" :default-open="true">
+      <NCollapseItem title="布局参数" name="layout">
       <label class="pp-label">转角圆滑度</label>
       <div class="pp-range-row">
         <input
@@ -126,7 +126,8 @@ function updateConfig(key, value) {
         <span class="pp-range-value">{{ layoutGeoSeedScale.toFixed(1) }}</span>
       </div>
       <p class="pp-hint">值越大，初始地理骨架展开越明显。</p>
-    </AccordionSection>
+      </NCollapseItem>
+    </NCollapse>
   </div>
 </template>
 

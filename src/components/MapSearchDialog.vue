@@ -1,11 +1,13 @@
 <script setup>
 import { ref, watch, nextTick } from 'vue'
+import { NModal } from 'naive-ui'
 import IconBase from './IconBase.vue'
 import { searchLocation } from '../lib/osm/nominatimSearch'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   viewbox: { type: Array, default: null },
+  targetProvince: { type: String, default: null },
 })
 
 const emit = defineEmits(['close', 'select'])
@@ -42,7 +44,7 @@ async function performSearch() {
   selectedIndex.value = -1
 
   try {
-    const results = await searchLocation(query, { limit: 10, viewbox: props.viewbox })
+    const results = await searchLocation(query, { limit: 10, viewbox: props.viewbox, provinceFilter: props.targetProvince })
     searchResults.value = results.map((item, index) => ({
       id: item.place_id || item.osm_type + item.osm_id || index,
       lat: parseFloat(item.lat),
@@ -119,146 +121,66 @@ function formatResultType(result) {
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="dialog-backdrop">
+  <NModal :show="visible" preset="card" title="搜索地点" style="width:480px;max-width:calc(100vw - 32px)" @close="emit('close')" @mask-click="emit('close')">
+    <div class="map-search-dialog__search">
+      <input
+        ref="searchInputRef"
+        v-model="searchQuery"
+        type="text"
+        class="map-search-dialog__input"
+        placeholder="输入地名、街道、地标..."
+        @input="onSearchInput"
+        @keydown="handleKeyDown"
+      />
+      <div class="map-search-dialog__status">
+        <span v-if="isSearching" class="map-search-dialog__loading">搜索中...</span>
+        <span v-else-if="searchError" class="map-search-dialog__error">{{ searchError }}</span>
+        <span v-else-if="searchQuery && !isSearching && searchResults.length === 0" class="map-search-dialog__hint">
+          请输入更详细的搜索词
+        </span>
+        <span v-else-if="!searchQuery" class="map-search-dialog__hint">
+          支持搜索地名、街道、建筑、景点等
+        </span>
+      </div>
+    </div>
+
+    <div class="map-search-dialog__results">
       <div
-        v-if="visible"
-        class="map-search-dialog__backdrop"
-        @mousedown.self="emit('close')"
+        v-for="(result, index) in searchResults"
+        :key="result.id"
+        class="map-search-dialog__result"
+        :class="{ 'map-search-dialog__result--selected': index === selectedIndex }"
+        @click="onSelectResult(result)"
+        @mouseenter="selectedIndex = index"
       >
-        <div class="map-search-dialog__container" @mousedown.stop>
-          <div class="map-search-dialog__header">
-            <h3>搜索地点</h3>
-            <button
-              class="map-search-dialog__close"
-              type="button"
-              @click="emit('close')"
-              aria-label="关闭"
-            >
-              <IconBase name="x" :size="18" />
-            </button>
+        <div class="map-search-dialog__result-icon">
+          <IconBase name="map-pin" :size="16" />
+        </div>
+        <div class="map-search-dialog__result-content">
+          <div class="map-search-dialog__result-name">
+            {{ result.name || result.displayName.split(',')[0] }}
           </div>
-
-          <div class="map-search-dialog__search">
-            <input
-              ref="searchInputRef"
-              v-model="searchQuery"
-              type="text"
-              class="map-search-dialog__input"
-              placeholder="输入地名、街道、地标..."
-              @input="onSearchInput"
-              @keydown="handleKeyDown"
-            />
-            <div class="map-search-dialog__status">
-              <span v-if="isSearching" class="map-search-dialog__loading">搜索中...</span>
-              <span v-else-if="searchError" class="map-search-dialog__error">{{ searchError }}</span>
-              <span v-else-if="searchQuery && !isSearching && searchResults.length === 0" class="map-search-dialog__hint">
-                请输入更详细的搜索词
-              </span>
-              <span v-else-if="!searchQuery" class="map-search-dialog__hint">
-                支持搜索地名、街道、建筑、景点等
-              </span>
-            </div>
+          <div class="map-search-dialog__result-address">
+            {{ result.displayName }}
           </div>
-
-          <div class="map-search-dialog__results">
-            <div
-              v-for="(result, index) in searchResults"
-              :key="result.id"
-              class="map-search-dialog__result"
-              :class="{ 'map-search-dialog__result--selected': index === selectedIndex }"
-              @click="onSelectResult(result)"
-              @mouseenter="selectedIndex = index"
-            >
-              <div class="map-search-dialog__result-icon">
-                <IconBase name="map-pin" :size="16" />
-              </div>
-              <div class="map-search-dialog__result-content">
-                <div class="map-search-dialog__result-name">
-                  {{ result.name || result.displayName.split(',')[0] }}
-                </div>
-                <div class="map-search-dialog__result-address">
-                  {{ result.displayName }}
-                </div>
-                <div class="map-search-dialog__result-meta">
-                  <span class="map-search-dialog__result-type">{{ formatResultType(result) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="searchResults.length === 0 && !isSearching && !searchError && searchQuery" class="map-search-dialog__empty">
-              未找到匹配的地点
-            </div>
-          </div>
-
-          <div class="map-search-dialog__footer">
-            <span class="map-search-dialog__powered">Powered by OpenStreetMap & Nominatim</span>
+          <div class="map-search-dialog__result-meta">
+            <span class="map-search-dialog__result-type">{{ formatResultType(result) }}</span>
           </div>
         </div>
       </div>
-    </Transition>
-  </Teleport>
+
+      <div v-if="searchResults.length === 0 && !isSearching && !searchError && searchQuery" class="map-search-dialog__empty">
+        未找到匹配的地点
+      </div>
+    </div>
+
+    <div class="map-search-dialog__footer">
+      <span class="map-search-dialog__powered">Powered by OpenStreetMap & Nominatim</span>
+    </div>
+  </NModal>
 </template>
 
 <style scoped>
-.map-search-dialog__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-
-.map-search-dialog__container {
-  width: 100%;
-  max-width: 480px;
-  max-height: 80vh;
-  border: 1px solid var(--toolbar-border);
-  border-radius: 12px;
-  background: var(--toolbar-card-bg);
-  color: var(--toolbar-text);
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
-}
-
-.map-search-dialog__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  border-bottom: 1px solid var(--toolbar-divider);
-  flex-shrink: 0;
-}
-
-.map-search-dialog__header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.map-search-dialog__close {
-  border: none;
-  background: transparent;
-  color: var(--toolbar-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color var(--transition-fast), background-color var(--transition-fast);
-}
-
-.map-search-dialog__close:hover {
-  color: var(--toolbar-text);
-  background: rgba(0, 0, 0, 0.08);
-}
-
 .map-search-dialog__search {
   padding: 16px;
   flex-shrink: 0;
@@ -380,24 +302,4 @@ function formatResultType(result) {
   display: block;
 }
 
-.dialog-backdrop-enter-active,
-.dialog-backdrop-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.dialog-backdrop-enter-from,
-.dialog-backdrop-leave-to {
-  opacity: 0;
-}
-
-.dialog-backdrop-enter-active .map-search-dialog__container,
-.dialog-backdrop-leave-active .map-search-dialog__container {
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-
-.dialog-backdrop-enter-from .map-search-dialog__container,
-.dialog-backdrop-leave-to .map-search-dialog__container {
-  transform: scale(0.95);
-  opacity: 0;
-}
 </style>

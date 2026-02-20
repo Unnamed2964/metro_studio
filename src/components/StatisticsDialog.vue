@@ -1,5 +1,6 @@
 <script setup>
 import { nextTick, ref, watch } from 'vue'
+import { NModal } from 'naive-ui'
 import { useProjectStore } from '../stores/projectStore'
 import { calculateNetworkMetrics } from '../lib/network/networkStatistics'
 import IconBase from './IconBase.vue'
@@ -11,7 +12,6 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const store = useProjectStore()
-const dialogRef = ref(null)
 const activeTab = ref('basics')
 const loading = ref(false)
 const stats = ref(null)
@@ -25,31 +25,6 @@ const tabs = [
 
 function doClose() {
   emit('close')
-}
-
-function onKeydown(e) {
-  if (e.key === 'Escape') {
-    doClose()
-  }
-  if (e.key === 'Tab' && dialogRef.value) {
-    const focusable = dialogRef.value.querySelectorAll(
-      'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )
-    if (focusable.length === 0) return
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-  }
 }
 
 function formatDistance(meters) {
@@ -94,26 +69,8 @@ watch(
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="dialog-transition">
-      <div
-        v-if="visible"
-        class="stats-overlay"
-        @mousedown.self="doClose"
-        @keydown="onKeydown"
-      >
-        <div
-          ref="dialogRef"
-          class="stats-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-label="统计信息"
-        >
-          <header class="stats-dialog__header">
-            <h2 class="stats-dialog__title">统计信息</h2>
-          </header>
-          
-          <div class="stats-dialog__tabs">
+  <NModal :show="visible" preset="card" title="统计信息" style="width:800px;max-width:calc(100vw - 32px)" @close="doClose" @mask-click="doClose">
+    <div class="stats-dialog__tabs">
             <button
               v-for="tab in tabs"
               :key="tab.key"
@@ -320,59 +277,21 @@ watch(
             </template>
           </div>
 
-          <footer class="stats-dialog__footer">
-            <button
-              class="stats-dialog__btn stats-dialog__btn--primary"
-              type="button"
-              @click="doClose"
-            >
-              关闭
-            </button>
-          </footer>
-        </div>
+    <template #footer>
+      <div class="stats-dialog__footer">
+        <button
+          class="stats-dialog__btn stats-dialog__btn--primary"
+          type="button"
+          @click="doClose"
+        >
+          关闭
+        </button>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+  </NModal>
 </template>
 
 <style scoped>
-.stats-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9500;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.stats-dialog {
-  width: 800px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 64px);
-  background: var(--toolbar-card-bg);
-  border: 1px solid var(--toolbar-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.stats-dialog__header {
-  padding: 16px 20px 0;
-  border-bottom: 1px solid var(--toolbar-divider);
-}
-
-.stats-dialog__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--toolbar-text);
-  line-height: 1.4;
-  padding-bottom: 14px;
-}
-
 .stats-dialog__tabs {
   display: flex;
   gap: 0;
@@ -401,7 +320,7 @@ watch(
 
 .stats-dialog__tab--active {
   color: var(--toolbar-text);
-  border-bottom-color: #2563eb;
+  border-bottom-color: #8b5cf6;
 }
 
 .stats-dialog__body {
@@ -583,7 +502,7 @@ watch(
 
 .interchange-item__count {
   padding: 4px 10px;
-  background: var(--toolbar-primary-bg, #2563eb);
+  background: #8b5cf6;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;
@@ -652,13 +571,13 @@ watch(
 }
 
 .stats-dialog__btn--primary {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #6366f1 100%);
   border-color: var(--toolbar-primary-border);
   color: #fff;
 }
 
 .stats-dialog__btn--primary:hover {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
+  background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #818cf8 100%);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
 }
 </style>

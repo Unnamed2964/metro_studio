@@ -78,6 +78,7 @@ export const useProjectStore = defineStore('project', {
       currentIndex: 0,
       stationOrder: [],
     },
+    fitToNetworkTrigger: 0,
     history: {
       past: [],
       future: [],
@@ -182,6 +183,9 @@ export const useProjectStore = defineStore('project', {
     ...styleBrushActions,
     ...annotationActions,
     ...clipboardActions,
+    fitToNetwork() {
+      this.fitToNetworkTrigger++
+    },
   },
 })
 

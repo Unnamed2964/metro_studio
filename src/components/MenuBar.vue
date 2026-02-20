@@ -1,8 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { h } from 'vue'
 import IconBase from './IconBase.vue'
-import DropdownMenu from './DropdownMenu.vue'
-import TooltipWrapper from './TooltipWrapper.vue'
+import { NTooltip, NDropdown } from 'naive-ui'
 import { useProjectStore } from '../stores/projectStore'
 import { getDisplayLineName } from '../lib/lineNaming'
 import { useMenuBarActions } from '../composables/useMenuBarActions'
@@ -23,6 +23,34 @@ const lineDropdownRect = ref(null)
 const fileInputRef = ref(null)
 
 const { menus, handleAction, uiTheme, toggleTheme } = useMenuBarActions(store, emit, { fileInputRef })
+
+function convertMenuItems(items) {
+  return items.map((item, i) => {
+    if (item.type === 'separator') return { type: 'divider', key: `sep_${i}` }
+    const opt = { key: item.action || `item_${i}`, label: item.label, disabled: item.disabled }
+    if (item.type === 'toggle' && item.checked) opt.label = `✓ ${item.label}`
+    if (item.shortcut) opt.label = `${item.label}    ${item.shortcut}`
+    if (item.type === 'submenu' && item.children) opt.children = convertMenuItems(item.children)
+    return opt
+  })
+}
+
+function onNDropdownSelect(key) {
+  closeMenu()
+  handleAction(key)
+}
+
+const lineNDropdownOptions = computed(() =>
+  lines.value.map((line) => ({
+    key: `line_${line.id}`,
+    label: getDisplayLineName(line, 'zh') || line.nameZh || '未命名',
+  }))
+)
+
+function onLineNDropdownSelect(key) {
+  lineDropdownOpen.value = false
+  if (key.startsWith('line_')) store.setActiveLine(key.slice(5))
+}
 
 const MIN_YEAR = 1900
 const MAX_YEAR = 2100
@@ -156,78 +184,81 @@ function toggleNavigation() {
       <span class="menu-bar__brand-sep" />
 
       <nav class="menu-bar__menus">
-        <button
+        <NDropdown
           v-for="menu in menus"
           :key="menu.key"
-          :data-menu-key="menu.key"
-          class="menu-bar__menu-btn"
-          :class="{ 'menu-bar__menu-btn--open': openMenuKey === menu.key }"
-          type="button"
-          @click="toggleMenu(menu.key)"
-          @mouseenter="onMenuBarMouseEnter(menu.key)"
+          trigger="click"
+          :options="convertMenuItems(menu.items)"
+          :show="openMenuKey === menu.key"
+          @select="onNDropdownSelect"
+          @clickoutside="closeMenu"
         >
-          {{ menu.label }}
-        </button>
+          <button
+            :data-menu-key="menu.key"
+            class="menu-bar__menu-btn"
+            :class="{ 'menu-bar__menu-btn--open': openMenuKey === menu.key }"
+            type="button"
+            @click="toggleMenu(menu.key)"
+            @mouseenter="onMenuBarMouseEnter(menu.key)"
+          >
+            {{ menu.label }}
+          </button>
+        </NDropdown>
       </nav>
-
-      <template v-for="menu in menus" :key="`dropdown_${menu.key}`">
-        <DropdownMenu
-          v-if="openMenuKey === menu.key && menuButtonRects[menu.key]"
-          :items="menu.items"
-          :visible="true"
-          :anchor-rect="menuButtonRects[menu.key]"
-          @select="onMenuSelect"
-          @close="closeMenu"
-        />
-      </template>
     </div>
 
     <div class="menu-bar__right">
-      <TooltipWrapper text="搜索地点 (Ctrl+F)" placement="bottom" :delay="300">
-        <button
-          class="menu-bar__nav-btn"
-          type="button"
-          @click="emit('show-search')"
-          aria-label="搜索地点"
-        >
-          <IconBase name="search" :size="16" />
-        </button>
-      </TooltipWrapper>
+      <NTooltip placement="bottom" :delay="300">
+        <template #trigger>
+          <button
+            class="menu-bar__nav-btn"
+            type="button"
+            @click="emit('show-search')"
+            aria-label="搜索地点"
+          >
+            <IconBase name="search" :size="16" />
+          </button>
+        </template>
+        搜索地点 (Ctrl+F)
+      </NTooltip>
 
-      <TooltipWrapper text="导航" placement="bottom" :delay="300">
-        <button
-          class="menu-bar__nav-btn"
-          :class="{ 'menu-bar__nav-btn--active': store.navigation.active }"
-          type="button"
-          @click="toggleNavigation"
-          aria-label="导航"
-        >
-          <IconBase name="navigation" :size="16" />
-        </button>
-      </TooltipWrapper>
+      <NTooltip placement="bottom" :delay="300">
+        <template #trigger>
+          <button
+            class="menu-bar__nav-btn"
+            :class="{ 'menu-bar__nav-btn--active': store.navigation.active }"
+            type="button"
+            @click="toggleNavigation"
+            aria-label="导航"
+          >
+            <IconBase name="navigation" :size="16" />
+          </button>
+        </template>
+        导航
+      </NTooltip>
 
       <div class="menu-bar__line-switcher">
-        <button
-          ref="lineButtonRef"
-          class="menu-bar__line-btn"
-          type="button"
-          @click="toggleLineDropdown"
+        <NDropdown
+          trigger="click"
+          :options="lineNDropdownOptions"
+          :show="lineDropdownOpen"
+          @select="onLineNDropdownSelect"
+          @clickoutside="lineDropdownOpen = false"
         >
-          <span
-            class="menu-bar__line-swatch"
-            :style="{ backgroundColor: activeLine?.color || '#555' }"
-          />
-          <span class="menu-bar__line-name">{{ activeLineName }}</span>
-          <IconBase name="chevron-down" :size="12" class="menu-bar__line-chevron" :class="{ 'menu-bar__line-chevron--open': lineDropdownOpen }" />
-        </button>
-        <DropdownMenu
-          v-if="lineDropdownOpen && lineDropdownRect"
-          :items="lineMenuItems"
-          :visible="true"
-          :anchor-rect="lineDropdownRect"
-          @select="onLineSelect"
-          @close="lineDropdownOpen = false"
-        />
+          <button
+            ref="lineButtonRef"
+            class="menu-bar__line-btn"
+            type="button"
+            @click="lineDropdownOpen = !lineDropdownOpen"
+          >
+            <span
+              class="menu-bar__line-swatch"
+              :style="{ backgroundColor: activeLine?.color || '#555' }"
+            />
+            <span class="menu-bar__line-name">{{ activeLineName }}</span>
+            <IconBase name="chevron-down" :size="12" class="menu-bar__line-chevron" :class="{ 'menu-bar__line-chevron--open': lineDropdownOpen }" />
+          </button>
+        </NDropdown>
       </div>
 
       <div class="menu-bar__year-selector">
@@ -258,34 +289,39 @@ function toggleNavigation() {
       </div>
 
       <div class="menu-bar__view-switcher">
-        <TooltipWrapper
+        <NTooltip
           v-for="btn in viewButtons"
           :key="btn.view"
-          :text="btn.label"
           placement="bottom"
           :delay="300"
         >
-          <button
-            class="menu-bar__view-btn"
-            :class="{ 'menu-bar__view-btn--active': activeView === btn.view }"
-            type="button"
-            @click="emit('set-view', btn.view)"
-          >
-            <IconBase :name="btn.icon" :size="16" />
-          </button>
-        </TooltipWrapper>
+          <template #trigger>
+            <button
+              class="menu-bar__view-btn"
+              :class="{ 'menu-bar__view-btn--active': activeView === btn.view }"
+              type="button"
+              @click="emit('set-view', btn.view)"
+            >
+              <IconBase :name="btn.icon" :size="16" />
+            </button>
+          </template>
+          {{ btn.label }}
+        </NTooltip>
       </div>
 
-      <TooltipWrapper text="切换主题" placement="bottom" :delay="300">
-        <button
-          class="menu-bar__theme-btn"
-          type="button"
-          @click="toggleTheme"
-          aria-label="切换主题"
-        >
-          <IconBase :name="uiTheme === 'light' ? 'moon' : 'sun'" :size="16" />
-        </button>
-      </TooltipWrapper>
+      <NTooltip placement="bottom" :delay="300">
+        <template #trigger>
+          <button
+            class="menu-bar__theme-btn"
+            type="button"
+            @click="toggleTheme"
+            aria-label="切换主题"
+          >
+            <IconBase :name="uiTheme === 'light' ? 'moon' : 'sun'" :size="16" />
+          </button>
+        </template>
+        切换主题
+      </NTooltip>
     </div>
 
     <input
@@ -564,12 +600,12 @@ function toggleNavigation() {
 
 .menu-bar__nav-btn--active {
   color: var(--toolbar-tab-active-text);
-  background: var(--toolbar-primary-bg, #2563eb);
-  border-color: var(--toolbar-primary-bg, #2563eb);
+  background: var(--toolbar-primary-bg, #8b5cf6);
+  border-color: var(--toolbar-primary-bg, #8b5cf6);
 }
 
 .menu-bar__nav-btn--active:hover {
-  background: var(--toolbar-primary-bg, #2563eb);
+  background: var(--toolbar-primary-bg, #8b5cf6);
   opacity: 0.9;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { NModal } from 'naive-ui'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -7,33 +7,13 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const dialogRef = ref(null)
-
 function doClose() {
   emit('close')
-}
-
-function onKeydown(e) {
-  if (e.key === 'Escape') doClose()
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="dialog-transition">
-      <div
-        v-if="visible"
-        class="about-overlay"
-        @mousedown.self="doClose"
-        @keydown="onKeydown"
-      >
-        <div
-          ref="dialogRef"
-          class="about-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-label="关于项目"
-        >
+  <NModal :show="visible" preset="card" title="关于项目" style="width:480px;max-width:calc(100vw - 32px)" @close="doClose" @mask-click="doClose">
           <div class="about-hero">
             <img
               class="about-avatar"
@@ -87,36 +67,10 @@ function onKeydown(e) {
               关闭
             </button>
           </footer>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  </NModal>
 </template>
 
 <style scoped>
-.about-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9500;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.about-dialog {
-  width: 480px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 64px);
-  background: var(--toolbar-card-bg);
-  border: 1px solid var(--toolbar-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
 .about-hero {
   display: flex;
   align-items: center;
@@ -156,7 +110,7 @@ function onKeydown(e) {
   display: inline-block;
   margin-top: 4px;
   font-size: 12px;
-  color: #2563eb;
+  color: #8b5cf6;
   text-decoration: none;
 }
 
@@ -212,7 +166,7 @@ function onKeydown(e) {
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #6366f1 100%);
   border-color: var(--toolbar-primary-border);
   color: #fff;
   transition: all var(--transition-normal);
@@ -220,8 +174,8 @@ function onKeydown(e) {
 }
 
 .about-btn:hover {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
+  background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #818cf8 100%);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
 }
 
 .about-btn:focus-visible {

@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import AccordionSection from '../AccordionSection.vue'
+import { NCollapse, NCollapseItem } from 'naive-ui'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
 
@@ -204,8 +204,9 @@ function statusLabel(status) {
 
 <template>
   <div class="net-stats">
+    <NCollapse :default-expanded-names="['overview']">
     <!-- 概览 -->
-    <AccordionSection title="线网概况">
+    <NCollapseItem title="线网概况" name="overview">
       <table class="stats-table">
         <tbody>
           <tr>
@@ -276,10 +277,10 @@ function statusLabel(status) {
           </span>
         </div>
       </div>
-    </AccordionSection>
+    </NCollapseItem>
 
     <!-- 各线路排行 -->
-    <AccordionSection title="各线路排行" :default-open="false">
+    <NCollapseItem title="各线路排行" name="ranking">
       <p v-if="!lineDetails.length" class="pp-hint">暂无线路数据</p>
       <ul v-else class="line-ranking">
         <li v-for="(detail, index) in lineDetails" :key="detail.id" class="line-ranking-item">
@@ -291,7 +292,8 @@ function statusLabel(status) {
           <span class="line-ranking-stat">{{ detail.mileageKm }} km</span>
         </li>
       </ul>
-    </AccordionSection>
+    </NCollapseItem>
+    </NCollapse>
   </div>
 </template>
 

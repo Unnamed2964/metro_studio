@@ -3,7 +3,7 @@ import { computed, reactive, watch } from 'vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
 import { LINE_STYLE_OPTIONS } from '../../lib/lineStyles'
-import TooltipWrapper from '../TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 
 const store = useProjectStore()
 
@@ -180,15 +180,24 @@ watch(
     />
 
     <div class="pp-row">
-      <TooltipWrapper text="应用属性" placement="bottom">
-        <button class="pp-btn pp-btn--primary" :disabled="!canApplyBatch" @click="applyBatch">应用属性</button>
-      </TooltipWrapper>
-      <TooltipWrapper text="重置" placement="bottom">
-        <button class="pp-btn" @click="resetBatchForm">重置</button>
-      </TooltipWrapper>
-      <TooltipWrapper text="删除线段" placement="bottom">
-        <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedEdge()">删除线段</button>
-      </TooltipWrapper>
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button class="pp-btn pp-btn--primary" :disabled="!canApplyBatch" @click="applyBatch">应用属性</button>
+        </template>
+        应用属性
+      </NTooltip>
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button class="pp-btn" @click="resetBatchForm">重置</button>
+        </template>
+        重置
+      </NTooltip>
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedEdge()">删除线段</button>
+        </template>
+        删除线段
+      </NTooltip>
     </div>
   </div>
 </template>

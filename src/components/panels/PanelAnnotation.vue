@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useProjectStore } from '../../stores/projectStore'
 import IconBase from '../IconBase.vue'
-import TooltipWrapper from '../TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 
 const store = useProjectStore()
 
@@ -40,11 +40,14 @@ function deleteAnnotation() {
         >
           <div class="annotation-item__text">{{ anno.text || '(无内容)' }}</div>
           <div class="annotation-item__actions">
-            <TooltipWrapper text="删除" placement="left">
-              <button class="annotation-item__btn" type="button" @click.stop="deleteAnnotation">
-                <IconBase name="x" :size="14" />
-              </button>
-            </TooltipWrapper>
+            <NTooltip placement="left">
+              <template #trigger>
+                <button class="annotation-item__btn" type="button" @click.stop="deleteAnnotation">
+                  <IconBase name="x" :size="14" />
+                </button>
+              </template>
+              删除
+            </NTooltip>
           </div>
         </div>
         <div v-if="!annotations.length" class="annotation-empty">暂无注释</div>

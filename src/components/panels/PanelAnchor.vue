@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
-import TooltipWrapper from '../TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 
 const store = useProjectStore()
 
@@ -74,9 +74,12 @@ function deleteAnchor() {
     <div class="pp-divider" />
 
     <div class="pp-row">
-      <TooltipWrapper text="删除锚点" placement="bottom">
-        <button class="pp-btn pp-btn--danger" @click="deleteAnchor">删除锚点</button>
-      </TooltipWrapper>
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button class="pp-btn pp-btn--danger" @click="deleteAnchor">删除锚点</button>
+        </template>
+        删除锚点
+      </NTooltip>
     </div>
   </div>
 </template>

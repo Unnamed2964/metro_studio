@@ -5,7 +5,7 @@ import { useProjectStore } from '../stores/projectStore'
 import { usePanelResize } from '../composables/usePanelResize'
 import { useAnimationSettings } from '../composables/useAnimationSettings.js'
 import IconBase from './IconBase.vue'
-import TooltipWrapper from './TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 import PanelNoSelection from './panels/PanelNoSelection.vue'
 import PanelStationSingle from './panels/PanelStationSingle.vue'
 import PanelStationMulti from './panels/PanelStationMulti.vue'
@@ -82,11 +82,14 @@ function toggleCollapse() {
         <IconBase :name="panelIcon" :size="14" class="properties-panel__header-icon" />
         <span class="properties-panel__title">{{ panelTitle }}</span>
       </template>
-      <TooltipWrapper :text="collapsed ? '展开面板' : '折叠面板'" placement="left">
-        <button class="properties-panel__collapse-btn" type="button" @click="toggleCollapse">
-          <IconBase :name="collapsed ? 'chevron-left' : 'chevron-right'" :size="14" />
-        </button>
-      </TooltipWrapper>
+      <NTooltip placement="left">
+        <template #trigger>
+          <button class="properties-panel__collapse-btn" type="button" @click="toggleCollapse">
+            <IconBase :name="collapsed ? 'chevron-left' : 'chevron-right'" :size="14" />
+          </button>
+        </template>
+        {{ collapsed ? '展开面板' : '折叠面板' }}
+      </NTooltip>
     </div>
     <div v-if="!collapsed" ref="panelBody" class="properties-panel__body">
       <PanelQuickRename v-if="panelType === 'quick-rename'" :visible="true" @close="store.setMode('select')" />

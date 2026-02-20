@@ -35,8 +35,8 @@
   --toolbar-button-border: #3b5577;
   --toolbar-button-text: #e7f0ff;
   --toolbar-button-hover-border: #7696bf;
-  --toolbar-primary-bg: #1d4ed8;
-  --toolbar-primary-border: #2563eb;
+  --toolbar-primary-bg: #8b5cf6;
+  --toolbar-primary-border: #a78bfa;
   --toolbar-danger-bg: #8d2430;
   --toolbar-danger-border: #b53242;
   --toolbar-active-bg: #0f5335;
@@ -62,7 +62,7 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35);
-  --focus-ring: 0 0 0 2px rgba(29, 78, 216, 0.2);
+  --focus-ring: 0 0 0 2px rgba(139, 92, 246, 0.25);
   --indicator-color: var(--toolbar-primary-bg);
   --indicator-width: 2px;
 }
@@ -83,7 +83,7 @@
   --toolbar-text: #0f1a2e;
   --toolbar-muted: #54657f;
   --toolbar-status: #0f6b43;
-  --toolbar-hint: #2563eb;
+  --toolbar-hint: #8b5cf6;
   --toolbar-input-bg: #ffffff;
   --toolbar-input-border: #bfccdd;
   --toolbar-input-text: #0f172a;
@@ -97,8 +97,8 @@
   --toolbar-button-border: #b8c8dd;
   --toolbar-button-text: #1a273a;
   --toolbar-button-hover-border: #7093bd;
-  --toolbar-primary-bg: #2b67d8;
-  --toolbar-primary-border: #2b67d8;
+  --toolbar-primary-bg: #8b5cf6;
+  --toolbar-primary-border: #7c3aed;
   --toolbar-danger-bg: #c94959;
   --toolbar-danger-border: #bc3348;
   --toolbar-active-bg: #1b8f5a;
@@ -117,7 +117,7 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.15);
-  --focus-ring: 0 0 0 2px rgba(29, 78, 216, 0.15);
+  --focus-ring: 0 0 0 2px rgba(139, 92, 246, 0.2);
 }
 
 *,
@@ -297,19 +297,19 @@ body {
 }
 
 .pp-btn--primary {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #6366f1 100%);
   border-color: var(--toolbar-primary-border);
   color: #fff;
 }
 
 .pp-btn--primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
+  background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #818cf8 100%);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
 }
 
 .pp-btn--primary:active:not(:disabled) {
-  background: linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%);
-  box-shadow: 0 1px 2px rgba(29, 78, 216, 0.2);
+  background: linear-gradient(135deg, #db2777 0%, #7c3aed 50%, #4f46e5 100%);
+  box-shadow: 0 1px 2px rgba(139, 92, 246, 0.2);
 }
 
 .pp-btn--danger {

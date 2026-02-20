@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import IconBase from './IconBase.vue'
-import TooltipWrapper from './TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 import { usePanelResize } from '../composables/usePanelResize'
 import SchematicControls from './SchematicControls.vue'
 import { useProjectStore } from '../stores/projectStore'
@@ -23,25 +23,31 @@ function toggleCollapse() {
         <IconBase name="sliders" :size="14" class="layout-controls-panel__header-icon" />
         <span class="layout-controls-panel__title">排版控制</span>
       </template>
-      <TooltipWrapper :text="collapsed ? '展开面板' : '折叠面板'" placement="left">
-        <button class="layout-controls-panel__collapse-btn" type="button" @click="toggleCollapse">
-          <IconBase :name="collapsed ? 'chevron-left' : 'chevron-right'" :size="14" />
-        </button>
-      </TooltipWrapper>
+      <NTooltip :text="collapsed ? '展开面板' : '折叠面板'" placement="left">
+        <template #trigger>
+          <button class="layout-controls-panel__collapse-btn" type="button" @click="toggleCollapse">
+            <IconBase :name="collapsed ? 'chevron-left' : 'chevron-right'" :size="14" />
+          </button>
+        </template>
+        {{ collapsed ? '展开面板' : '折叠面板' }}
+      </NTooltip>
     </div>
     <div v-if="!collapsed" class="layout-controls-panel__body">
       <SchematicControls />
     </div>
     <div v-if="!collapsed" class="layout-controls-panel__footer">
-      <TooltipWrapper text="自动排版为官方风格" placement="top">
-        <button
-          class="pp-btn pp-btn--primary pp-btn--full"
-          :disabled="store.isLayoutRunning || !store.project?.stations?.length"
-          @click="store.runAutoLayout()"
-        >
-          {{ store.isLayoutRunning ? '排版中...' : '自动生成官方风' }}
-        </button>
-      </TooltipWrapper>
+      <NTooltip placement="top">
+        <template #trigger>
+          <button
+            class="pp-btn pp-btn--primary pp-btn--full"
+            :disabled="store.isLayoutRunning || !store.project?.stations?.length"
+            @click="store.runAutoLayout()"
+          >
+            {{ store.isLayoutRunning ? '排版中...' : '自动生成官方风' }}
+          </button>
+        </template>
+        自动排版为官方风格
+      </NTooltip>
     </div>
   </aside>
 </template>

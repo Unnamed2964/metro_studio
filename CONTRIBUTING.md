@@ -81,10 +81,10 @@ Bug 报告请包含以下信息：
 
 示例：
 ```
-feat: add AI station naming support
+feat: add AI station translation support
 
 Integrate OpenAI-compatible API for automatic station
-name generation based on nearby geographic features.
+English name translation from Chinese names.
 ```
 
 ### 代码规范

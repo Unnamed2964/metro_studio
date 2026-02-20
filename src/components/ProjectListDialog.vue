@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import IconBase from './IconBase.vue'
-import TooltipWrapper from './TooltipWrapper.vue'
+import { NTooltip, NModal } from 'naive-ui'
 import { useProjectStore } from '../stores/projectStore'
 import { useDialog } from '../composables/useDialog.js'
 
@@ -57,17 +57,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="visible" class="dialog-backdrop" @mousedown.self="emit('close')">
-      <div class="dialog" role="dialog" aria-modal="true" aria-label="本地库">
-        <header class="dialog__header">
-          <h2 class="dialog__title">本地库</h2>
-          <TooltipWrapper text="关闭" placement="bottom">
-            <button class="dialog__close" type="button" @click="emit('close')">
-              <IconBase name="x" :size="16" />
-            </button>
-          </TooltipWrapper>
-        </header>
+  <NModal :show="visible" preset="card" title="本地库" style="width:520px;max-width:calc(100vw - 32px)" @close="emit('close')" @mask-click="emit('close')">
         <div class="dialog__body">
           <div class="dialog__search-row">
             <div class="dialog__search-wrap">
@@ -77,15 +67,21 @@ onMounted(() => {
                 class="dialog__search"
                 placeholder="搜索工程名或 ID..."
               />
-              <TooltipWrapper text="清除搜索" placement="bottom">
-                <button v-if="projectFilter" class="dialog__search-clear" type="button" @click="projectFilter = ''">
-                  <IconBase name="x" :size="12" />
-                </button>
-              </TooltipWrapper>
+              <NTooltip placement="bottom">
+                <template #trigger>
+                  <button v-if="projectFilter" class="dialog__search-clear" type="button" @click="projectFilter = ''">
+                    <IconBase name="x" :size="12" />
+                  </button>
+                </template>
+                清除搜索
+              </NTooltip>
             </div>
-            <TooltipWrapper text="刷新本地库" placement="bottom">
-              <button class="dialog__refresh-btn" type="button" @click="refreshList">刷新</button>
-            </TooltipWrapper>
+            <NTooltip placement="bottom">
+              <template #trigger>
+                <button class="dialog__refresh-btn" type="button" @click="refreshList">刷新</button>
+              </template>
+              刷新本地库
+            </NTooltip>
           </div>
           <ul class="dialog__list">
             <li v-for="project in filteredProjectOptions" :key="project.id">
@@ -95,12 +91,18 @@ onMounted(() => {
                   <small class="dialog__item-meta">{{ new Date(project.meta.updatedAt).toLocaleString() }}</small>
                 </div>
                 <div class="dialog__item-actions">
-                  <TooltipWrapper text="加载此工程" placement="bottom">
-                    <button class="dialog__action-btn" @click="loadProject(project.id)">加载</button>
-                  </TooltipWrapper>
-                  <TooltipWrapper text="删除此工程" placement="bottom">
-                    <button class="dialog__action-btn dialog__action-btn--danger" @click="deleteProject(project.id)">删除</button>
-                  </TooltipWrapper>
+                  <NTooltip placement="bottom">
+                    <template #trigger>
+                      <button class="dialog__action-btn" @click="loadProject(project.id)">加载</button>
+                    </template>
+                    加载此工程
+                  </NTooltip>
+                  <NTooltip placement="bottom">
+                    <template #trigger>
+                      <button class="dialog__action-btn dialog__action-btn--danger" @click="deleteProject(project.id)">删除</button>
+                    </template>
+                    删除此工程
+                  </NTooltip>
                 </div>
               </div>
             </li>
@@ -110,9 +112,7 @@ onMounted(() => {
             </li>
           </ul>
         </div>
-      </div>
-    </div>
-  </Teleport>
+  </NModal>
 </template>
 
 <style scoped>

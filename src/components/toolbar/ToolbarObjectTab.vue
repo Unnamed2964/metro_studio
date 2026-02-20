@@ -1,5 +1,4 @@
 <script setup>
-import { inject } from 'vue'
 import { LINE_STYLE_OPTIONS } from '../../lib/lineStyles'
 import { useProjectStore } from '../../stores/projectStore'
 import { useToolbarStationOps } from '../../composables/useToolbarStationOps.js'
@@ -46,15 +45,6 @@ const {
   deleteActiveLine,
   displayLineName,
 } = useToolbarLineOps()
-
-const aiAutoBatch = inject('aiAutoBatchNaming')
-
-async function startAiAutoBatchNamingForSelectedStations() {
-  if (aiAutoBatch.state.active || aiAutoBatch.state.running) return
-  const selected = selectedStationsInOrder.value
-  if (!selected.length) return
-  await aiAutoBatch.start(selected)
-}
 </script>
 
 <template>
@@ -97,15 +87,6 @@ async function startAiAutoBatchNamingForSelectedStations() {
     </template>
     <template v-else-if="selectedStationCount > 1">
       <p class="toolbar__hint">已选 {{ selectedStationCount }} 个站点，可用模板批量重命名（`{n}` 为序号）。</p>
-      <div class="toolbar__row">
-        <button
-          class="toolbar__btn toolbar__btn--primary"
-          :disabled="store.isStationEnglishRetranslating || aiAutoBatch.state.active"
-          @click="startAiAutoBatchNamingForSelectedStations"
-        >
-          AI全自动批量命名
-        </button>
-      </div>
       <input v-model="stationBatchForm.zhTemplate" class="toolbar__input" placeholder="中文模板，例如：站点 {n}" />
       <input
         v-model="stationBatchForm.enTemplate"
@@ -117,38 +98,6 @@ async function startAiAutoBatchNamingForSelectedStations() {
       <div class="toolbar__row">
         <button class="toolbar__btn toolbar__btn--primary" @click="applyBatchStationRename">批量重命名</button>
         <button class="toolbar__btn toolbar__btn--danger" @click="deleteSelectedStations">删除选中站点</button>
-      </div>
-      <div v-if="aiAutoBatch.state.active" class="toolbar__progress">
-        <div class="toolbar__progress-head">
-          <span>AI全自动命名 {{ aiAutoBatch.state.doneCount }}/{{ aiAutoBatch.total.value }}</span>
-          <strong>{{ aiAutoBatch.percent.value }}%</strong>
-        </div>
-        <div class="toolbar__progress-track">
-          <div class="toolbar__progress-fill" :style="{ width: `${aiAutoBatch.percent.value}%` }"></div>
-        </div>
-        <p class="toolbar__hint">
-          成功 {{ aiAutoBatch.state.successCount }}，失败 {{ aiAutoBatch.state.failedCount }}，已应用 {{ aiAutoBatch.state.appliedCount }}
-        </p>
-        <p v-if="aiAutoBatch.state.running" class="toolbar__hint">正在自动生成并写回站名（适合几百站）...</p>
-        <p v-if="aiAutoBatch.state.error" class="toolbar__hint">{{ aiAutoBatch.state.error }}</p>
-        <div v-if="!aiAutoBatch.state.running && aiAutoBatch.state.failedItems.length" class="toolbar__hint">
-          失败示例：
-          <span v-for="(item, idx) in aiAutoBatch.state.failedItems.slice(0, 3)" :key="`${item.stationId}_${idx}`">
-            {{ idx === 0 ? '' : '；' }}{{ item.stationName }}（{{ item.message }}）
-          </span>
-        </div>
-        <div class="toolbar__row">
-          <button
-            class="toolbar__btn"
-            :disabled="aiAutoBatch.state.running || !aiAutoBatch.state.failedStationIds.length"
-            @click="aiAutoBatch.retryFailed()"
-          >
-            仅重试失败站点
-          </button>
-          <button class="toolbar__btn toolbar__btn--danger" @click="aiAutoBatch.cancel()">
-            {{ aiAutoBatch.state.running ? '取消全自动命名' : '关闭全自动结果' }}
-          </button>
-        </div>
       </div>
       <div class="toolbar__divider"></div>
       <p class="toolbar__hint">

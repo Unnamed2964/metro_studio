@@ -1,13 +1,12 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import AccordionSection from '../AccordionSection.vue'
+import { NCollapse, NCollapseItem } from 'naive-ui'
 import IconBase from '../IconBase.vue'
-import TooltipWrapper from '../TooltipWrapper.vue'
+import { NTooltip } from 'naive-ui'
 import PanelNetworkStats from './PanelNetworkStats.vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
 import { LINE_STYLE_OPTIONS, normalizeLineStyle } from '../../lib/lineStyles'
-import { downloadLineIntroPng } from '../../lib/export/exportLineIntro'
 
 const store = useProjectStore()
 
@@ -65,13 +64,17 @@ watch(
   <div class="panel-no-sel">
     <PanelNetworkStats />
 
-    <AccordionSection title="线路管理">
-      <TooltipWrapper text="新增线路" placement="bottom">
-        <button class="add-line-btn" @click="addLine">
-          <IconBase name="plus-circle" :size="14" />
-          新增线路
-        </button>
-      </TooltipWrapper>
+    <NCollapse :default-expanded-names="['line-mgmt']">
+    <NCollapseItem title="线路管理" name="line-mgmt">
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <button class="add-line-btn" @click="addLine">
+            <IconBase name="plus-circle" :size="14" />
+            新增线路
+          </button>
+        </template>
+        新增线路
+      </NTooltip>
       <ul class="line-list">
         <li v-for="line in store.project?.lines || []" :key="line.id">
           <button
@@ -102,18 +105,22 @@ watch(
           </select>
         </div>
         <div class="pp-row">
-          <TooltipWrapper text="保存线路属性" placement="bottom">
-            <button class="pp-btn pp-btn--primary" @click="applyLineChanges">保存线路</button>
-          </TooltipWrapper>
-          <TooltipWrapper text="删除当前线路" placement="bottom">
-            <button class="pp-btn pp-btn--danger" @click="deleteActiveLine">删除线路</button>
-          </TooltipWrapper>
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <button class="pp-btn pp-btn--primary" @click="applyLineChanges">保存线路</button>
+            </template>
+            保存线路属性
+          </NTooltip>
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <button class="pp-btn pp-btn--danger" @click="deleteActiveLine">删除线路</button>
+            </template>
+            删除当前线路
+          </NTooltip>
         </div>
-        <TooltipWrapper text="导出线介绍图 PNG" placement="bottom">
-          <button class="pp-btn pp-btn--primary" style="width:100%" @click="downloadLineIntroPng(store.project, activeLine.id)">导出线介绍图</button>
-        </TooltipWrapper>
       </template>
-    </AccordionSection>
+    </NCollapseItem>
+    </NCollapse>
 
   </div>
 </template>

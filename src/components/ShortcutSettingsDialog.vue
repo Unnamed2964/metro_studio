@@ -1,5 +1,6 @@
 <script setup>
 import { nextTick, ref, computed, watch } from 'vue'
+import { NModal } from 'naive-ui'
 import {
   getEffectiveBindings,
   formatBindingDisplay,
@@ -16,7 +17,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'bindings-changed'])
 
-const dialogRef = ref(null)
 const bindings = ref([])
 const recordingId = ref(null)
 const recordingValue = ref('')
@@ -115,25 +115,6 @@ function onKeydown(e) {
   if (e.key === 'Escape') {
     doClose()
   }
-  if (e.key === 'Tab' && dialogRef.value) {
-    const focusable = dialogRef.value.querySelectorAll(
-      'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )
-    if (focusable.length === 0) return
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-  }
 }
 
 watch(
@@ -150,25 +131,8 @@ watch(
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="dialog-transition">
-      <div
-        v-if="visible"
-        class="shortcut-overlay"
-        @mousedown.self="doClose"
-        @keydown="onKeydown"
-      >
-        <div
-          ref="dialogRef"
-          class="shortcut-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-label="快捷键设置"
-        >
-          <header class="shortcut-dialog__header">
-            <h2 class="shortcut-dialog__title">快捷键绑定</h2>
-          </header>
-          <div class="shortcut-dialog__body">
+  <NModal :show="visible" preset="card" title="快捷键绑定" style="width:520px;max-width:calc(100vw - 32px)" @close="doClose" @mask-click="doClose">
+    <div class="shortcut-dialog__body" @keydown="onKeydown">
             <div
               v-for="[category, items] in groupedBindings"
               :key="category"
@@ -227,65 +191,29 @@ watch(
                 {{ conflictWarning }}
               </p>
             </div>
-          </div>
-          <footer class="shortcut-dialog__footer">
-            <button
-              class="shortcut-dialog__btn shortcut-dialog__btn--cancel"
-              type="button"
-              @click="doResetAll"
-            >
-              全部重置
-            </button>
-            <button
-              class="shortcut-dialog__btn shortcut-dialog__btn--primary"
-              type="button"
-              @click="doClose"
-            >
-              关闭
-            </button>
-          </footer>
-        </div>
+    </div>
+    <template #footer>
+      <div class="shortcut-dialog__footer">
+        <button
+          class="shortcut-dialog__btn shortcut-dialog__btn--cancel"
+          type="button"
+          @click="doResetAll"
+        >
+          全部重置
+        </button>
+        <button
+          class="shortcut-dialog__btn shortcut-dialog__btn--primary"
+          type="button"
+          @click="doClose"
+        >
+          关闭
+        </button>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+  </NModal>
 </template>
 
 <style scoped>
-.shortcut-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9500;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.shortcut-dialog {
-  width: 520px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 64px);
-  background: var(--toolbar-card-bg);
-  border: 1px solid var(--toolbar-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.shortcut-dialog__header {
-  padding: 16px 20px 0;
-}
-
-.shortcut-dialog__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--toolbar-text);
-  line-height: 1.4;
-}
-
 .shortcut-dialog__body {
   padding: 14px 20px;
   overflow-y: auto;
@@ -354,8 +282,8 @@ watch(
 }
 
 .shortcut-dialog__binding--custom {
-  border-color: #2563eb;
-  color: #3b82f6;
+  border-color: #8b5cf6;
+  color: #a78bfa;
 }
 
 .shortcut-dialog__binding--recording {
@@ -429,13 +357,13 @@ watch(
 }
 
 .shortcut-dialog__btn--primary {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #6366f1 100%);
   border-color: var(--toolbar-primary-border);
   color: #fff;
 }
 
 .shortcut-dialog__btn--primary:hover {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
+  background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #818cf8 100%);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
 }
 </style>
