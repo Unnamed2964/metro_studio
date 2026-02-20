@@ -4,7 +4,6 @@ import AccordionSection from '../AccordionSection.vue'
 import IconBase from '../IconBase.vue'
 import TooltipWrapper from '../TooltipWrapper.vue'
 import PanelNetworkStats from './PanelNetworkStats.vue'
-import TimelineEventEditor from '../TimelineEventEditor.vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
 import { LINE_STYLE_OPTIONS, normalizeLineStyle } from '../../lib/lineStyles'
@@ -116,9 +115,6 @@ watch(
       </template>
     </AccordionSection>
 
-    <AccordionSection v-if="store.timelineHasData" title="时间轴事件" :default-open="false">
-      <TimelineEventEditor />
-    </AccordionSection>
   </div>
 </template>
 
