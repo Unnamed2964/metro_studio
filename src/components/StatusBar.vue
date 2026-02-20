@@ -11,6 +11,8 @@ const saveState = inject('autoSaveSaveState')
 const lastSavedAt = inject('autoSaveLastSavedAt')
 const saveNow = inject('autoSaveSaveNow')
 
+const appVersion = import.meta.env.__APP_VERSION__ || '0.1.0'
+
 const saveIndicator = computed(() => {
   switch (saveState?.value) {
     case 'saving':
@@ -109,6 +111,11 @@ const projectSummary = computed(() => {
         </span>
       </TooltipWrapper>
     </div>
+    <div class="status-bar__divider"></div>
+    <div class="status-bar__section">
+      <span class="status-bar__label">版本</span>
+      <span class="status-bar__value status-bar__value--version">{{ appVersion }}</span>
+    </div>
   </footer>
 </template>
 
@@ -184,6 +191,12 @@ const projectSummary = computed(() => {
 
 .status-bar__value--ranking:hover {
   color: var(--toolbar-tab-active-text);
+}
+
+.status-bar__value--version {
+  font-size: 10px;
+  color: var(--workspace-panel-muted);
+  font-weight: 400;
 }
 
 .status-bar__divider {

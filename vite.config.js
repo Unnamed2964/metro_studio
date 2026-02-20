@@ -1,5 +1,9 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+
+const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
 
 const commonProxy = {
   '/api/ollama': {
@@ -27,6 +31,9 @@ const commonProxy = {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  define: {
+    __APP_VERSION__: JSON.stringify(packageJson.version),
+  },
   envPrefix: ['VITE_', 'LLM_'],
   build: {
     rollupOptions: {
