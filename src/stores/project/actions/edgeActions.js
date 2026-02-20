@@ -238,6 +238,34 @@ export const edgeActions = {
       this.activeLineId = this.project.lines[0]?.id || null
     }
 
+    const edgeStationIdSet = new Set()
+    for (const edge of this.project.edges) {
+      edgeStationIdSet.add(edge.fromStationId)
+      edgeStationIdSet.add(edge.toStationId)
+    }
+
+    const removingStationIdSet = new Set()
+    for (const station of this.project.stations) {
+      if (edgeStationIdSet.has(station.id)) continue
+      if (!removingStationIdSet.has(station.id)) {
+        removingStationIdSet.add(station.id)
+      }
+    }
+
+    if (removingStationIdSet.size) {
+      this.project.stations = this.project.stations.filter((s) => !removingStationIdSet.has(s.id))
+      this.project.manualTransfers = (this.project.manualTransfers || []).filter(
+        (t) => !removingStationIdSet.has(t?.stationAId) && !removingStationIdSet.has(t?.stationBId),
+      )
+      this.selectedStationIds = this.selectedStationIds.filter((id) => !removingStationIdSet.has(id))
+      if (this.selectedStationId && removingStationIdSet.has(this.selectedStationId)) {
+        this.selectedStationId = null
+      }
+      if (this.pendingEdgeStartStationId && removingStationIdSet.has(this.pendingEdgeStartStationId)) {
+        this.pendingEdgeStartStationId = null
+      }
+    }
+
     this.selectedEdgeId = null
     this.selectedEdgeIds = []
     this.selectedEdgeAnchor = null
