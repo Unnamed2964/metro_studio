@@ -232,13 +232,13 @@ const { rebuildBindings } = useShortcuts({
   },
   'edit.delete': () => {
     if (store.selectedEdgeAnchor) { store.removeSelectedEdgeAnchor(); return }
+    if ((store.selectedEdgeIds?.length || 0) > 0) { store.deleteSelectedEdge(); return }
     if (store.selectedStationIds.length) { store.deleteSelectedStations(); return }
-    if ((store.selectedEdgeIds?.length || 0) > 0) { store.deleteSelectedEdge() }
   },
   'edit.deleteAlt': () => {
     if (store.selectedEdgeAnchor) { store.removeSelectedEdgeAnchor(); return }
+    if ((store.selectedEdgeIds?.length || 0) > 0) { store.deleteSelectedEdge(); return }
     if (store.selectedStationIds.length) { store.deleteSelectedStations(); return }
-    if ((store.selectedEdgeIds?.length || 0) > 0) { store.deleteSelectedEdge() }
   },
   'edit.renameStation': () => {
     if (store.selectedStationIds.length === 1) {
