@@ -32,7 +32,7 @@ import { useShortcuts } from './composables/useShortcuts.js'
 import { useMapSearch } from './composables/useMapSearch.js'
 
 const store = useProjectStore()
-const { searchVisible, openSearchDialog, closeSearchDialog, onSearchResultSelect } = useMapSearch()
+const { searchVisible, mapViewbox, openSearchDialog, closeSearchDialog, onSearchResultSelect } = useMapSearch()
 const { saveState, lastSavedAt, saveNow } = useAutoSave()
 const { confirm, prompt } = useDialog()
 const { enabled, getAutoAnimateConfig } = useAnimationSettings()
@@ -360,7 +360,7 @@ onBeforeUnmount(() => {
   <AboutDialog :visible="aboutVisible" @close="aboutVisible = false" />
   <BatchNameEditDialog :visible="batchNameEditVisible" @close="batchNameEditVisible = false" />
   <StationTTSDialog ref="ttsDialogRef" :project="store.project" :visible="ttsDialogVisible" @close="ttsDialogVisible = false" />
-  <MapSearchDialog :visible="searchVisible" @close="closeSearchDialog" @select="onSearchResultSelect" />
+  <MapSearchDialog :visible="searchVisible" :viewbox="mapViewbox" @close="closeSearchDialog" @select="onSearchResultSelect" />
   <ToastContainer />
   <ConfirmDialog />
   <PromptDialog />

@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import maplibregl from 'maplibre-gl'
 
 let getMapFn = null
 let currentMarkerRemover = null
@@ -9,13 +10,33 @@ export function setMapGetter(fn) {
 
 export function useMapSearch() {
   const searchVisible = ref(false)
+  const mapViewbox = ref(null)
 
   function openSearchDialog() {
+    updateMapViewbox()
     searchVisible.value = true
   }
 
   function closeSearchDialog() {
     searchVisible.value = false
+    mapViewbox.value = null
+  }
+
+  function updateMapViewbox() {
+    if (!getMapFn) return
+
+    const map = getMapFn()
+    if (!map) return
+
+    const bounds = map.getBounds()
+    if (!bounds) return
+
+    mapViewbox.value = [
+      bounds.getWest(),
+      bounds.getSouth(),
+      bounds.getEast(),
+      bounds.getNorth(),
+    ]
   }
 
   function onSearchResultSelect(result) {
@@ -79,6 +100,7 @@ export function useMapSearch() {
 
   return {
     searchVisible,
+    mapViewbox,
     openSearchDialog,
     closeSearchDialog,
     onSearchResultSelect,

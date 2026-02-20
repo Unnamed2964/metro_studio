@@ -23,8 +23,9 @@ function getMinInterval() {
   return _locationIqKey ? LOCATIONIQ_MIN_INTERVAL_MS : NOMINATIM_MIN_INTERVAL_MS
 }
 
-function buildCacheKey(query, limit) {
-  return `${String(query || '').trim().toLowerCase()}_${limit}`
+function buildCacheKey(query, limit, viewbox) {
+  const keyBase = `${String(query || '').trim().toLowerCase()}_${limit}`
+  return viewbox ? `${keyBase}_${viewbox}` : keyBase
 }
 
 function sleep(ms, signal) {
@@ -53,11 +54,12 @@ async function throttle(signal) {
 export async function searchLocation(query, options = {}) {
   const limit = options.limit ?? 10
   const signal = options.signal
+  const viewbox = options.viewbox
   const trimmedQuery = String(query || '').trim()
 
   if (!trimmedQuery) return []
 
-  const key = buildCacheKey(trimmedQuery, limit)
+  const key = buildCacheKey(trimmedQuery, limit, viewbox)
   const cached = cache.get(key)
   if (cached && cached.expireAt > Date.now()) return cached.data
 
@@ -70,7 +72,12 @@ export async function searchLocation(query, options = {}) {
     const keyParam = useLocationIq ? `&key=${_locationIqKey}` : ''
     const format = 'json'
 
-    const url = `${endpoint}?q=${encodeURIComponent(trimmedQuery)}&format=${format}&limit=${limit}&addressdetails=1&namedetails=1&accept-language=zh,en${keyParam}`
+    let url = `${endpoint}?q=${encodeURIComponent(trimmedQuery)}&format=${format}&limit=${limit}&addressdetails=1&namedetails=1&accept-language=zh,en${keyParam}`
+
+    if (viewbox && Array.isArray(viewbox) && viewbox.length === 4) {
+      const [west, south, east, north] = viewbox
+      url += `&viewbox=${west.toFixed(4)},${south.toFixed(4)},${east.toFixed(4)},${north.toFixed(4)}`
+    }
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), NOMINATIM_REQUEST_TIMEOUT_MS)

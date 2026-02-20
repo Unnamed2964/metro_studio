@@ -5,6 +5,7 @@ import { searchLocation } from '../lib/osm/nominatimSearch'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
+  viewbox: { type: Array, default: null },
 })
 
 const emit = defineEmits(['close', 'select'])
@@ -41,7 +42,7 @@ async function performSearch() {
   selectedIndex.value = -1
 
   try {
-    const results = await searchLocation(query, { limit: 10 })
+    const results = await searchLocation(query, { limit: 10, viewbox: props.viewbox })
     searchResults.value = results.map((item, index) => ({
       id: item.place_id || item.osm_type + item.osm_id || index,
       lat: parseFloat(item.lat),
