@@ -1276,6 +1276,7 @@ watch(
 .search-marker {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   transition: transform 0.2s ease;
+  pointer-events: auto;
 }
 
 .search-marker:hover {

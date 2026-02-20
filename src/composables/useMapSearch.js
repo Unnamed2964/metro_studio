@@ -3,9 +3,31 @@ import maplibregl from 'maplibre-gl'
 
 let getMapFn = null
 let currentMarkerRemover = null
+let mapClickHandler = null
 
 export function setMapGetter(fn) {
   getMapFn = fn
+}
+
+function removeCurrentMarker() {
+  if (currentMarkerRemover) {
+    currentMarkerRemover()
+    currentMarkerRemover = null
+  }
+}
+
+function setupMapClickListener(map) {
+  if (mapClickHandler) {
+    map.off('click', mapClickHandler)
+  }
+
+  mapClickHandler = () => {
+    removeCurrentMarker()
+    map.off('click', mapClickHandler)
+    mapClickHandler = null
+  }
+
+  map.on('click', mapClickHandler)
 }
 
 export function useMapSearch() {
@@ -60,6 +82,7 @@ export function useMapSearch() {
     })
 
     currentMarkerRemover = createMarker(map, lng, lat)
+    setupMapClickListener(map)
 
     if (result.name) {
       return `已跳转到: ${result.name}`
@@ -71,29 +94,22 @@ export function useMapSearch() {
     const markerEl = document.createElement('div')
     markerEl.className = 'search-marker'
     markerEl.innerHTML = `
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-        <circle cx="12" cy="10" r="3"/>
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
       </svg>
     `
     markerEl.style.cursor = 'pointer'
-    markerEl.style.color = '#ef4444'
+    markerEl.style.color = '#3b82f6'
+    markerEl.style.filter = 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))'
 
     const marker = new maplibregl.Marker({
       element: markerEl,
-      anchor: 'bottom',
+      anchor: 'center',
     }).setLngLat([lng, lat]).addTo(map)
 
     const removeMarker = () => {
       marker.remove()
     }
-
-    markerEl.addEventListener('click', () => {
-      removeMarker()
-      if (currentMarkerRemover === removeMarker) {
-        currentMarkerRemover = null
-      }
-    })
 
     return removeMarker
   }
