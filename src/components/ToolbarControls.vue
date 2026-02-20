@@ -34,13 +34,14 @@ const TAB_OPTIONS = [
 ]
 const MODE_LABELS = {
   select: '选择/拖拽',
-  'add-station': '点站',
-  'add-edge': '拉线',
+  'add-station': '添加站点',
+  'add-edge': '添加线段',
   'route-draw': '连续布线',
   'box-select': '框选',
   'quick-link': '快速连线',
   'anchor-edit': '锚点编辑',
   'delete-mode': '删除',
+  'measure': '测量',
   'measure-two-point': '两点测量',
   'measure-multi-point': '多点测量',
   'annotation': '注释',

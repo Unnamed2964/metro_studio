@@ -29,12 +29,12 @@ export function buildSchematicRenderModel(project, options = {}) {
 
   const points = stations.map((station) => station.displayPos || [0, 0])
   const { minX, minY, maxX, maxY } = bboxFromXY(points)
-  const leftPadding = options.leftPadding ?? 250
-  const rightPadding = options.rightPadding ?? 220
-  const topPadding = options.topPadding ?? 96
-  const bottomPadding = options.bottomPadding ?? 104
-  const width = Math.max(maxX - minX + leftPadding + rightPadding, 1460)
-  const height = Math.max(maxY - minY + topPadding + bottomPadding, 860)
+  const leftPadding = options.leftPadding ?? 140
+  const rightPadding = options.rightPadding ?? 140
+  const topPadding = options.topPadding ?? 84
+  const bottomPadding = options.bottomPadding ?? 92
+  const width = Math.max(maxX - minX + leftPadding + rightPadding, 920)
+  const height = Math.max(maxY - minY + topPadding + bottomPadding, 560)
   const xOffset = leftPadding - minX
   const yOffset = topPadding - minY
   const mirrorVertical = Boolean(options.mirrorVertical)

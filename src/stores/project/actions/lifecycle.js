@@ -3,7 +3,6 @@ import { createEmptyProject, normalizeProject } from '../../../lib/projectModel'
 import {
   deleteProjectFromDb,
   listProjectsFromDb,
-  loadLatestProjectFromDb,
   loadProjectFromDb,
   setLatestProject,
 } from '../../../lib/storage/db'
@@ -68,9 +67,8 @@ function runPostLoadValidation(store, loadLabel) {
 const lifecycleActions = {
   async initialize() {
     if (this.isInitialized) return
-    const latest = await loadLatestProjectFromDb()
-    this.project = latest || createEmptyProject('新建工程')
-    this.regionBoundary = this.project.regionBoundary || null
+    this.project = null
+    this.regionBoundary = this.project?.regionBoundary || null
     if (!this.regionBoundary && this.project) {
       const bounds = boundsFromProject(this.project)
       if (bounds) {
@@ -78,7 +76,7 @@ const lifecycleActions = {
         this.project.regionBoundary = this.regionBoundary
       }
     }
-    this.activeLineId = this.project.lines[0]?.id || null
+    this.activeLineId = this.project?.lines?.[0]?.id || null
     this.selectedStationId = null
     this.selectedStationIds = []
     this.selectedEdgeId = null
@@ -88,18 +86,9 @@ const lifecycleActions = {
     resetStationEnglishRetranslateState(this)
     updateEditYearToMax(this)
     this.isInitialized = true
-    const initLabel = latest ? `已加载最近工程: ${latest.name}` : '已创建新工程'
+    const initLabel = '当前无已打开工程'
     this.statusText = initLabel
     this.resetHistoryBaseline()
-    if (latest) {
-      runPostLoadValidation(this, initLabel)
-    } else {
-      try {
-        await this.persistNow()
-      } catch (error) {
-        this.statusText = `初始化持久化失败: ${error.message || 'unknown error'}`
-      }
-    }
   },
 
   async createNewProject(name = '新建工程') {
@@ -172,9 +161,9 @@ const lifecycleActions = {
     const projects = await listProjectsFromDb()
 
     if (!projects.length) {
-      this.project = createEmptyProject('新建工程')
-      this.regionBoundary = this.project.regionBoundary || null
-      this.activeLineId = this.project.lines[0]?.id || null
+      this.project = null
+      this.regionBoundary = null
+      this.activeLineId = null
       this.mode = 'select'
       this.selectedStationId = null
       this.selectedStationIds = []
@@ -183,10 +172,9 @@ const lifecycleActions = {
       this.selectedEdgeAnchor = null
       this.pendingEdgeStartStationId = null
       resetStationEnglishRetranslateState(this)
-      this.statusText = '已删除工程，已创建新工程'
+      this.statusText = '已删除工程，当前无已打开工程'
       updateEditYearToMax(this)
       this.resetHistoryBaseline()
-      await this.persistNow()
       return true
     }
 

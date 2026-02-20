@@ -3,7 +3,6 @@ import { computed, reactive, ref, watch } from 'vue'
 import { NCollapse, NCollapseItem } from 'naive-ui'
 import IconBase from '../IconBase.vue'
 import { NTooltip } from 'naive-ui'
-import PanelNetworkStats from './PanelNetworkStats.vue'
 import { useProjectStore } from '../../stores/projectStore'
 import { getDisplayLineName } from '../../lib/lineNaming'
 import { LINE_STYLE_OPTIONS, normalizeLineStyle } from '../../lib/lineStyles'
@@ -62,8 +61,6 @@ watch(
 
 <template>
   <div class="panel-no-sel">
-    <PanelNetworkStats />
-
     <NCollapse :default-expanded-names="['line-mgmt']">
     <NCollapseItem title="线路管理" name="line-mgmt">
       <NTooltip placement="bottom">

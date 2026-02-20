@@ -77,9 +77,10 @@ export function useMenuBarActions(store, emit, refs) {
     return [
       { type: 'item', label: '新建工程', action: 'createProject', icon: 'folder' },
       { type: 'item', label: '打开文件...', action: 'openFile', icon: 'upload' },
-      { type: 'item', label: '打开本地库', action: 'showProjectList', icon: 'folder-open' },
-      { type: 'item', label: '保存文件', action: 'exportFile', icon: 'download' },
-      { type: 'item', label: '存入本地库', action: 'persistToDb', icon: 'save' },
+      { type: 'item', label: '保存文件', action: 'exportFile', icon: 'download', disabled: !store.project },
+      { type: 'separator' },
+      { type: 'item', label: '本地库', action: 'showProjectList', icon: 'folder-open' },
+      { type: 'item', label: '存入本地库', action: 'persistToDb', icon: 'save', disabled: !store.project },
       { type: 'separator' },
       { type: 'item', label: '复制当前工程', action: 'duplicateProject', icon: 'copy', disabled: !store.project },
       { type: 'item', label: '重命名工程', action: 'renameProject', icon: 'edit', disabled: !store.project },
@@ -91,10 +92,6 @@ export function useMenuBarActions(store, emit, refs) {
         { type: 'submenu', label: '中国城市', icon: 'git-branch', children: buildCityMenuItems(CHINESE_CITY_PRESETS, importing) },
         { type: 'submenu', label: '国际城市', icon: 'git-branch', children: buildCityMenuItems(INTERNATIONAL_CITY_PRESETS, importing) },
       ]},
-      { type: 'separator' },
-      { type: 'item', label: '重置视图到线网', action: 'fitToNetwork', icon: 'focus', disabled: !store.regionBoundary },
-      { type: 'separator' },
-      { type: 'item', label: '查看本地库', action: 'showProjectList', icon: 'layers' },
     ]
   })
 
@@ -115,8 +112,7 @@ export function useMenuBarActions(store, emit, refs) {
       { type: 'item', label: '复制选中', action: 'copy', shortcut: shortcutOf('edit.copy'), icon: 'copy', disabled: !(store.selectedEdgeIds?.length || store.selectedStationIds?.length) },
       { type: 'item', label: '粘贴', action: 'paste', shortcut: shortcutOf('edit.paste'), icon: 'clipboard' },
       { type: 'separator' },
-      { type: 'item', label: '删除选中站点', action: 'deleteStations', shortcut: shortcutOf('edit.delete'), icon: 'trash', disabled: !store.selectedStationIds.length },
-      { type: 'item', label: '删除选中线段', action: 'deleteEdges', shortcut: shortcutOf('edit.delete'), icon: 'trash', disabled: !(store.selectedEdgeIds?.length) },
+      { type: 'item', label: '删除选中对象', action: 'deleteSelectedObjects', shortcut: shortcutOf('edit.delete'), icon: 'trash', disabled: !(store.selectedStationIds.length || store.selectedEdgeIds?.length) },
       { type: 'separator' },
       { type: 'item', label: '批量编辑站名', action: 'batchNameEdit', icon: 'edit', disabled: !store.project?.stations?.length },
       { type: 'separator' },
@@ -125,19 +121,29 @@ export function useMenuBarActions(store, emit, refs) {
   })
 
   const aiMenuItems = computed(() => [
-    { type: 'separator' },
     { type: 'item', label: 'AI翻译选中站英文', action: 'aiTranslateSelected', icon: 'languages', disabled: !store.selectedStationIds.length || store.isStationEnglishRetranslating },
     { type: 'item', label: '按规范重译全图英文', action: 'aiTranslateAll', icon: 'languages', disabled: !store.project?.stations?.length || store.isStationEnglishRetranslating },
     { type: 'separator' },
     { type: 'item', label: '报站生成', action: 'ttsGeneration', icon: 'volume-2' },
   ])
 
-  const exportMenuItems = computed(() => [
-    { type: 'item', label: '导出实际走向图 PNG', action: 'exportActualRoute', icon: 'map' },
-    { type: 'item', label: '导出官方风格图 PNG', action: 'exportSchematic', icon: 'layout' },
-    { type: 'item', label: '导出车辆 HUD 打包', action: 'exportHudZip', icon: 'monitor' },
+  const viewMenuItems = computed(() => [
+    { type: 'toggle', label: '显示站点名', checked: store.showStationLabels, action: 'toggleStationLabels', icon: 'eye' },
+    { type: 'toggle', label: '显示换乘标记', checked: store.showInterchangeMarkers, action: 'toggleInterchangeMarkers', icon: 'target' },
+    { type: 'toggle', label: '显示区域覆盖', checked: store.showLanduseOverlay, action: 'toggleLanduseOverlay', icon: 'map' },
     { type: 'separator' },
-      { type: 'submenu', label: '导出时间轴视频', icon: 'film', disabled: !store.timelineHasData, children: [
+    { type: 'toggle', label: '显示网格', checked: store.showMapGrid, action: 'toggleMapGrid', icon: 'box' },
+    { type: 'toggle', label: '显示坐标', checked: store.showMapCoordinates, action: 'toggleMapCoordinates', icon: 'map-pin' },
+    { type: 'separator' },
+    { type: 'item', label: '重置视图到线网', action: 'fitToNetwork', icon: 'focus', disabled: !store.regionBoundary },
+  ])
+
+  const exportMenuItems = computed(() => [
+    { type: 'item', label: '导出实际走向图 PNG', action: 'exportActualRoute', icon: 'map', disabled: !store.project },
+    { type: 'item', label: '导出官方风格图 PNG', action: 'exportSchematic', icon: 'layout', disabled: !store.project },
+    { type: 'item', label: '导出车辆 HUD 打包', action: 'exportHudZip', icon: 'monitor', disabled: !store.project },
+    { type: 'separator' },
+      { type: 'submenu', label: '导出时间轴视频', icon: 'film', disabled: !store.project || !store.timelineHasData, children: [
         { type: 'item', label: '1080p (1920×1080)', action: 'exportTimeline_1080p', icon: 'film' },
         { type: 'item', label: '2K (2560×1440)', action: 'exportTimeline_2k', icon: 'film' },
         { type: 'item', label: '4K (3840×2160)', action: 'exportTimeline_4k', icon: 'film' },
@@ -151,8 +157,11 @@ export function useMenuBarActions(store, emit, refs) {
   ])
 
   const settingsMenuItems = computed(() => [
-    { type: 'item', label: 'AI 配置', action: 'aiConfig', icon: 'settings' },
     { type: 'item', label: '快捷键绑定', action: 'shortcutSettings', icon: 'sliders' },
+    { type: 'separator' },
+    { type: 'item', label: 'AI 配置', action: 'aiConfig', icon: 'settings' },
+    { type: 'item', label: '配置 Protomaps API Key', action: 'configProtomapsKey', icon: 'key' },
+    { type: 'item', label: '配置 LocationIQ API Key', action: 'configLocationIqKey', icon: 'key' },
     { type: 'separator' },
     { type: 'toggle', label: '启用动画', checked: animationsEnabled.value, action: 'toggleAnimations', icon: 'zap' },
     { type: 'separator' },
@@ -174,22 +183,29 @@ export function useMenuBarActions(store, emit, refs) {
       { type: 'toggle', label: 'OpenTopoMap 地形图', checked: store.mapTileType === 'topo', action: 'mapTileTopo', icon: 'mountain' },
     ]},
     { type: 'separator' },
-    { type: 'toggle', label: '显示区域', checked: store.showLanduseOverlay, action: 'toggleLanduseOverlay', icon: 'map' },
-    { type: 'toggle', label: '高亮火车站位置', checked: store.highlightStationLocations, action: 'toggleHighlightStations', icon: 'map-pin' },
-    { type: 'separator' },
-    { type: 'item', label: '配置 Protomaps API Key', action: 'configProtomapsKey', icon: 'key' },
-    { type: 'item', label: '配置 LocationIQ API Key', action: 'configLocationIqKey', icon: 'key' },
-    { type: 'separator' },
-    { type: 'item', label: '统计信息', action: 'statistics', icon: 'bar-chart-2' },
-    { type: 'separator' },
     { type: 'item', label: '关于项目', action: 'about', icon: 'info' },
   ])
+
+  const statisticsMenuItems = computed(() => {
+    const lineCount = store.project?.lines?.length || 0
+    const stationCount = store.project?.stations?.length || 0
+    const edgeCount = store.project?.edges?.length || 0
+    return [
+      { type: 'item', label: `线路总数: ${lineCount}`, icon: 'git-branch', disabled: true },
+      { type: 'item', label: `站点总数: ${stationCount}`, icon: 'map-pin', disabled: true },
+      { type: 'item', label: `线段总数: ${edgeCount}`, icon: 'route', disabled: true },
+      { type: 'separator' },
+      { type: 'item', label: '更多统计', action: 'statisticsMore', icon: 'bar-chart-2' },
+    ]
+  })
 
   const menus = computed(() => [
     { key: 'file', label: '文件', items: fileMenuItems.value },
     { key: 'edit', label: '编辑', items: editMenuItems.value },
+    { key: 'view', label: '视图', items: viewMenuItems.value },
     { key: 'ai', label: 'AI', items: aiMenuItems.value },
     { key: 'export', label: '导出', items: exportMenuItems.value },
+    { key: 'statistics', label: '统计', items: statisticsMenuItems.value },
     { key: 'settings', label: '设置', items: settingsMenuItems.value },
   ])
 
@@ -260,11 +276,15 @@ export function useMenuBarActions(store, emit, refs) {
     if (action === 'ttsGeneration') { emit('show-tts-dialog'); return }
     if (action === 'shortcutSettings') { emit('show-shortcut-settings'); return }
     if (action === 'toggleAnimations') { toggleAnimation(); return }
+    if (action === 'toggleStationLabels') { store.toggleStationLabels(); return }
+    if (action === 'toggleLineLabels') { store.toggleLineLabels(); return }
+    if (action === 'toggleInterchangeMarkers') { store.toggleInterchangeMarkers(); return }
     if (action === 'toggleLanduseOverlay') { store.toggleLanduseOverlay(); return }
-    if (action === 'toggleHighlightStations') { store.toggleHighlightStationLocations(); return }
+    if (action === 'toggleMapGrid') { store.toggleMapGrid(); return }
+    if (action === 'toggleMapCoordinates') { store.toggleMapCoordinates(); return }
     if (action === 'configProtomapsKey') { handleConfigProtomapsKey(); return }
     if (action === 'configLocationIqKey') { handleConfigLocationIqKey(); return }
-    if (action === 'statistics') { emit('show-statistics'); return }
+    if (action === 'statisticsMore') { emit('show-statistics'); return }
     if (action === 'about') { emit('show-about'); return }
     if (action === 'batchNameEdit') { emit('show-batch-name-edit'); return }
 
@@ -277,6 +297,10 @@ export function useMenuBarActions(store, emit, refs) {
       clearSelection: () => store.clearSelection(),
       copy: () => store.copySelectedEdges(),
       paste: () => store.pasteEdges(),
+      deleteSelectedObjects: () => {
+        if (store.selectedStationIds.length) store.deleteSelectedStations()
+        if (store.selectedEdgeIds?.length) store.deleteSelectedEdge()
+      },
       deleteStations: () => store.deleteSelectedStations(),
       deleteNewStations: () => store.deleteNewStations(),
       deleteEdges: () => store.deleteSelectedEdge(),

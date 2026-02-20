@@ -30,16 +30,12 @@ const DEFAULT_SHORTCUTS = [
 
   // 工具（仅地图视图生效）
   { id: 'tool.select',       label: '选择工具',   defaultBinding: 'V', category: '工具', when: 'mapEditor' },
-  { id: 'tool.addStation',   label: '点站工具',   defaultBinding: 'S', category: '工具', when: 'mapEditor' },
-  { id: 'tool.addEdge',      label: '拉线工具',   defaultBinding: 'E', category: '工具', when: 'mapEditor' },
-  { id: 'tool.routeDraw',    label: '布线工具',   defaultBinding: 'R', category: '工具', when: 'mapEditor' },
+  { id: 'tool.addStation',   label: '添加站点工具', defaultBinding: 'S', category: '工具', when: 'mapEditor' },
+  { id: 'tool.addEdge',      label: '添加线段工具', defaultBinding: 'E', category: '工具', when: 'mapEditor' },
+  { id: 'tool.routeDraw',    label: '连续布线工具', defaultBinding: 'R', category: '工具', when: 'mapEditor' },
   { id: 'tool.styleBrush',   label: '样式刷工具', defaultBinding: 'M', category: '工具', when: 'mapEditor' },
   { id: 'tool.boxSelect',    label: '框选工具',   defaultBinding: 'B', category: '工具', when: 'mapEditor' },
-  { id: 'tool.quickLink',    label: '快速连线',   defaultBinding: 'L', category: '工具', when: 'mapEditor' },
   { id: 'tool.anchorEdit',   label: '锚点编辑',   defaultBinding: 'P', category: '工具', when: 'mapEditor' },
-  { id: 'tool.delete',       label: '删除工具',   defaultBinding: 'D', category: '工具', when: 'mapEditor' },
-  { id: 'tool.measureTwoPoint', label: '两点测量', defaultBinding: 'T', category: '工具', when: 'mapEditor' },
-  { id: 'tool.measureMultiPoint', label: '多点测量', defaultBinding: 'Y', category: '工具', when: 'mapEditor' },
   { id: 'tool.annotation',   label: '注释工具',   defaultBinding: 'N', category: '工具', when: 'mapEditor' },
   { id: 'tool.quickRename',  label: '线路改站名', defaultBinding: 'Q', category: '工具', when: 'mapEditor' },
 

@@ -16,17 +16,18 @@ function toggleCollapse() {
 </script>
 
 <template>
-  <aside class="layout-controls-panel" :class="{ 'layout-controls-panel--collapsed': collapsed }" :style="collapsed ? {} : { width: `${width}px` }">
+  <aside class="layout-controls-panel ark-terminal-corner" :class="{ 'layout-controls-panel--collapsed': collapsed }" :style="collapsed ? {} : { width: `${width}px` }">
     <div v-if="!collapsed" class="layout-controls-panel__resize-handle" @pointerdown="onPointerDown" />
     <div class="layout-controls-panel__header">
       <div class="layout-controls-panel__header-indicator"></div>
       <template v-if="!collapsed">
         <IconBase name="sliders" :size="14" class="layout-controls-panel__header-icon" />
         <span class="layout-controls-panel__title">排版控制</span>
+        <span class="layout-controls-panel__meta">AUTO-LYT</span>
       </template>
       <NTooltip :text="collapsed ? '展开面板' : '折叠面板'" placement="left">
         <template #trigger>
-          <button class="layout-controls-panel__collapse-btn" type="button" @click="toggleCollapse">
+          <button class="layout-controls-panel__collapse-btn ark-glitch-hover" type="button" @click="toggleCollapse">
             <IconBase :name="collapsed ? 'chevron-left' : 'chevron-right'" :size="14" />
           </button>
         </template>
@@ -58,8 +59,10 @@ function toggleCollapse() {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--toolbar-bg);
-  border-left: 1px solid var(--toolbar-border);
+  background: linear-gradient(180deg, rgba(14, 14, 17, 0.9), rgba(8, 8, 11, 0.86));
+  backdrop-filter: blur(14px) saturate(1.24);
+  border: 1px solid rgba(188, 31, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(188, 31, 255, 0.14), 0 0 16px rgba(188, 31, 255, 0.18);
   overflow: hidden;
   flex-shrink: 0;
   transition: width var(--transition-slow, 0.25s ease);
@@ -91,7 +94,7 @@ function toggleCollapse() {
   gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--toolbar-border);
-  background: var(--toolbar-header-bg);
+  background: linear-gradient(180deg, rgba(12, 12, 15, 0.82), rgba(9, 9, 12, 0.74));
   flex-shrink: 0;
 }
 
@@ -101,50 +104,62 @@ function toggleCollapse() {
 }
 
 .layout-controls-panel__title {
-  font-family: var(--app-font-mono);
-  font-size: 12px;
+  font-family: var(--app-font-display);
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   color: var(--toolbar-text);
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.layout-controls-panel__collapse-btn {
+.layout-controls-panel__meta {
   margin-left: auto;
-  border: none;
-  background: transparent;
+  font-size: 11px;
+  color: rgba(168, 210, 255, 0.52);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.layout-controls-panel__collapse-btn {
+  border: 1px solid rgba(188, 31, 255, 0.26);
+  background: rgba(8, 8, 10, 0.68);
   color: var(--toolbar-muted);
   cursor: pointer;
   padding: 2px;
-  border-radius: var(--radius-sm, 4px);
   display: flex;
   align-items: center;
-  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease);
+  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease), border-color var(--transition-fast);
+  clip-path: var(--clip-chamfer-sm);
 }
 
 .layout-controls-panel__collapse-btn:hover {
   color: var(--toolbar-text);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(249, 0, 191, 0.58);
+  background: rgba(188, 31, 255, 0.2);
 }
 
 .layout-controls-panel__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  background-image:
+    linear-gradient(var(--ark-grid-bold) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ark-grid-bold) 1px, transparent 1px);
+  background-size: 36px 36px;
 }
 
 .layout-controls-panel__body::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .layout-controls-panel__body::-webkit-scrollbar-thumb {
   background: var(--toolbar-scrollbar-thumb);
-  border-radius: 999px;
+  border: 1px solid rgba(188, 31, 255, 0.3);
 }
 
 .layout-controls-panel__footer {

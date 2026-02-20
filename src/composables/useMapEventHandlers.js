@@ -69,6 +69,17 @@ export function useMapEventHandlers({
     return store.mode === 'add-edge' || store.mode === 'route-draw'
   }
 
+  function appendMultiMeasurePoint(lngLat, hintText) {
+    store.measure.points.push({ lngLat })
+    if (store.measure.points.length > 1) {
+      const lastPoint = store.measure.points[store.measure.points.length - 2]
+      const distance = haversineDistanceMeters(lastPoint.lngLat, lngLat)
+      store.measure.totalMeters += distance
+    }
+    const totalKm = (store.measure.totalMeters / 1000).toFixed(2)
+    store.statusText = `累计距离: ${totalKm} km (${store.measure.totalMeters.toFixed(0)} 米) | ${hintText}`
+  }
+
   function handleStationClick(event) {
     if (store.navigation?.active) return
     closeContextMenu()
@@ -166,18 +177,9 @@ export function useMapEventHandlers({
     }
 
     // 多点测量模式
-    if (store.mode === 'measure-multi-point') {
+    if (store.mode === 'measure' || store.mode === 'measure-multi-point') {
       const lngLat = [event.lngLat.lng, event.lngLat.lat]
-      store.measure.points.push({ lngLat })
-
-      if (store.measure.points.length > 1) {
-        const lastPoint = store.measure.points[store.measure.points.length - 2]
-        const distance = haversineDistanceMeters(lastPoint.lngLat, lngLat)
-        store.measure.totalMeters += distance
-      }
-
-      const totalKm = (store.measure.totalMeters / 1000).toFixed(2)
-      store.statusText = `累计距离: ${totalKm} km (${store.measure.totalMeters.toFixed(0)} 米) | 点击继续，按 ESC 退出`
+      appendMultiMeasurePoint(lngLat, '点击继续，按 ESC 退出')
       return
     }
     const mouseEvent = event.originalEvent
@@ -369,26 +371,9 @@ export function useMapEventHandlers({
       return
     }
     // 多点测量模式下，空白点击添加测量点
-    if (store.mode === 'measure-multi-point') {
+    if (store.mode === 'measure' || store.mode === 'measure-multi-point') {
       const lngLat = [event.lngLat.lng, event.lngLat.lat]
-      store.measure.points.push({ lngLat })
-
-      if (store.measure.points.length > 1) {
-        const lastPoint = store.measure.points[store.measure.points.length - 2]
-        const distance = haversineDistanceMeters(lastPoint.lngLat, lngLat)
-        store.measure.totalMeters += distance
-      }
-
-      const totalKm = (store.measure.totalMeters / 1000).toFixed(2)
-      store.statusText = `累计距离: ${totalKm} km (${store.measure.totalMeters.toFixed(0)} 米) | 右键或 ESC 退出`
-      return
-    }
-    if (store.mode === 'measure') {
-      if (store.measure.points.length > 0) {
-        store.measure.points = []
-        store.measure.totalMeters = 0
-        store.statusText = '测量已重置，请点击第一个点'
-      }
+      appendMultiMeasurePoint(lngLat, '右键或 ESC 退出')
       return
     }
     // 注释模式下，空白点击添加注释

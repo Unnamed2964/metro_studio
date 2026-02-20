@@ -22,7 +22,7 @@ Vue 3 Composition API composables，封装可复用的组件逻辑。
 - **useToolbarEditYear.js** — 年份输入、规范化、增减
 
 ### 其他视图相关
-- **useMenuBarActions.js** — 菜单项定义（5 个 computed 菜单结构）、action 分发、城市预设过滤
+- **useMenuBarActions.js** — 菜单项定义（文件/编辑/视图/AI/导出/统计/设置 7 个 computed 菜单结构）；统计菜单内置 3 项实时基础数据并可打开独立统计弹窗，AI 配置与 API Key 配置归入设置菜单；无已打开工程时会自动禁用保存/导出类操作，同时负责 action 分发与城市预设过滤
 - **useViewportControl.js** — 缩放/平移/鼠标事件、viewport transform 计算（用于 VehicleHudView）
 - **useTimelinePlayback.js** — 播放控制（play/pause/stop/speed）、renderer 生命周期、全屏（用于 TimelinePreviewView）
 

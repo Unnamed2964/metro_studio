@@ -184,6 +184,7 @@ onBeforeUnmount(() => {
     <div
       class="schematic-view__canvas"
       :class="{ 'schematic-view__canvas--panning': panState.active }"
+      :style="{ background: renderModel.theme.background }"
       @wheel.prevent="onCanvasWheel"
       @mousedown="onCanvasMouseDown"
       @auxclick="onCanvasAuxClick"
@@ -204,12 +205,12 @@ onBeforeUnmount(() => {
               :key="`halo_${edge.id}`"
               :d="edge.pathD"
               fill="none"
-              stroke="#f8fafc"
-              :stroke-width="edge.width + 5.4"
+              stroke="#d9e2ec"
+              :stroke-width="edge.width + 2.2"
               :stroke-linecap="edge.lineCap || 'round'"
               stroke-linejoin="round"
               :stroke-dasharray="edge.dasharray || null"
-              :opacity="Math.min(1, edge.opacity + 0.06)"
+              :opacity="Math.min(0.36, edge.opacity * 0.38)"
             />
           </g>
 

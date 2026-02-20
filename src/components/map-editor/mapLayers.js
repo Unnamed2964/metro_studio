@@ -22,6 +22,9 @@ import {
 import { LINE_STYLE_OPTIONS, getLineStyleMap } from '../../lib/lineStyles'
 
 const LAYER_LANDUSE = 'landuse-overlay'
+const LAYER_STATIONS_LABEL = 'railmap-stations-label'
+const LAYER_LINES_LABEL = 'railmap-lines-label'
+const LAYER_STATIONS_INTERCHANGE = 'railmap-stations-interchange'
 
 const COMMON_LANDUSE_TYPES = [
   'residential',
@@ -173,6 +176,7 @@ export function updateMapData(map, store) {
   }
   updateSelectedEdgeFilter(map, store)
   updateStationVisibilityFilter(map, store)
+  updateMapDisplayVisibility(map, store)
 }
 
 export function ensureMapLayers(map, store) {
@@ -360,8 +364,6 @@ export function ensureMapLayers(map, store) {
           'case',
           ['==', ['get', 'isSelected'], true],
           7,
-          ['==', ['get', 'isInterchange'], true],
-          6,
           4.8,
         ],
         'circle-color': [
@@ -379,9 +381,24 @@ export function ensureMapLayers(map, store) {
     updateStationVisibilityFilter(map, store)
   }
 
-  if (!map.getLayer('railmap-stations-label')) {
+  if (!map.getLayer(LAYER_STATIONS_INTERCHANGE)) {
     map.addLayer({
-      id: 'railmap-stations-label',
+      id: LAYER_STATIONS_INTERCHANGE,
+      type: 'circle',
+      source: SOURCE_STATIONS,
+      filter: ['==', ['get', 'isInterchange'], true],
+      paint: {
+        'circle-radius': 6.2,
+        'circle-color': 'rgba(255,255,255,0)',
+        'circle-stroke-width': 2.1,
+        'circle-stroke-color': '#0F172A',
+      },
+    })
+  }
+
+  if (!map.getLayer(LAYER_STATIONS_LABEL)) {
+    map.addLayer({
+      id: LAYER_STATIONS_LABEL,
       type: 'symbol',
       source: SOURCE_STATIONS,
       layout: {
@@ -411,11 +428,47 @@ export function ensureMapLayers(map, store) {
       },
     })
   }
+
+  if (!map.getLayer(LAYER_LINES_LABEL)) {
+    map.addLayer({
+      id: LAYER_LINES_LABEL,
+      type: 'symbol',
+      source: SOURCE_EDGES,
+      layout: {
+        'symbol-placement': 'line-center',
+        'text-field': ['coalesce', ['get', 'lineNameZh'], ''],
+        'text-font': ['Noto Sans CJK SC Regular', 'Noto Sans Regular'],
+        'text-size': 11,
+        'text-allow-overlap': false,
+        'text-ignore-placement': false,
+      },
+      paint: {
+        'text-color': '#111827',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.2,
+      },
+    })
+  }
+
+  updateMapDisplayVisibility(map, store)
 }
 
 export function setStationHighlightVisibility(map, visible) {
   if (!map || !map.getLayer(LAYER_STATIONS_HIGHLIGHT)) return
   map.setLayoutProperty(LAYER_STATIONS_HIGHLIGHT, 'visibility', visible ? 'visible' : 'none')
+}
+
+export function updateMapDisplayVisibility(map, store) {
+  if (!map) return
+  if (map.getLayer(LAYER_STATIONS_LABEL)) {
+    map.setLayoutProperty(LAYER_STATIONS_LABEL, 'visibility', store.showStationLabels ? 'visible' : 'none')
+  }
+  if (map.getLayer(LAYER_LINES_LABEL)) {
+    map.setLayoutProperty(LAYER_LINES_LABEL, 'visibility', store.showLineLabels ? 'visible' : 'none')
+  }
+  if (map.getLayer(LAYER_STATIONS_INTERCHANGE)) {
+    map.setLayoutProperty(LAYER_STATIONS_INTERCHANGE, 'visibility', store.showInterchangeMarkers ? 'visible' : 'none')
+  }
 }
 
 export function ensureLanduseLayer(map, store) {
@@ -448,7 +501,7 @@ export function ensureLanduseLayer(map, store) {
       }
       colorExpression.push('#E8F4C6')
 
-      const beforeLayer = map.getLayer('railmap-stations-label') ? 'railmap-stations-label' : LAYER_STATIONS
+      const beforeLayer = map.getLayer(LAYER_STATIONS_LABEL) ? LAYER_STATIONS_LABEL : LAYER_STATIONS
       map.addLayer({
         id: LAYER_LANDUSE,
         type: 'fill',
@@ -482,4 +535,3 @@ export function updateLanduseVisibility(map, visible) {
 }
 
 export { COMMON_LANDUSE_TYPES, LANDUSE_COLORS }
-

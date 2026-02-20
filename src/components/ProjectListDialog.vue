@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import IconBase from './IconBase.vue'
 import { NTooltip, NModal } from 'naive-ui'
 import { useProjectStore } from '../stores/projectStore'
@@ -50,6 +50,8 @@ async function deleteProject(projectId) {
 function isCurrentProject(projectId) {
   return currentProjectId.value === projectId
 }
+
+watch(() => props.visible, (v) => { if (v) refreshList() })
 
 onMounted(() => {
   refreshList()

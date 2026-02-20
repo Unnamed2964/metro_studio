@@ -1,64 +1,66 @@
 import { computed } from 'vue'
 import { darkTheme } from 'naive-ui'
 
-const PRIMARY = '#ff2d78'
-const INFO = '#a855f7'
-const SUCCESS = '#22c55e'
-const WARNING = '#f59e0b'
-const ERROR = '#ef4444'
+const PRIMARY = '#f900bf'
+const INFO = '#bc1fff'
+const SUCCESS = '#33d17a'
+const WARNING = '#ff7a2f'
+const ERROR = '#ff4d88'
 
 export const naiveThemeOverrides = {
   common: {
     primaryColor: PRIMARY,
-    primaryColorHover: '#ff5a9a',
-    primaryColorPressed: '#d4205f',
+    primaryColorHover: '#ff33c7',
+    primaryColorPressed: '#d700a6',
     primaryColorSuppl: PRIMARY,
     infoColor: INFO,
-    infoColorHover: '#c084fc',
-    infoColorPressed: '#9333ea',
+    infoColorHover: '#c94bff',
+    infoColorPressed: '#9e00f2',
     successColor: SUCCESS,
-    successColorHover: '#4ade80',
-    successColorPressed: '#16a34a',
+    successColorHover: '#54df94',
+    successColorPressed: '#1da85e',
     warningColor: WARNING,
-    warningColorHover: '#fbbf24',
-    warningColorPressed: '#d97706',
+    warningColorHover: '#ff9150',
+    warningColorPressed: '#ef6c1d',
     errorColor: ERROR,
-    errorColorHover: '#f87171',
-    errorColorPressed: '#dc2626',
+    errorColorHover: '#ff6a9d',
+    errorColorPressed: '#e93574',
     borderRadius: '0px',
     borderRadiusSmall: '0px',
-    fontSize: '13px',
-    fontSizeSmall: '12px',
+    fontSize: '14px',
+    fontSizeSmall: '13px',
+    fontFamily: "'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Segoe UI', sans-serif",
+    fontFamilyMono: "'JetBrains Mono', 'Cascadia Mono', 'Consolas', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC', 'Microsoft YaHei', monospace",
   },
   Dialog: {
     borderRadius: '0px',
-    color: '#1a1a28',
-    border: '1px solid #2a2838',
+    color: '#121212',
+    border: '1px solid rgba(188,31,255,0.48)',
   },
   Modal: {
     borderRadius: '0px',
-    color: '#1a1a28',
-    border: '1px solid #2a2838',
+    color: '#121212',
+    border: '1px solid rgba(188,31,255,0.48)',
   },
   Dropdown: {
     borderRadius: '0px',
-    color: '#1a1a28',
-    optionColorHover: 'rgba(255,45,120,0.1)',
+    color: '#121212',
+    optionColorHover: 'rgba(249,0,191,0.16)',
   },
   Tooltip: {
     borderRadius: '0px',
-    color: '#1a1a28',
-    border: '1px solid #2a2838',
+    color: '#121212',
+    border: '1px solid rgba(188,31,255,0.48)',
   },
   Input: {
     borderRadius: '0px',
-    borderFocus: '1px solid #ff2d78',
-    boxShadowFocus: '0 0 0 1px #ff2d78, 0 0 6px rgba(255,45,120,0.25)',
+    borderFocus: '1px solid #bc1fff',
+    boxShadowFocus: '0 0 0 1px #bc1fff, 0 0 8px rgba(188,31,255,0.26)',
   },
   Card: {
     borderRadius: '0px',
-    color: '#1a1a28',
-    borderColor: '#2a2838',
+    color: '#121212',
+    borderColor: 'rgba(188,31,255,0.44)',
   },
 }
 

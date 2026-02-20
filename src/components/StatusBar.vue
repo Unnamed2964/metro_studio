@@ -1,6 +1,7 @@
 <script setup>
-import { computed, inject } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { useProjectStore } from '../stores/projectStore'
+import MetroSavingIcon from './MetroSavingIcon.vue'
 import { useWorldMetroRanking } from '../composables/useWorldMetroRanking'
 import { NTooltip } from 'naive-ui'
 
@@ -38,14 +39,15 @@ const lastSavedLabel = computed(() => {
 
 const MODE_LABELS = {
   select: '选择/拖拽',
-  'add-station': '点站',
-  'add-edge': '拉线',
+  'add-station': '添加站点',
+  'add-edge': '添加线段',
   'route-draw': '连续布线',
   'style-brush': '样式刷',
   'box-select': '框选',
   'quick-link': '快速连线',
   'anchor-edit': '锚点编辑',
   'delete-mode': '删除',
+  'measure': '测量',
   'measure-two-point': '两点测量',
   'measure-multi-point': '多点测量',
   'annotation': '注释',
@@ -76,11 +78,13 @@ const projectSummary = computed(() => {
 </script>
 
 <template>
-  <footer class="status-bar">
+  <footer class="status-bar ark-terminal-corner">
     <div class="status-bar__edge-line"></div>
     <div class="status-bar__section">
       <span class="status-bar__label">[模式]</span>
-      <span class="status-bar__badge ark-chamfer">{{ modeLabel }}</span>
+      <Transition name="mode-fade" mode="out-in">
+        <span :key="modeLabel" class="status-bar__badge ark-chamfer">{{ modeLabel }}</span>
+      </Transition>
       <span v-if="store.currentEditYear != null" class="status-bar__badge status-bar__badge--year">编辑年份: {{ store.currentEditYear }}</span>
     </div>
     <div class="status-bar__divider"></div>
@@ -95,7 +99,7 @@ const projectSummary = computed(() => {
     </div>
     <div class="status-bar__divider"></div>
     <div class="status-bar__section status-bar__section--save" @click="saveNow">
-      <span class="status-bar__save-dot" :class="saveIndicator.cssClass"></span>
+      <MetroSavingIcon :state="saveState?.value || 'saved'" />
       <span class="status-bar__value">{{ saveIndicator.label }}</span>
       <span v-if="lastSavedLabel && saveState?.value !== 'saving'" class="status-bar__save-time">{{ lastSavedLabel }}</span>
     </div>
@@ -120,6 +124,7 @@ const projectSummary = computed(() => {
       <span class="status-bar__label">[版本]</span>
       <span class="status-bar__value status-bar__value--version">{{ appVersion }}</span>
     </div>
+    <div class="status-bar__barcode" aria-hidden="true"></div>
   </footer>
 </template>
 
@@ -130,10 +135,12 @@ const projectSummary = computed(() => {
   align-items: center;
   gap: 12px;
   padding: 4px 12px;
-  background: var(--toolbar-header-bg);
-  backdrop-filter: blur(12px) saturate(1.2);
+  background: linear-gradient(180deg, rgba(12, 12, 15, 0.84), rgba(7, 7, 9, 0.9));
+  backdrop-filter: blur(14px) saturate(1.24);
+  border-top: 1px solid rgba(188, 31, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(188, 31, 255, 0.12), 0 0 14px rgba(188, 31, 255, 0.18);
   font-family: var(--app-font-mono);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.4;
   min-height: 28px;
 }
@@ -168,7 +175,7 @@ const projectSummary = computed(() => {
 
 .status-bar__label {
   color: var(--ark-text-dim);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -178,10 +185,16 @@ const projectSummary = computed(() => {
 .status-bar__badge {
   color: #fff;
   font-weight: 500;
-  background: rgba(255, 45, 120, 0.15);
-  border: 1px solid rgba(255, 45, 120, 0.3);
+  background: rgba(249, 0, 191, 0.18);
+  border: 1px solid rgba(249, 0, 191, 0.5);
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: 12px;
+  clip-path: var(--clip-chamfer-sm);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.status-bar__badge:not(.status-bar__badge--year) {
+  animation: signal-blink 4s infinite ease-in-out;
 }
 
 .status-bar__badge--year {
@@ -212,8 +225,27 @@ const projectSummary = computed(() => {
   color: var(--toolbar-tab-active-text);
 }
 
+.status-bar__value--status {
+  display: inline-block;
+}
+
+.mode-fade-enter-active,
+.mode-fade-leave-active {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mode-fade-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.mode-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
 .status-bar__value--version {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--workspace-panel-muted);
   font-weight: 400;
 }
@@ -227,45 +259,44 @@ const projectSummary = computed(() => {
 
 .status-bar__section--save {
   cursor: pointer;
-  border-radius: var(--radius-sm, 4px);
+  border: 1px solid transparent;
   padding: 2px 6px;
   margin: -2px 0;
-  transition: background var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  clip-path: var(--clip-chamfer-sm);
 }
 
 .status-bar__section--save:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(188, 31, 255, 0.12);
+  border-color: rgba(249, 0, 191, 0.5);
 }
 
-.status-bar__save-dot {
-  width: 5px;
-  height: 5px;
-  flex-shrink: 0;
-}
-
-.status-bar__save--saved {
-  background: var(--ark-text-dim);
-}
-
-.status-bar__save--unsaved {
-  background: var(--ark-pink);
-  box-shadow: 0 0 4px var(--ark-pink-glow);
-}
-
-.status-bar__save--saving {
-  background: var(--ark-purple);
-  box-shadow: 0 0 4px var(--ark-purple-glow);
-  animation: ark-pulse 1s ease-in-out infinite;
-}
-
-.status-bar__save--error {
-  background: #f87171;
-  box-shadow: 0 0 4px rgba(248, 113, 113, 0.4);
-}
 
 .status-bar__save-time {
   color: var(--ark-text-dim);
-  font-size: 10px;
+  font-size: 12px;
+}
+
+.status-bar__barcode {
+  position: relative;
+  margin-left: auto;
+  width: 52px;
+  height: 10px;
+  opacity: 0.45;
+  background:
+    repeating-linear-gradient(90deg, rgba(188, 31, 255, 0.78) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(249, 0, 191, 0.7) 0 2px, transparent 2px 6px);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.status-bar__barcode::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  width: 20px;
+  animation: scanner-sweep 2s infinite linear;
 }
 
 @media (max-width: 960px) {

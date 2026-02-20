@@ -75,7 +75,7 @@ function toggleCollapse() {
 </script>
 
 <template>
-  <aside class="properties-panel" :class="{ 'properties-panel--collapsed': collapsed }" :style="collapsed ? {} : { width: `${width}px` }">
+  <aside class="properties-panel ark-terminal-corner" :class="{ 'properties-panel--collapsed': collapsed }" :style="collapsed ? {} : { width: `${width}px` }">
     <div v-if="!collapsed" class="properties-panel__resize-handle" @pointerdown="onPointerDown" />
     <div class="properties-panel__header">
       <div class="properties-panel__header-indicator" :class="{ 'properties-panel__header-indicator--active': panelType !== 'none' }"></div>
@@ -85,7 +85,7 @@ function toggleCollapse() {
       </template>
       <NTooltip placement="left">
         <template #trigger>
-          <button class="properties-panel__collapse-btn" type="button" @click="toggleCollapse">
+          <button class="properties-panel__collapse-btn ark-glitch-hover" type="button" @click="toggleCollapse">
             <IconBase :name="collapsed ? 'chevron-left' : 'chevron-right'" :size="14" />
           </button>
         </template>
@@ -110,8 +110,10 @@ function toggleCollapse() {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--toolbar-bg);
-  border-left: 1px solid var(--toolbar-border);
+  background: linear-gradient(180deg, rgba(14, 14, 17, 0.9), rgba(8, 8, 11, 0.86));
+  backdrop-filter: blur(14px) saturate(1.24);
+  border: 1px solid rgba(188, 31, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(188, 31, 255, 0.14), 0 0 16px rgba(188, 31, 255, 0.18);
   overflow: hidden;
   flex-shrink: 0;
   transition: width var(--transition-slow, 0.25s ease);
@@ -143,7 +145,7 @@ function toggleCollapse() {
   gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--toolbar-border);
-  background: var(--toolbar-header-bg);
+  background: linear-gradient(180deg, rgba(12, 12, 15, 0.82), rgba(9, 9, 12, 0.74));
   flex-shrink: 0;
 }
 
@@ -153,13 +155,13 @@ function toggleCollapse() {
 }
 
 .properties-panel__title {
-  font-family: var(--app-font-mono);
-  font-size: 12px;
+  font-family: var(--app-font-display);
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   color: var(--toolbar-text);
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -167,21 +169,21 @@ function toggleCollapse() {
 }
 
 .properties-panel__collapse-btn {
-  margin-left: auto;
-  border: none;
-  background: transparent;
+  border: 1px solid rgba(188, 31, 255, 0.26);
+  background: rgba(8, 8, 10, 0.68);
   color: var(--toolbar-muted);
   cursor: pointer;
   padding: 2px;
-  border-radius: var(--radius-sm, 4px);
   display: flex;
   align-items: center;
-  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease);
+  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease), border-color var(--transition-fast);
+  clip-path: var(--clip-chamfer-sm);
 }
 
 .properties-panel__collapse-btn:hover {
   color: var(--toolbar-text);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(249, 0, 191, 0.58);
+  background: rgba(188, 31, 255, 0.2);
 }
 
 .properties-panel__body {
@@ -190,9 +192,10 @@ function toggleCollapse() {
   overflow-y: auto;
   padding: 10px 12px;
   background-image:
-    linear-gradient(var(--ark-border-dim) 1px, transparent 1px),
-    linear-gradient(90deg, var(--ark-border-dim) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(var(--ark-grid-bold) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ark-grid-bold) 1px, transparent 1px),
+    repeating-linear-gradient(135deg, transparent 0 11px, rgba(249, 0, 191, 0.035) 11px 12px);
+  background-size: 36px 36px, 36px 36px, 22px 22px;
   background-position: -1px -1px;
 }
 
@@ -210,11 +213,11 @@ function toggleCollapse() {
 }
 
 .properties-panel__body::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .properties-panel__body::-webkit-scrollbar-thumb {
   background: var(--toolbar-scrollbar-thumb);
-  border-radius: 999px;
+  border: 1px solid rgba(188, 31, 255, 0.3);
 }
 </style>

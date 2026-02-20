@@ -13,3 +13,58 @@
     transform: scale(1);
   }
 }
+
+/* ── Metro Aesthetic Animations ── */
+
+@keyframes metro-line-draw {
+  from { stroke-dashoffset: 100%; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes metro-shuttle {
+  0% { transform: translateX(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes metro-dash-flow {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes signal-blink {
+  0%, 100% { opacity: 1; filter: brightness(1.2) drop-shadow(0 0 4px currentColor); }
+  50% { opacity: 0.4; filter: brightness(0.8); }
+}
+
+@keyframes scanner-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes line-flow {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes staggered-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-signal {
+  animation: signal-blink 2s infinite ease-in-out;
+}
+
+.animate-stagger {
+  animation: staggered-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

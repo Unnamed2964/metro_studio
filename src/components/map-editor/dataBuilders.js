@@ -216,6 +216,8 @@ function buildEdgesGeoJson(project, filterYear = null, selectedEdgeIds = []) {
           properties: {
             id: edge.id,
             color: line?.color || '#2563EB',
+            lineNameZh: line?.nameZh || '',
+            lineNameEn: line?.nameEn || '',
             lineStyle: resolvedLineStyle,
             sharedCount: edge.sharedByLineIds.length,
             hasAnchors: linearWaypoints.length > 2,

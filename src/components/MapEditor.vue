@@ -18,8 +18,8 @@ import {
   updateMapData,
   ensureLanduseLayer,
   removeLanduseLayer,
-  updateLanduseVisibility,
   setStationHighlightVisibility,
+  updateMapDisplayVisibility,
 } from './map-editor/mapLayers'
 import { useMapContextMenu } from '../composables/useMapContextMenu.js'
 import { useMapLineSelectionMenu } from '../composables/useMapLineSelectionMenu.js'
@@ -47,8 +47,13 @@ const lineSelectionMenuCompRef = ref(null)
 const contextMenuRef = computed(() => contextMenuCompRef.value?.menuEl ?? null)
 const lineSelectionMenuRef = computed(() => lineSelectionMenuCompRef.value?.menuEl ?? null)
 const showHint = ref(false)
+const mapCenterText = ref('--, --')
+const mapZoomText = ref('--')
 let map = null
 let scaleControl = null
+const GRID_SOURCE_ID = 'railmap-grid-source'
+const GRID_MINOR_LAYER_ID = 'railmap-grid-minor'
+const GRID_MAJOR_LAYER_ID = 'railmap-grid-major'
 
 const { getAutoAnimateConfig } = useAnimationSettings()
 useAutoAnimate(contextMenuRef, getAutoAnimateConfig())
@@ -257,6 +262,156 @@ function updateMeasureAndAnnotationPositions() {
   annotationMarkersKey.value++
 }
 
+function refreshViewportMeta() {
+  if (!map) return
+  const center = map.getCenter()
+  mapCenterText.value = `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`
+  mapZoomText.value = map.getZoom().toFixed(2)
+}
+
+function normalizeLng(lng) {
+  const wrapped = ((lng + 180) % 360 + 360) % 360 - 180
+  return wrapped === -180 ? 180 : wrapped
+}
+
+function chooseGridStepDegrees(zoom) {
+  const candidates = [20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005]
+  const pixelsPerDegree = (512 * (2 ** zoom)) / 360
+  const targetPixelSpacing = 48
+  let best = candidates[0]
+  let bestDiff = Number.POSITIVE_INFINITY
+  for (const step of candidates) {
+    const diff = Math.abs(step * pixelsPerDegree - targetPixelSpacing)
+    if (diff < bestDiff) {
+      best = step
+      bestDiff = diff
+    }
+  }
+  return best
+}
+
+function buildGridLineFeatures(step, majorEvery = 5) {
+  if (!map) return { minor: [], major: [] }
+  const bounds = map.getBounds()
+  const west = Math.max(-180, bounds.getWest() - step * 2)
+  const east = Math.min(180, bounds.getEast() + step * 2)
+  const south = Math.max(-85, bounds.getSouth() - step * 2)
+  const north = Math.min(85, bounds.getNorth() + step * 2)
+  const eps = step / 1000
+
+  const minor = []
+  const major = []
+
+  const startLng = Math.floor(west / step) * step
+  const startLat = Math.floor(south / step) * step
+
+  for (let lng = startLng; lng <= east + eps; lng += step) {
+    const rounded = Number(lng.toFixed(6))
+    const isMajor = Math.round(rounded / step) % majorEvery === 0
+    const target = isMajor ? major : minor
+    target.push({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [normalizeLng(rounded), south],
+          [normalizeLng(rounded), north],
+        ],
+      },
+      properties: {},
+    })
+  }
+
+  for (let lat = startLat; lat <= north + eps; lat += step) {
+    const rounded = Number(lat.toFixed(6))
+    const isMajor = Math.round(rounded / step) % majorEvery === 0
+    const target = isMajor ? major : minor
+    target.push({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [west, rounded],
+          [east, rounded],
+        ],
+      },
+      properties: {},
+    })
+  }
+
+  return { minor, major }
+}
+
+function ensureGridLayers() {
+  if (!map || !map.isStyleLoaded()) return
+  if (!map.getSource(GRID_SOURCE_ID)) {
+    map.addSource(GRID_SOURCE_ID, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+  }
+  if (!map.getLayer(GRID_MINOR_LAYER_ID)) {
+    map.addLayer({
+      id: GRID_MINOR_LAYER_ID,
+      type: 'line',
+      source: GRID_SOURCE_ID,
+      filter: ['==', ['get', 'kind'], 'minor'],
+      paint: {
+        'line-color': 'rgba(188,31,255,0.48)',
+        'line-width': 1.2,
+        'line-opacity': 0.9,
+      },
+      layout: {
+        visibility: store.showMapGrid ? 'visible' : 'none',
+      },
+    })
+  }
+  if (!map.getLayer(GRID_MAJOR_LAYER_ID)) {
+    map.addLayer({
+      id: GRID_MAJOR_LAYER_ID,
+      type: 'line',
+      source: GRID_SOURCE_ID,
+      filter: ['==', ['get', 'kind'], 'major'],
+      paint: {
+        'line-color': 'rgba(249,0,191,0.82)',
+        'line-width': 1.8,
+        'line-opacity': 1,
+        'line-blur': 0.25,
+      },
+      layout: {
+        visibility: store.showMapGrid ? 'visible' : 'none',
+      },
+    })
+  }
+}
+
+function refreshMapGridLayer() {
+  if (!map || !map.isStyleLoaded()) return
+  ensureGridLayers()
+  const source = map.getSource(GRID_SOURCE_ID)
+  if (!source?.setData) return
+
+  if (!store.showMapGrid) {
+    source.setData({ type: 'FeatureCollection', features: [] })
+    return
+  }
+
+  const step = chooseGridStepDegrees(map.getZoom())
+  const { minor, major } = buildGridLineFeatures(step)
+  const features = [
+    ...minor.map((f) => ({ ...f, properties: { kind: 'minor' } })),
+    ...major.map((f) => ({ ...f, properties: { kind: 'major' } })),
+  ]
+  source.setData({ type: 'FeatureCollection', features })
+}
+
+function setGridVisibility(visible) {
+  if (!map || !map.isStyleLoaded()) return
+  const next = visible ? 'visible' : 'none'
+  if (map.getLayer(GRID_MINOR_LAYER_ID)) map.setLayoutProperty(GRID_MINOR_LAYER_ID, 'visibility', next)
+  if (map.getLayer(GRID_MAJOR_LAYER_ID)) map.setLayoutProperty(GRID_MAJOR_LAYER_ID, 'visibility', next)
+}
+
 // ── Lifecycle ──
 
 onMounted(() => {
@@ -296,6 +451,9 @@ onMounted(() => {
     ensureSources(map, store)
     ensureMapLayers(map, store)
     updateMapData(map, store)
+    refreshMapGridLayer()
+    setGridVisibility(store.showMapGrid)
+    refreshViewportMeta()
     map.resize()
 
     onBoundaryMapLoad()
@@ -327,7 +485,11 @@ onMounted(() => {
   map.on('mouseleave', stopStationDrag)
   map.on('move', refreshRouteDrawPreviewProjectedPoints)
   map.on('move', updateMeasureAndAnnotationPositions)
+  map.on('move', refreshMapGridLayer)
+  map.on('move', refreshViewportMeta)
   map.on('zoom', updateMeasureAndAnnotationPositions)
+  map.on('zoom', refreshMapGridLayer)
+  map.on('zoom', refreshViewportMeta)
   window.addEventListener('resize', onWindowResize)
   if (registerEscapeCallback) registerEscapeCallback(escapeHandler)
 })
@@ -439,6 +601,19 @@ watch(
   )
 
   watch(
+    () => ({
+      showStationLabels: store.showStationLabels,
+      showLineLabels: store.showLineLabels,
+      showInterchangeMarkers: store.showInterchangeMarkers,
+    }),
+    () => {
+      if (!map || !map.isStyleLoaded()) return
+      updateMapDisplayVisibility(map, store)
+    },
+    { deep: true },
+  )
+
+  watch(
     () => store.selectedStationId,
     (stationId) => {
       if (!stationId) return
@@ -492,10 +667,14 @@ watch(
         ensureSources(map, store)
         ensureMapLayers(map, store)
         updateMapData(map, store)
+        refreshMapGridLayer()
+        setGridVisibility(store.showMapGrid)
         if (store.showLanduseOverlay) {
           ensureLanduseLayer(map, store)
         }
         setStationHighlightVisibility(map, store.highlightStationLocations)
+        updateMapDisplayVisibility(map, store)
+        refreshViewportMeta()
         map.setCenter(center)
         map.setZoom(zoom)
         map.setBearing(bearing)
@@ -504,6 +683,16 @@ watch(
       }
       map.on('styledata', onStyleLoad)
     },
+  )
+
+  watch(
+    () => store.showMapGrid,
+    (visible) => {
+      if (!map || !map.isStyleLoaded()) return
+      setGridVisibility(visible)
+      refreshMapGridLayer()
+    },
+    { immediate: true },
   )
 </script>
 
@@ -600,6 +789,11 @@ watch(
         Shift + 拖拽框选站点 | Ctrl/⌘ + 拖拽框选线段 | Alt + 点击线段选中整条线路 | Delete 删除站点/线段/锚点 | Ctrl/Cmd+A 全选站点 | Ctrl/Cmd+Z 撤销 |
         Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做 | Esc 取消待连接起点/关闭菜单
       </p>
+
+      <div v-if="store.showMapCoordinates" class="map-editor__coords">
+        <span>中心 {{ mapCenterText }}</span>
+        <span>缩放 {{ mapZoomText }}</span>
+      </div>
     </div>
     <TimelineSlider
       @year-change="onTimelineYearChange"
@@ -615,8 +809,8 @@ watch(
 <style scoped>
 .map-editor {
   border: 1px solid var(--workspace-panel-border);
-  border-radius: 12px;
   background: var(--workspace-panel-bg);
+  box-shadow: inset 0 0 0 1px rgba(188, 31, 255, 0.18), 0 0 14px rgba(188, 31, 255, 0.16);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -636,11 +830,15 @@ watch(
 
 .map-editor__selection-box {
   position: absolute;
-  border: 1px solid #0ea5e9;
-  background: rgba(14, 165, 233, 0.14);
+  border: 1px solid rgba(249, 0, 191, 0.76);
+  background:
+    linear-gradient(180deg, rgba(188, 31, 255, 0.12), rgba(249, 0, 191, 0.2)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0 2px, transparent 2px 6px);
+  background-size: 100% 100%, 100% 24px;
+  animation: selection-appear var(--transition-fast) forwards, ark-scanline 0.9s linear infinite;
   pointer-events: none;
   z-index: 10;
-  animation: selection-appear var(--transition-fast) forwards;
+  box-shadow: inset 0 0 10px rgba(188, 31, 255, 0.34), 0 0 12px rgba(249, 0, 191, 0.28);
 }
 
 .map-editor__route-preview {
@@ -657,7 +855,6 @@ watch(
   transform: translate(0, -100%);
   margin-top: -8px;
   padding: 3px 7px;
-  border-radius: 999px;
   border: 1px solid var(--toolbar-border);
   background: var(--toolbar-card-bg);
   color: var(--toolbar-text);
@@ -674,11 +871,10 @@ watch(
   max-height: calc(100% - 16px);
   overflow: auto;
   border: 1px solid var(--toolbar-border);
-  border-radius: 12px;
   background: var(--toolbar-card-bg);
   color: var(--toolbar-text);
   padding: 10px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
+  box-shadow: 0 0 0 1px rgba(188, 31, 255, 0.22), 0 0 18px rgba(188, 31, 255, 0.24);
 }
 
 .map-editor__ai-loading {
@@ -704,7 +900,6 @@ watch(
 
 .map-editor__ai-candidate {
   border: 1px solid var(--toolbar-input-border);
-  border-radius: 8px;
   background: var(--toolbar-input-bg);
   color: var(--toolbar-text);
   text-align: left;
@@ -749,7 +944,6 @@ watch(
   background: var(--toolbar-card-bg);
   color: var(--toolbar-text);
   border: 1px solid var(--toolbar-border);
-  border-radius: 6px;
   cursor: pointer;
   z-index: 12;
   transition: all 0.2s ease;
@@ -759,6 +953,7 @@ watch(
 .map-editor__hint-toggle:hover {
   background: var(--toolbar-hover-bg);
   border-color: var(--toolbar-hover-border);
+  box-shadow: 0 0 10px rgba(249, 0, 191, 0.24);
 }
 
 .map-editor__hint-toggle--active {
@@ -776,16 +971,31 @@ watch(
   background: var(--toolbar-card-bg);
   color: var(--toolbar-text);
   border: 1px solid var(--toolbar-border);
-  border-radius: 6px;
   font-size: 11px;
   z-index: 11;
   pointer-events: none;
   opacity: 0.95;
 }
 
+.map-editor__coords {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
+  border: 1px solid var(--toolbar-border);
+  background: var(--toolbar-card-bg);
+  color: var(--toolbar-text);
+  font-size: 11px;
+  line-height: 1.2;
+  z-index: 12;
+  pointer-events: none;
+}
+
 :deep(.maplibregl-ctrl-scale) {
   border: 1px solid var(--toolbar-border);
-  border-radius: 7px;
   background: var(--toolbar-card-bg);
   color: var(--toolbar-text);
   font-size: 11px;

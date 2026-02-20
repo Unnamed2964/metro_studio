@@ -1,8 +1,9 @@
 <script setup>
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { NModal } from 'naive-ui'
 import { useProjectStore } from '../stores/projectStore'
 import { calculateNetworkMetrics } from '../lib/network/networkStatistics'
+import { getDisplayLineName } from '../lib/lineNaming'
 import IconBase from './IconBase.vue'
 
 const props = defineProps({
@@ -17,6 +18,7 @@ const loading = ref(false)
 const stats = ref(null)
 
 const tabs = [
+  { key: 'network', label: '线网概况', icon: 'bar-chart-2' },
   { key: 'basics', label: '基础概况', icon: 'grid' },
   { key: 'paths', label: '最长路径', icon: 'route' },
   { key: 'interchanges', label: '换乘枢纽', icon: 'git-branch' },
@@ -44,6 +46,147 @@ function formatLineNames(lineIds) {
     .map(lid => store.lineById.get(lid)?.nameZh)
     .filter(Boolean)
     .join('、')
+}
+
+function resolveEdgeLengthMeters(edge) {
+  if (Number.isFinite(edge?.lengthMeters) && edge.lengthMeters > 0) return edge.lengthMeters
+  return 0
+}
+
+function formatKm(meters) {
+  return (meters / 1000).toFixed(1)
+}
+
+const lines = computed(() => store.project?.lines || [])
+const edges = computed(() => store.project?.edges || [])
+const stations = computed(() => store.project?.stations || [])
+
+const edgeByIdMap = computed(() => {
+  const map = new Map()
+  for (const edge of edges.value) map.set(edge.id, edge)
+  return map
+})
+
+const lineCountByStatus = computed(() => {
+  let open = 0
+  let construction = 0
+  let proposed = 0
+  for (const line of lines.value) {
+    if (line.status === 'open') open += 1
+    else if (line.status === 'construction') construction += 1
+    else if (line.status === 'proposed') proposed += 1
+  }
+  return { open, construction, proposed }
+})
+
+function effectiveLines(station) {
+  return station.transferLineIds?.length ? station.transferLineIds : (station.lineIds || [])
+}
+
+const interchangeStations = computed(() => stations.value.filter((station) => effectiveLines(station).length >= 2))
+
+const maxInterchangeStation = computed(() => {
+  let best = null
+  let bestCount = 0
+  for (const station of stations.value) {
+    const count = effectiveLines(station).length
+    if (count > bestCount) {
+      best = station
+      bestCount = count
+    }
+  }
+  return best
+})
+
+const maxInterchangeLineCount = computed(() => {
+  const station = maxInterchangeStation.value
+  return station ? effectiveLines(station).length : 0
+})
+
+const maxInterchangeLineNames = computed(() => {
+  const station = maxInterchangeStation.value
+  if (!station) return ''
+  return effectiveLines(station)
+    .map((lineId) => store.lineById.get(lineId))
+    .filter(Boolean)
+    .map((line) => getDisplayLineName(line, 'zh') || line.nameZh)
+    .filter(Boolean)
+    .join('、')
+})
+
+const totalMileageMeters = computed(() => edges.value.reduce((sum, edge) => sum + resolveEdgeLengthMeters(edge), 0))
+
+function computeLineMileageMeters(line) {
+  let total = 0
+  for (const edgeId of (line.edgeIds || [])) {
+    const edge = edgeByIdMap.value.get(edgeId)
+    if (edge) total += resolveEdgeLengthMeters(edge)
+  }
+  return total
+}
+
+const mileageByStatus = computed(() => {
+  let open = 0
+  let construction = 0
+  let proposed = 0
+  for (const line of lines.value) {
+    const mileage = computeLineMileageMeters(line)
+    if (line.status === 'open') open += mileage
+    else if (line.status === 'construction') construction += mileage
+    else if (line.status === 'proposed') proposed += mileage
+  }
+  return { open, construction, proposed }
+})
+
+const lineDetails = computed(() => {
+  return lines.value.map((line) => {
+    const mileageMeters = computeLineMileageMeters(line)
+    const stationIdSet = new Set()
+    for (const edgeId of (line.edgeIds || [])) {
+      const edge = edgeByIdMap.value.get(edgeId)
+      if (!edge) continue
+      stationIdSet.add(edge.fromStationId)
+      stationIdSet.add(edge.toStationId)
+    }
+    return {
+      id: line.id,
+      name: getDisplayLineName(line, 'zh') || line.nameZh || '未命名',
+      color: line.color,
+      status: line.status,
+      stationCount: stationIdSet.size,
+      mileageMeters,
+      mileageKm: formatKm(mileageMeters),
+    }
+  }).sort((a, b) => b.mileageMeters - a.mileageMeters)
+})
+
+const averageInterStationKm = computed(() => {
+  if (!edges.value.length) return '0.0'
+  let totalMeters = 0
+  let count = 0
+  for (const edge of edges.value) {
+    const len = resolveEdgeLengthMeters(edge)
+    if (len <= 0) continue
+    totalMeters += len
+    count += 1
+  }
+  if (!count) return '0.0'
+  return (totalMeters / count / 1000).toFixed(1)
+})
+
+const longestLine = computed(() => (lineDetails.value.length ? lineDetails.value[0] : null))
+
+const shortestLine = computed(() => {
+  if (!lineDetails.value.length) return null
+  const withEdges = lineDetails.value.filter((line) => line.mileageMeters > 0)
+  if (!withEdges.length) return null
+  return withEdges[withEdges.length - 1]
+})
+
+const STATUS_LABELS = { open: '运营', construction: '在建', proposed: '规划' }
+
+function statusLabel(status) {
+  return STATUS_LABELS[status] || status
 }
 
 watch(
@@ -93,6 +236,96 @@ watch(
             </div>
 
             <template v-else>
+              <div v-show="activeTab === 'network'" class="stats__section">
+                <div class="stats-group">
+                  <h3 class="stats-group__title">线网概况</h3>
+                  <table class="stats-table">
+                    <tbody>
+                      <tr>
+                        <td class="stats-label">线路总数</td>
+                        <td class="stats-value">
+                          {{ lines.length }} 条
+                          <span v-if="lines.length > 0" class="stats-sub">
+                            （运营 {{ lineCountByStatus.open }}
+                            <template v-if="lineCountByStatus.construction"> / 在建 {{ lineCountByStatus.construction }}</template>
+                            <template v-if="lineCountByStatus.proposed"> / 规划 {{ lineCountByStatus.proposed }}</template>）
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="stats-label">车站总数</td>
+                        <td class="stats-value">{{ stations.length }} 座</td>
+                      </tr>
+                      <tr>
+                        <td class="stats-label">换乘站</td>
+                        <td class="stats-value">{{ interchangeStations.length }} 座</td>
+                      </tr>
+                      <tr>
+                        <td class="stats-label">总里程</td>
+                        <td class="stats-value">{{ formatKm(totalMileageMeters) }} km</td>
+                      </tr>
+                      <tr v-if="mileageByStatus.open > 0">
+                        <td class="stats-label stats-label--indent">运营里程</td>
+                        <td class="stats-value">{{ formatKm(mileageByStatus.open) }} km</td>
+                      </tr>
+                      <tr v-if="mileageByStatus.construction > 0">
+                        <td class="stats-label stats-label--indent">在建里程</td>
+                        <td class="stats-value">{{ formatKm(mileageByStatus.construction) }} km</td>
+                      </tr>
+                      <tr v-if="mileageByStatus.proposed > 0">
+                        <td class="stats-label stats-label--indent">规划里程</td>
+                        <td class="stats-value">{{ formatKm(mileageByStatus.proposed) }} km</td>
+                      </tr>
+                      <tr>
+                        <td class="stats-label">平均站间距</td>
+                        <td class="stats-value">{{ averageInterStationKm }} km</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div v-if="longestLine || shortestLine || maxInterchangeStation" class="stats-group">
+                  <h3 class="stats-group__title">关键节点</h3>
+                  <div v-if="longestLine" class="stats-highlight-row">
+                    <span class="stats-label">最长线路</span>
+                    <span class="stats-value">
+                      <span class="line-swatch" :style="{ backgroundColor: longestLine.color }" />
+                      {{ longestLine.name }}（{{ longestLine.mileageKm }} km）
+                    </span>
+                  </div>
+                  <div v-if="shortestLine && shortestLine.id !== longestLine?.id" class="stats-highlight-row">
+                    <span class="stats-label">最短线路</span>
+                    <span class="stats-value">
+                      <span class="line-swatch" :style="{ backgroundColor: shortestLine.color }" />
+                      {{ shortestLine.name }}（{{ shortestLine.mileageKm }} km）
+                    </span>
+                  </div>
+                  <div v-if="maxInterchangeStation && maxInterchangeLineCount >= 2" class="stats-highlight-row">
+                    <span class="stats-label">最大换乘站</span>
+                    <span class="stats-value">
+                      {{ maxInterchangeStation.nameZh }}（{{ maxInterchangeLineCount }} 线：{{ maxInterchangeLineNames }}）
+                    </span>
+                  </div>
+                </div>
+
+                <div class="stats-group">
+                  <h3 class="stats-group__title">各线路排行</h3>
+                  <div v-if="!lineDetails.length" class="stats-dialog__empty stats-dialog__empty--compact">
+                    暂无线路数据
+                  </div>
+                  <ul v-else class="line-ranking">
+                    <li v-for="(detail, index) in lineDetails" :key="detail.id" class="line-ranking-item">
+                      <span class="line-ranking-index">{{ index + 1 }}</span>
+                      <span class="line-swatch" :style="{ backgroundColor: detail.color }" />
+                      <span class="line-ranking-name">{{ detail.name }}</span>
+                      <span class="line-ranking-badge">{{ statusLabel(detail.status) }}</span>
+                      <span class="line-ranking-stat">{{ detail.stationCount }} 站</span>
+                      <span class="line-ranking-stat">{{ detail.mileageKm }} km</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
               <div v-show="activeTab === 'basics'" class="stats__section">
                 <div class="stats-grid">
                   <div class="stats-card">
@@ -326,6 +559,7 @@ watch(
 .stats-dialog__body {
   padding: 20px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   min-height: 0;
 }
@@ -336,6 +570,10 @@ watch(
   text-align: center;
   color: var(--toolbar-muted);
   font-size: 13px;
+}
+
+.stats-dialog__empty--compact {
+  padding: 10px 0;
 }
 
 .stats__section {
@@ -408,6 +646,21 @@ watch(
   gap: 6px;
 }
 
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.stats-table td {
+  padding: 3px 0;
+  vertical-align: top;
+}
+
+.stats-label--indent {
+  padding-left: 12px;
+}
+
 .stats-tag {
   padding: 3px 8px;
   background: var(--toolbar-button-bg);
@@ -417,19 +670,33 @@ watch(
   color: var(--toolbar-button-text);
 }
 
+.stats-highlight-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
 .path-info {
   padding: 14px;
   background: var(--toolbar-card-bg);
   border: 1px solid var(--toolbar-divider);
   border-radius: 6px;
+  min-width: 0;
 }
 
 .path-info__route {
+  display: block;
+  max-width: 100%;
   font-size: 14px;
   font-weight: 600;
   color: var(--toolbar-text);
   margin-bottom: 10px;
   line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .path-info__metrics {
@@ -507,6 +774,65 @@ watch(
   font-size: 12px;
   font-weight: 600;
   color: white;
+}
+
+.line-ranking {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.line-ranking-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--toolbar-input-border);
+  background: var(--toolbar-input-bg);
+  font-size: 12px;
+  color: var(--toolbar-text);
+}
+
+.line-ranking-index {
+  color: var(--toolbar-muted);
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 14px;
+  text-align: center;
+}
+
+.line-ranking-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line-ranking-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  background: var(--toolbar-divider);
+  color: var(--toolbar-muted);
+  flex-shrink: 0;
+}
+
+.line-ranking-stat {
+  color: var(--toolbar-hint);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.line-swatch {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
 }
 
 .line-table {

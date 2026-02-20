@@ -60,8 +60,8 @@ defineExpose({ menuEl })
         <p>模式</p>
         <div class="map-editor__context-row">
           <button @click="emit('set-mode', 'select')">选择/拖拽</button>
-          <button @click="emit('set-mode', 'add-station')">点站</button>
-          <button @click="emit('set-mode', 'add-edge')">拉线</button>
+          <button @click="emit('set-mode', 'add-station')">添加站点</button>
+          <button @click="emit('set-mode', 'add-edge')">添加线段</button>
           <button @click="emit('set-mode', 'route-draw')">连续布线</button>
         </div>
       </div>

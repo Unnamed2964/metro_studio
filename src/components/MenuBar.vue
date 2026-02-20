@@ -97,7 +97,7 @@ const activeLineName = computed(() => {
 
 const viewButtons = [
   { view: 'map', icon: 'map', label: '地图' },
-  { view: 'schematic', icon: 'layout', label: '版式' },
+  { view: 'schematic', icon: 'layout', label: '示意图' },
   { view: 'hud', icon: 'monitor', label: 'HUD' },
   { view: 'preview', icon: 'film', label: '预览' },
 ]
@@ -179,18 +179,18 @@ function toggleNavigation() {
 </script>
 
 <template>
-  <header ref="menuBarRef" class="menu-bar">
+  <header ref="menuBarRef" class="menu-bar ark-terminal-corner">
     <div class="menu-bar__left">
       <div class="menu-bar__brand">
-        <span class="menu-bar__brand-mark">[</span>
+        <span class="menu-bar__brand-mark animate-signal">[</span>
         <span class="menu-bar__brand-text">METRO STUDIO</span>
-        <span class="menu-bar__brand-mark">]</span>
+        <span class="menu-bar__brand-mark animate-signal">]</span>
       </div>
       <span class="menu-bar__brand-sep" />
 
       <nav class="menu-bar__menus">
         <NDropdown
-          v-for="menu in menus"
+          v-for="(menu, index) in menus"
           :key="menu.key"
           trigger="click"
           :options="convertMenuItems(menu.items)"
@@ -200,13 +200,15 @@ function toggleNavigation() {
         >
           <button
             :data-menu-key="menu.key"
-            class="menu-bar__menu-btn"
+            class="menu-bar__menu-btn ark-glitch-hover animate-stagger"
             :class="{ 'menu-bar__menu-btn--open': openMenuKey === menu.key }"
+            :style="{ animationDelay: `${index * 60}ms` }"
             type="button"
             @click="toggleMenu(menu.key)"
             @mouseenter="onMenuBarMouseEnter(menu.key)"
           >
             {{ menu.label }}
+            <span class="menu-bar__menu-btn-line"></span>
           </button>
         </NDropdown>
       </nav>
@@ -216,7 +218,7 @@ function toggleNavigation() {
       <NTooltip placement="bottom" :delay="300">
         <template #trigger>
           <button
-            class="menu-bar__nav-btn"
+            class="menu-bar__nav-btn ark-glitch-hover"
             type="button"
             @click="emit('show-search')"
             aria-label="搜索地点"
@@ -230,7 +232,7 @@ function toggleNavigation() {
       <NTooltip placement="bottom" :delay="300">
         <template #trigger>
           <button
-            class="menu-bar__nav-btn"
+            class="menu-bar__nav-btn ark-glitch-hover"
             :class="{ 'menu-bar__nav-btn--active': store.navigation.active }"
             type="button"
             @click="toggleNavigation"
@@ -252,7 +254,7 @@ function toggleNavigation() {
         >
           <button
             ref="lineButtonRef"
-            class="menu-bar__line-btn"
+            class="menu-bar__line-btn ark-glitch-hover"
             type="button"
             @click="lineDropdownOpen = !lineDropdownOpen"
           >
@@ -269,7 +271,7 @@ function toggleNavigation() {
       <div class="menu-bar__year-selector">
         <span class="menu-bar__year-label">建设年份</span>
         <button
-          class="menu-bar__year-btn"
+          class="menu-bar__year-btn ark-glitch-hover"
           type="button"
           :disabled="store.currentEditYear <= MIN_YEAR"
           @click="decrementEditYear"
@@ -302,7 +304,7 @@ function toggleNavigation() {
         >
           <template #trigger>
             <button
-              class="menu-bar__view-btn"
+              class="menu-bar__view-btn ark-glitch-hover"
               :class="{ 'menu-bar__view-btn--active': activeView === btn.view }"
               type="button"
               @click="emit('set-view', btn.view)"
@@ -335,8 +337,10 @@ function toggleNavigation() {
   justify-content: space-between;
   height: 40px;
   padding: 0 8px;
-  background: var(--toolbar-header-bg);
-  backdrop-filter: blur(12px) saturate(1.2);
+  background: linear-gradient(180deg, rgba(15, 15, 18, 0.9), rgba(8, 8, 10, 0.88));
+  backdrop-filter: blur(14px) saturate(1.24);
+  border-bottom: 1px solid rgba(188, 31, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(188, 31, 255, 0.16), 0 0 14px rgba(249, 0, 191, 0.22);
   flex-shrink: 0;
   z-index: 100;
 }
@@ -355,11 +359,12 @@ function toggleNavigation() {
 }
 
 .menu-bar__brand-text {
-  font-family: var(--app-font-mono);
-  font-size: 12px;
+  font-family: var(--app-font-display);
+  font-size: 20px;
   font-weight: 700;
-  color: var(--ark-pink);
-  letter-spacing: 0.15em;
+  color: var(--ark-purple);
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 8px rgba(188, 31, 255, 0.45);
 }
 
 .menu-bar__brand-mark {
@@ -385,11 +390,11 @@ function toggleNavigation() {
 
 .menu-bar__menu-btn {
   position: relative;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--toolbar-muted);
   font-family: var(--app-font-mono);
-  font-size: 11px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 6px 12px;
@@ -401,20 +406,34 @@ function toggleNavigation() {
   color: var(--ark-pink);
 }
 
-.menu-bar__menu-btn--open {
-  color: var(--ark-text);
-  background: var(--toolbar-tab-active-bg);
-}
-
-.menu-bar__menu-btn--open::after {
-  content: '';
+.menu-bar__menu-btn-line {
   position: absolute;
   bottom: 0;
   left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 16px);
+  width: 0;
   height: 2px;
   background: var(--ark-pink);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 8px var(--ark-pink-glow);
+  pointer-events: none;
+}
+
+.menu-bar__menu-btn:hover .menu-bar__menu-btn-line {
+  width: 100%;
+  left: 0;
+}
+
+.menu-bar__menu-btn--open {
+  color: var(--ark-text);
+  background: var(--toolbar-tab-active-bg);
+  border-color: rgba(249, 0, 191, 0.54);
+}
+
+.menu-bar__menu-btn--open .menu-bar__menu-btn-line {
+  width: 100%;
+  left: 0;
+  background: var(--ark-pink);
+  height: 2px;
 }
 
 .menu-bar__right {
@@ -432,14 +451,14 @@ function toggleNavigation() {
   align-items: center;
   gap: 6px;
   border: 1px solid var(--toolbar-input-border);
-  background: var(--toolbar-input-bg);
+  background: linear-gradient(90deg, rgba(188, 31, 255, 0.08), rgba(5, 5, 7, 0.92));
   color: var(--toolbar-text);
-  border-radius: 6px;
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   transition: border-color var(--transition-fast);
   max-width: 180px;
+  clip-path: var(--clip-chamfer-sm);
 }
 
 .menu-bar__line-btn:hover {
@@ -449,8 +468,9 @@ function toggleNavigation() {
 .menu-bar__line-swatch {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(249, 0, 191, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .menu-bar__line-name {
@@ -473,9 +493,9 @@ function toggleNavigation() {
   align-items: center;
   gap: 0;
   border: 1px solid var(--toolbar-input-border);
-  border-radius: 6px;
   overflow: hidden;
-  background: var(--toolbar-input-bg);
+  background: linear-gradient(90deg, rgba(6, 6, 8, 0.84), rgba(188, 31, 255, 0.1));
+  clip-path: var(--clip-chamfer-sm);
 }
 
 .menu-bar__view-btn {
@@ -492,7 +512,7 @@ function toggleNavigation() {
 
 .menu-bar__view-btn:hover {
   color: var(--toolbar-text);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(188, 31, 255, 0.16);
 }
 
 .menu-bar__view-btn--active {
@@ -506,20 +526,20 @@ function toggleNavigation() {
   align-items: center;
   gap: 4px;
   border: 1px solid var(--toolbar-input-border);
-  border-radius: 6px;
-  background: var(--toolbar-input-bg);
+  background: rgba(8, 8, 11, 0.9);
   padding: 2px 4px;
+  clip-path: var(--clip-chamfer-sm);
 }
 
 .menu-bar__year-label {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--toolbar-muted);
   padding: 0 4px 0 2px;
   white-space: nowrap;
 }
 
 .menu-bar__year-btn {
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--toolbar-muted);
   font-size: 14px;
@@ -529,7 +549,6 @@ function toggleNavigation() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
   cursor: pointer;
   padding: 0;
   line-height: 1;
@@ -538,7 +557,8 @@ function toggleNavigation() {
 
 .menu-bar__year-btn:hover:not(:disabled) {
   color: var(--toolbar-text);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(249, 0, 191, 0.5);
+  background: rgba(188, 31, 255, 0.16);
 }
 
 .menu-bar__year-btn:disabled {
@@ -552,7 +572,7 @@ function toggleNavigation() {
   background: transparent;
   color: var(--toolbar-text);
   font-family: var(--app-font-mono);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   text-align: center;
   padding: 2px 0;
@@ -576,13 +596,14 @@ function toggleNavigation() {
 
 .menu-bar__nav-btn {
   border: 1px solid var(--toolbar-input-border);
-  background: var(--toolbar-input-bg);
+  background: linear-gradient(180deg, rgba(10, 10, 12, 0.9), rgba(6, 6, 8, 0.9));
   color: var(--toolbar-muted);
   padding: 6px 10px;
   cursor: pointer;
   transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
   display: flex;
   align-items: center;
+  clip-path: var(--clip-chamfer-sm);
 }
 
 .menu-bar__nav-btn:hover {
@@ -592,8 +613,9 @@ function toggleNavigation() {
 
 .menu-bar__nav-btn--active {
   color: #fff;
-  background: var(--ark-pink);
-  border-color: var(--ark-pink);
+  background: linear-gradient(90deg, var(--ark-purple), var(--ark-pink));
+  border-color: rgba(255, 255, 255, 0.46);
+  box-shadow: 0 0 10px rgba(249, 0, 191, 0.36);
 }
 
 .menu-bar__nav-btn--active:hover {
@@ -606,7 +628,25 @@ function toggleNavigation() {
   left: 0;
   right: 0;
   height: 1px;
-  background: var(--ark-pink);
-  opacity: 0.3;
+  background: linear-gradient(90deg, 
+    transparent, 
+    var(--ark-purple), 
+    var(--ark-pink), 
+    var(--ark-purple), 
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: line-flow 10s linear infinite;
+  opacity: 0.84;
+}
+
+.menu-bar__machine-tag {
+  position: absolute;
+  right: 10px;
+  bottom: 2px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(168, 210, 255, 0.48);
+  pointer-events: none;
 }
 </style>

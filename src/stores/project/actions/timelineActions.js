@@ -1,6 +1,45 @@
 const timelineActions = {
   setTimelineFilterYear(year) {
-    this.timelineFilterYear = year == null ? null : Number(year)
+    const normalizedYear = year == null ? null : Number(year)
+    this.timelineFilterYear = normalizedYear
+    if (!this.project || normalizedYear == null) return
+
+    const visibleEdgeIds = new Set()
+    const visibleStationIds = new Set()
+    for (const edge of this.project.edges || []) {
+      if (edge.openingYear != null && edge.openingYear > normalizedYear) continue
+      visibleEdgeIds.add(edge.id)
+      visibleStationIds.add(edge.fromStationId)
+      visibleStationIds.add(edge.toStationId)
+    }
+
+    if (Array.isArray(this.selectedEdgeIds) && this.selectedEdgeIds.length) {
+      const nextEdgeIds = this.selectedEdgeIds.filter((edgeId) => visibleEdgeIds.has(edgeId))
+      if (nextEdgeIds.length !== this.selectedEdgeIds.length) {
+        this.selectedEdgeIds = nextEdgeIds
+        this.selectedEdgeId = nextEdgeIds.length ? nextEdgeIds[nextEdgeIds.length - 1] : null
+      }
+    } else {
+      this.selectedEdgeId = null
+    }
+
+    if (Array.isArray(this.selectedStationIds) && this.selectedStationIds.length) {
+      const nextStationIds = this.selectedStationIds.filter((stationId) => visibleStationIds.has(stationId))
+      if (nextStationIds.length !== this.selectedStationIds.length) {
+        this.selectedStationIds = nextStationIds
+      }
+      if (!this.selectedStationIds.length) {
+        this.selectedStationId = null
+      } else if (!this.selectedStationIds.includes(this.selectedStationId)) {
+        this.selectedStationId = this.selectedStationIds[this.selectedStationIds.length - 1]
+      }
+    } else {
+      this.selectedStationId = null
+    }
+
+    if (this.selectedEdgeAnchor && !visibleEdgeIds.has(this.selectedEdgeAnchor.edgeId)) {
+      this.selectedEdgeAnchor = null
+    }
   },
 
   setTimelinePlaybackState(state) {
