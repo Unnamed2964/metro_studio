@@ -176,7 +176,7 @@ export function updateMapData(map, store) {
 }
 
 export function ensureMapLayers(map, store) {
-  if (!map || !map.getSource(SOURCE_STATIONS)) return
+  if (!map) return
 
   if (!map.getLayer(LAYER_EDGES_HIT)) {
     map.addLayer({

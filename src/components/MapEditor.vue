@@ -486,7 +486,9 @@ watch(
 
       map.setStyle(buildMapStyle(newTileType))
 
-      map.once('style.load', () => {
+      const onStyleLoad = () => {
+        if (!map.isStyleLoaded()) return
+        map.off('styledata', onStyleLoad)
         ensureSources(map, store)
         ensureMapLayers(map, store)
         updateMapData(map, store)
@@ -499,7 +501,8 @@ watch(
         map.setBearing(bearing)
         map.setPitch(pitch)
         lockMapNorthUp()
-      })
+      }
+      map.on('styledata', onStyleLoad)
     },
   )
 </script>

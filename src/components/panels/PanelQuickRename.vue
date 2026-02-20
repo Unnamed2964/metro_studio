@@ -57,7 +57,10 @@ onMounted(() => {
 })
 
 function handleKeydown(e) {
-  if (e.key === 'Enter') {
+  if (e.key === 'Enter' && e.shiftKey) {
+    e.preventDefault()
+    saveAndPrev()
+  } else if (e.key === 'Enter') {
     saveAndNext()
   } else if (e.key === 'Escape') {
     emit('close')
@@ -67,9 +70,6 @@ function handleKeydown(e) {
   } else if (e.key === 'ArrowUp') {
     e.preventDefault()
     goToPrev()
-  } else if (e.key === 'Shift+Enter') {
-    e.preventDefault()
-    saveAndPrev()
   }
 }
 

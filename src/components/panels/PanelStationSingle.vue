@@ -76,50 +76,50 @@ watch(
 
 <template>
   <div class="panel-station-single" v-if="selectedStation">
-    <p class="pp-hint">站点 ID: {{ selectedStation.id }}</p>
-    <input ref="nameZhInputRef" v-model="stationForm.nameZh" class="pp-input" placeholder="车站中文名" />
-    <input v-model="stationForm.nameEn" class="pp-input" placeholder="Station English Name" />
+    <div class="pp-context">
+      <div class="pp-kv" v-if="coordinatesText">
+        <span class="pp-kv-label">坐标</span>
+        <span class="pp-kv-value">{{ coordinatesText }}</span>
+      </div>
+      <div class="pp-kv" v-if="belongingLines.length">
+        <span class="pp-kv-label">线路</span>
+        <ul class="pp-kv-value station-line-tags">
+          <li v-for="line in belongingLines" :key="line.id" :title="line.nameZh">
+            <span class="station-line-swatch" :style="{ backgroundColor: line.color }" />
+            <span>{{ displayLineName(line) }}</span>
+          </li>
+        </ul>
+      </div>
+      <div class="pp-kv">
+        <span class="pp-kv-label">换乘</span>
+        <span class="pp-kv-value">
+          <span v-if="selectedStation.isInterchange" class="station-badge station-badge--interchange">换乘站 · {{ selectedStation.transferLineIds?.length || belongingLines.length }} 线</span>
+          <span v-else>非换乘站</span>
+          · {{ connectedEdgesCount }} 条线段
+        </span>
+      </div>
+    </div>
 
-    <div class="pp-divider" />
+    <div class="pp-fields">
+      <input ref="nameZhInputRef" v-model="stationForm.nameZh" class="pp-input" placeholder="车站中文名" />
+      <input v-model="stationForm.nameEn" class="pp-input" placeholder="Station English Name" />
+    </div>
 
-    <label class="pp-label">坐标</label>
-    <p class="pp-hint station-info-value">{{ coordinatesText }}</p>
-
-    <label class="pp-label">所属线路</label>
-    <ul v-if="belongingLines.length" class="station-line-tags">
-      <li v-for="line in belongingLines" :key="line.id" :title="line.nameZh">
-        <span class="station-line-swatch" :style="{ backgroundColor: line.color }" />
-        <span>{{ displayLineName(line) }}</span>
-      </li>
-    </ul>
-    <p v-else class="pp-hint">无</p>
-
-    <label class="pp-label">换乘状态</label>
-    <p class="pp-hint station-info-value">
-      <span v-if="selectedStation.isInterchange" class="station-badge station-badge--interchange">
-        换乘站 · {{ selectedStation.transferLineIds?.length || belongingLines.length }} 线
-      </span>
-      <span v-else>非换乘站</span>
-    </p>
-
-    <label class="pp-label">连接线段</label>
-    <p class="pp-hint station-info-value">{{ connectedEdgesCount }} 条</p>
-
-    <div class="pp-divider" />
-
-    <div class="pp-row">
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <button class="pp-btn pp-btn--primary" @click="applyStationRename">保存站名</button>
-        </template>
-        保存站名
-      </NTooltip>
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <button class="pp-btn pp-btn--danger" @click="deleteStation">删除站点</button>
-        </template>
-        删除站点
-      </NTooltip>
+    <div class="pp-actions">
+      <div class="pp-row" style="margin-top:0">
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn pp-btn--primary" style="flex:1" @click="applyStationRename">保存站名</button>
+          </template>
+          保存站名
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn pp-btn--danger" @click="deleteStation">删除</button>
+          </template>
+          删除站点
+        </NTooltip>
+      </div>
     </div>
   </div>
 </template>
@@ -128,17 +128,11 @@ watch(
 .panel-station-single {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.station-info-value {
-  margin: 0;
-  user-select: text;
 }
 
 .station-line-tags {
   list-style: none;
-  margin: 4px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;

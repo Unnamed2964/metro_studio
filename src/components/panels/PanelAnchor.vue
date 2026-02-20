@@ -47,36 +47,34 @@ function deleteAnchor() {
 
 <template>
   <div class="panel-anchor" v-if="anchor && selectedEdge">
-    <p class="pp-hint">锚点索引: {{ anchor.anchorIndex }}</p>
-    <p class="pp-hint">
-      连接站点:
-      {{ edgeStations.from?.nameZh || selectedEdge.fromStationId }}
-      ↔
-      {{ edgeStations.to?.nameZh || selectedEdge.toStationId }}
-    </p>
+    <div class="pp-context">
+      <div class="pp-kv">
+        <span class="pp-kv-label">连接</span>
+        <span class="pp-kv-value">
+          {{ edgeStations.from?.nameZh || selectedEdge.fromStationId }}
+          ↔
+          {{ edgeStations.to?.nameZh || selectedEdge.toStationId }}
+        </span>
+      </div>
+      <div class="pp-kv" v-if="edgeLines.length">
+        <span class="pp-kv-label">线路</span>
+        <ul class="pp-kv-value edge-line-tags">
+          <li v-for="line in edgeLines" :key="line.id" :title="line.nameZh">
+            <span class="edge-line-swatch" :style="{ backgroundColor: line.color }" />
+            <span>{{ displayLineName(line) }}</span>
+          </li>
+        </ul>
+      </div>
+      <div class="pp-kv">
+        <span class="pp-kv-label">锚点</span>
+        <span class="pp-kv-value">第 {{ anchor.anchorIndex }} / {{ totalAnchors }} 个</span>
+      </div>
+    </div>
 
-    <div class="pp-divider" />
-
-    <label v-if="edgeLines.length" class="pp-label">所属线路</label>
-    <ul v-if="edgeLines.length" class="edge-line-tags">
-      <li v-for="line in edgeLines" :key="line.id" :title="line.nameZh">
-        <span class="edge-line-swatch" :style="{ backgroundColor: line.color }" />
-        <span>{{ displayLineName(line) }}</span>
-      </li>
-    </ul>
-    <p v-else class="pp-hint">所属线路: 无</p>
-
-    <label class="pp-label">锚点位置</label>
-    <p class="pp-hint">
-      第 {{ anchor.anchorIndex }} / {{ totalAnchors }} 个锚点
-    </p>
-
-    <div class="pp-divider" />
-
-    <div class="pp-row">
+    <div class="pp-actions">
       <NTooltip placement="bottom">
         <template #trigger>
-          <button class="pp-btn pp-btn--danger" @click="deleteAnchor">删除锚点</button>
+          <button class="pp-btn pp-btn--danger" style="width:100%" @click="deleteAnchor">删除锚点</button>
         </template>
         删除锚点
       </NTooltip>
@@ -88,12 +86,11 @@ function deleteAnchor() {
 .panel-anchor {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .edge-line-tags {
   list-style: none;
-  margin: 4px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;

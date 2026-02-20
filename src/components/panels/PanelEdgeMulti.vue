@@ -68,69 +68,56 @@ function resetBatchForm() {
 
 watch(
   [() => store.selectedEdgeIds, () => store.project?.lines],
-  () => {
-    resetBatchForm()
-  },
+  () => { resetBatchForm() },
   { immediate: true },
 )
 </script>
 
 <template>
   <div class="panel-edge-multi">
-    <p class="pp-hint">已选 {{ selectedEdgeCount }} 条线段</p>
+    <div class="pp-context">
+      <div class="pp-kv">
+        <span class="pp-kv-label">已选</span>
+        <span class="pp-kv-value">{{ selectedEdgeCount }} 条线段</span>
+      </div>
+    </div>
 
-    <label class="pp-label">目标线路（批量）</label>
-    <select v-model="edgeBatchForm.targetLineId" class="pp-select" :disabled="!edgeReassignTargets.length">
-      <option value="">保持不变</option>
-      <option v-for="line in edgeReassignTargets" :key="`ebm_line_${line.id}`" :value="line.id">
-        {{ displayLineName(line) }}
-      </option>
-    </select>
+    <div class="pp-fields">
+      <select v-model="edgeBatchForm.targetLineId" class="pp-select" :disabled="!edgeReassignTargets.length">
+        <option value="">目标线路（保持不变）</option>
+        <option v-for="line in edgeReassignTargets" :key="`ebm_line_${line.id}`" :value="line.id">
+          {{ displayLineName(line) }}
+        </option>
+      </select>
+      <select v-model="edgeBatchForm.lineStyle" class="pp-select">
+        <option value="">线型（保持不变）</option>
+        <option v-for="s in LINE_STYLE_OPTIONS" :key="`ebm_style_${s.id}`" :value="s.id">{{ s.label }}</option>
+      </select>
+      <input v-model="edgeBatchForm.openingYear" type="number" class="pp-input" placeholder="开通年份" min="1900" max="2100" step="1" />
+      <input v-model="edgeBatchForm.phase" type="text" class="pp-input" placeholder="分期标签，如：一期" />
+    </div>
 
-    <label class="pp-label">线型（批量）</label>
-    <select v-model="edgeBatchForm.lineStyle" class="pp-select">
-      <option value="">保持不变</option>
-      <option v-for="s in LINE_STYLE_OPTIONS" :key="`ebm_style_${s.id}`" :value="s.id">{{ s.label }}</option>
-    </select>
-
-    <label class="pp-label">开通年份（批量）</label>
-    <input
-      v-model="edgeBatchForm.openingYear"
-      type="number"
-      class="pp-input"
-      placeholder="开通年份"
-      min="1900"
-      max="2100"
-      step="1"
-    />
-
-    <label class="pp-label">分期标签（批量）</label>
-    <input
-      v-model="edgeBatchForm.phase"
-      type="text"
-      class="pp-input"
-      placeholder="分期标签，如：一期"
-    />
-
-    <div class="pp-row">
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <button class="pp-btn pp-btn--primary" :disabled="!canApplyBatch" @click="applyBatch">应用批量属性</button>
-        </template>
-        应用批量属性
-      </NTooltip>
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <button class="pp-btn" @click="resetBatchForm">重置</button>
-        </template>
-        重置
-      </NTooltip>
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedEdge()">删除选中线段</button>
-        </template>
-        删除选中线段
-      </NTooltip>
+    <div class="pp-actions">
+      <div class="pp-row" style="margin-top:0">
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn pp-btn--primary" style="flex:1" :disabled="!canApplyBatch" @click="applyBatch">应用</button>
+          </template>
+          应用批量属性
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn" @click="resetBatchForm">重置</button>
+          </template>
+          重置
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedEdge()">删除</button>
+          </template>
+          删除选中线段
+        </NTooltip>
+      </div>
     </div>
   </div>
 </template>
@@ -139,6 +126,5 @@ watch(
 .panel-edge-multi {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 </style>

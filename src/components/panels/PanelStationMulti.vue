@@ -76,8 +76,6 @@ function translateNonNewStations() {
 
 <template>
   <div class="panel-station-multi">
-    <p class="pp-hint">已选 {{ selectedStationCount }} 个站点</p>
-
     <NCollapse :default-expanded-names="['export', 'translate', 'rename']">
     <NCollapseItem title="导出" name="export">
       <NTooltip placement="bottom">

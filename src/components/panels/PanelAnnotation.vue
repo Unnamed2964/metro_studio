@@ -28,8 +28,8 @@ function deleteAnnotation() {
 
 <template>
   <div class="panel-annotation">
-    <div class="panel-section">
-      <h4 class="panel-section__title">注释列表</h4>
+    <div class="pp-context">
+      <p class="pp-section-title">注释列表</p>
       <div class="annotation-list">
         <div
           v-for="anno in annotations"
@@ -54,19 +54,20 @@ function deleteAnnotation() {
       </div>
     </div>
 
-    <div v-if="store.selectedAnnotationId" class="panel-section">
-      <h4 class="panel-section__title">编辑注释</h4>
+    <div v-if="store.selectedAnnotationId" class="pp-fields">
       <textarea
         :value="annotationText"
         @input="updateAnnotationText($event.target.value)"
-        class="panel-input panel-textarea"
+        class="pp-input annotation-textarea"
         placeholder="输入注释内容..."
         rows="4"
       />
     </div>
 
-    <div class="panel-section">
-      <button class="panel-btn panel-btn--danger" @click="store.clearAnnotations()">清空所有注释</button>
+    <div class="pp-actions">
+      <div class="pp-actions-danger">
+        <button class="pp-btn pp-btn--danger" style="width:100%" @click="store.clearAnnotations()">清空所有注释</button>
+      </div>
     </div>
   </div>
 </template>
@@ -75,14 +76,6 @@ function deleteAnnotation() {
 .panel-annotation {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.panel-section__title {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--toolbar-text);
 }
 
 .annotation-list {
@@ -154,47 +147,9 @@ function deleteAnnotation() {
   font-size: 12px;
 }
 
-.panel-input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--toolbar-input-border);
-  border-radius: 8px;
-  background: var(--toolbar-input-bg);
-  color: var(--toolbar-text);
-  font-size: 13px;
-  transition: all 0.15s ease;
-}
-
-.panel-input:focus {
-  outline: none;
-  border-color: var(--toolbar-active-border);
-}
-
-.panel-textarea {
+.annotation-textarea {
   resize: vertical;
   min-height: 80px;
   font-family: inherit;
-}
-
-.panel-btn {
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 8px;
-  background: var(--toolbar-input-bg);
-  color: var(--toolbar-text);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.1s ease;
-}
-
-.panel-btn--danger {
-  background: #FEE2E2;
-  color: #DC2626;
-}
-
-.panel-btn--danger:hover {
-  background: #FECACA;
 }
 </style>

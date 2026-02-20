@@ -137,11 +137,11 @@ export function useMenuBarActions(store, emit, refs) {
     { type: 'item', label: '导出官方风格图 PNG', action: 'exportSchematic', icon: 'layout' },
     { type: 'item', label: '导出车辆 HUD 打包', action: 'exportHudZip', icon: 'monitor' },
     { type: 'separator' },
-    { type: 'submenu', label: '导出时间轴视频', icon: 'film', disabled: !store.timelineHasData, children: [
-      { type: 'item', label: '1080p (1920×1080)', action: 'exportTimeline_1080p' },
-      { type: 'item', label: '2K (2560×1440)', action: 'exportTimeline_2k' },
-      { type: 'item', label: '4K (3840×2160)', action: 'exportTimeline_4k' },
-    ]},
+      { type: 'submenu', label: '导出时间轴视频', icon: 'film', disabled: !store.timelineHasData, children: [
+        { type: 'item', label: '1080p (1920×1080)', action: 'exportTimeline_1080p', icon: 'film' },
+        { type: 'item', label: '2K (2560×1440)', action: 'exportTimeline_2k', icon: 'film' },
+        { type: 'item', label: '4K (3840×2160)', action: 'exportTimeline_4k', icon: 'film' },
+      ]},
     { type: 'separator' },
     { type: 'submenu', label: '车站显示模式', icon: 'eye', children: [
       { type: 'toggle', label: '显示所有车站', checked: store.exportStationVisibilityMode === 'all', action: 'stationVisAll', icon: 'eye' },
@@ -163,7 +163,14 @@ export function useMenuBarActions(store, emit, refs) {
       { type: 'toggle', label: 'CartoDB 浅色', checked: store.mapTileType === 'positron', action: 'mapTilePositron', icon: 'sun' },
       { type: 'toggle', label: 'CartoDB 深色', checked: store.mapTileType === 'dark', action: 'mapTileDark', icon: 'moon' },
       { type: 'separator' },
+      { type: 'toggle', label: 'Stamen Toner 高对比', checked: store.mapTileType === 'stamenToner', action: 'mapTileStamenToner', icon: 'minimize-2' },
+      { type: 'toggle', label: 'Stamen Terrain 地形', checked: store.mapTileType === 'stamenTerrain', action: 'mapTileStamenTerrain', icon: 'mountain' },
+      { type: 'separator' },
       { type: 'toggle', label: 'ESRI 卫星影像', checked: store.mapTileType === 'satellite', action: 'mapTileSatellite', icon: 'globe' },
+      { type: 'toggle', label: 'ESRI 街道地图', checked: store.mapTileType === 'esriWorldStreet', action: 'mapTileEsriWorldStreet', icon: 'map-pin' },
+      { type: 'toggle', label: 'ESRI 地形地图', checked: store.mapTileType === 'esriWorldTopo', action: 'mapTileEsriWorldTopo', icon: 'layers' },
+      { type: 'separator' },
+      { type: 'toggle', label: 'Wikimedia 维基', checked: store.mapTileType === 'wikimedia', action: 'mapTileWikimedia', icon: 'globe' },
       { type: 'toggle', label: 'OpenTopoMap 地形图', checked: store.mapTileType === 'topo', action: 'mapTileTopo', icon: 'mountain' },
     ]},
     { type: 'separator' },
@@ -239,7 +246,12 @@ export function useMenuBarActions(store, emit, refs) {
     if (action === 'stationVisNone') { store.setExportStationVisibilityMode('none'); return }
     if (action === 'mapTileOsm') { store.setMapTileType('osm'); return }
     if (action === 'mapTileVoyager') { store.setMapTileType('voyager'); return }
+    if (action === 'mapTileStamenToner') { store.setMapTileType('stamenToner'); return }
+    if (action === 'mapTileStamenTerrain') { store.setMapTileType('stamenTerrain'); return }
     if (action === 'mapTileSatellite') { store.setMapTileType('satellite'); return }
+    if (action === 'mapTileEsriWorldStreet') { store.setMapTileType('esriWorldStreet'); return }
+    if (action === 'mapTileEsriWorldTopo') { store.setMapTileType('esriWorldTopo'); return }
+    if (action === 'mapTileWikimedia') { store.setMapTileType('wikimedia'); return }
     if (action === 'mapTileTopo') { store.setMapTileType('topo'); return }
     if (action === 'mapTilePositron') { store.setMapTileType('positron'); return }
     if (action === 'mapTileDark') { store.setMapTileType('dark'); return }

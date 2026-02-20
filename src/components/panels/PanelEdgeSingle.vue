@@ -38,7 +38,6 @@ const edgeBatchForm = reactive({
   phase: '',
 })
 
-// Sync form fields with selected edge's current values
 watch(
   () => selectedEdge.value,
   (edge) => {
@@ -120,84 +119,67 @@ watch(
 
 <template>
   <div class="panel-edge-single" v-if="selectedEdge">
-    <p class="pp-hint">线段 ID: {{ selectedEdge.id }}</p>
-    <p class="pp-hint">
-      连接:
-      {{ selectedEdgeStations.from?.nameZh || selectedEdge.fromStationId }}
-      ↔
-      {{ selectedEdgeStations.to?.nameZh || selectedEdge.toStationId }}
-    </p>
-    <p class="pp-hint">所属线路:</p>
-    <ul class="edge-line-tags">
-      <li v-for="line in selectedEdgeLines" :key="line.id" :title="line.nameZh">
-        <span class="edge-line-swatch" :style="{ backgroundColor: line.color }" />
-        <span>{{ displayLineName(line) }}</span>
-      </li>
-    </ul>
+    <div class="pp-context">
+      <div class="pp-kv">
+        <span class="pp-kv-label">连接</span>
+        <span class="pp-kv-value">
+          {{ selectedEdgeStations.from?.nameZh || selectedEdge.fromStationId }}
+          ↔
+          {{ selectedEdgeStations.to?.nameZh || selectedEdge.toStationId }}
+        </span>
+      </div>
+      <div class="pp-kv" v-if="selectedEdgeLines.length">
+        <span class="pp-kv-label">线路</span>
+        <ul class="pp-kv-value edge-line-tags">
+          <li v-for="line in selectedEdgeLines" :key="line.id" :title="line.nameZh">
+            <span class="edge-line-swatch" :style="{ backgroundColor: line.color }" />
+            <span>{{ displayLineName(line) }}</span>
+          </li>
+        </ul>
+      </div>
+    </div>
 
-    <div class="pp-divider" />
+    <div class="pp-fields">
+      <select v-model="edgeBatchForm.targetLineId" class="pp-select" :disabled="!edgeReassignTargets.length">
+        <option value="">目标线路（保持不变）</option>
+        <option v-for="line in edgeReassignTargets" :key="`eb_line_${line.id}`" :value="line.id">
+          {{ displayLineName(line) }}
+        </option>
+      </select>
+      <select v-model="edgeBatchForm.lineStyle" class="pp-select">
+        <option value="">线型（保持不变）</option>
+        <option v-for="s in LINE_STYLE_OPTIONS" :key="`eb_style_${s.id}`" :value="s.id">{{ s.label }}</option>
+      </select>
+      <select v-model="edgeBatchForm.curveMode" class="pp-select">
+        <option value="keep">曲线状态（保持不变）</option>
+        <option value="curved">设为曲线</option>
+        <option value="straight">设为直线（清锚点）</option>
+      </select>
+      <input v-model="edgeBatchForm.openingYear" type="number" class="pp-input" placeholder="开通年份" min="1900" max="2100" step="1" />
+      <input v-model="edgeBatchForm.phase" type="text" class="pp-input" placeholder="分期标签，如：一期" />
+    </div>
 
-    <label class="pp-label">目标线路</label>
-    <select v-model="edgeBatchForm.targetLineId" class="pp-select" :disabled="!edgeReassignTargets.length">
-      <option value="">保持不变</option>
-      <option v-for="line in edgeReassignTargets" :key="`eb_line_${line.id}`" :value="line.id">
-        {{ displayLineName(line) }}
-      </option>
-    </select>
-
-    <label class="pp-label">线型</label>
-    <select v-model="edgeBatchForm.lineStyle" class="pp-select">
-      <option value="">保持不变</option>
-      <option v-for="s in LINE_STYLE_OPTIONS" :key="`eb_style_${s.id}`" :value="s.id">{{ s.label }}</option>
-    </select>
-
-    <label class="pp-label">曲线状态</label>
-    <select v-model="edgeBatchForm.curveMode" class="pp-select">
-      <option value="keep">保持不变</option>
-      <option value="curved">设为曲线</option>
-      <option value="straight">设为直线（清锚点）</option>
-    </select>
-
-    <div class="pp-divider" />
-
-    <label class="pp-label">开通年份</label>
-    <input
-      v-model="edgeBatchForm.openingYear"
-      type="number"
-      class="pp-input"
-      placeholder="开通年份"
-      min="1900"
-      max="2100"
-      step="1"
-    />
-
-    <label class="pp-label">分期标签</label>
-    <input
-      v-model="edgeBatchForm.phase"
-      type="text"
-      class="pp-input"
-      placeholder="分期标签，如：一期"
-    />
-
-    <div class="pp-row">
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <button class="pp-btn pp-btn--primary" :disabled="!canApplyBatch" @click="applyBatch">应用属性</button>
-        </template>
-        应用属性
-      </NTooltip>
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <button class="pp-btn" @click="resetBatchForm">重置</button>
-        </template>
-        重置
-      </NTooltip>
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedEdge()">删除线段</button>
-        </template>
-        删除线段
-      </NTooltip>
+    <div class="pp-actions">
+      <div class="pp-row" style="margin-top:0">
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn pp-btn--primary" style="flex:1" :disabled="!canApplyBatch" @click="applyBatch">应用</button>
+          </template>
+          应用属性
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn" @click="resetBatchForm">重置</button>
+          </template>
+          重置
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="pp-btn pp-btn--danger" @click="store.deleteSelectedEdge()">删除</button>
+          </template>
+          删除线段
+        </NTooltip>
+      </div>
     </div>
   </div>
 </template>
@@ -206,12 +188,11 @@ watch(
 .panel-edge-single {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .edge-line-tags {
   list-style: none;
-  margin: 4px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;

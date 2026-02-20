@@ -69,6 +69,60 @@ const TILE_SOURCES = {
     maxzoom: 19,
     attribution: '© OpenStreetMap, © CARTO',
   },
+  stamenToner: {
+    type: 'raster',
+    tiles: [
+      'https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',
+      'https://stamen-tiles-b.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',
+      'https://stamen-tiles-c.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',
+    ],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 18,
+    attribution: '© OpenStreetMap, © Stamen',
+  },
+  stamenTerrain: {
+    type: 'raster',
+    tiles: [
+      'https://stamen-tiles-a.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png',
+      'https://stamen-tiles-b.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png',
+      'https://stamen-tiles-c.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png',
+    ],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 18,
+    attribution: '© OpenStreetMap, © Stamen',
+  },
+  esriWorldStreet: {
+    type: 'raster',
+    tiles: [
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    ],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 17,
+    attribution: '© Esri',
+  },
+  esriWorldTopo: {
+    type: 'raster',
+    tiles: [
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    ],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 20,
+    attribution: '© Esri',
+  },
+  wikimedia: {
+    type: 'raster',
+    tiles: [
+      'https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png',
+    ],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 19,
+    attribution: '© OpenStreetMap, © Wikimedia',
+  },
 }
 
 function buildMapStyle(tileType = 'osm') {

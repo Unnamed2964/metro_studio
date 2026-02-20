@@ -30,6 +30,7 @@ function convertMenuItems(items) {
     const opt = { key: item.action || `item_${i}`, label: item.label, disabled: item.disabled }
     if (item.type === 'toggle' && item.checked) opt.label = `✓ ${item.label}`
     if (item.shortcut) opt.label = `${item.label}    ${item.shortcut}`
+    if (item.icon) opt.icon = () => h(IconBase, { name: item.icon, size: 16 })
     if (item.type === 'submenu' && item.children) opt.children = convertMenuItems(item.children)
     return opt
   })
