@@ -10,16 +10,16 @@ let frameId = 0
 let decorFrameId = 0
 let onResize = null
 
-// WELCOME 字母的点阵定义 (7x5 网格)
+// METRO STUDIO 字母的点阵定义 (7x5 网格)
 // 1: 节点, 0: 空白
 const LETTER_MAP = {
-  W: [
+  M: [
     [1, 0, 0, 0, 1],
-    [1, 0, 0, 0, 1],
-    [1, 0, 0, 0, 1],
-    [1, 0, 1, 0, 1],
     [1, 1, 0, 1, 1],
-    [0, 1, 0, 1, 0]
+    [1, 0, 1, 0, 1],
+    [1, 0, 0, 0, 1],
+    [1, 0, 0, 0, 1],
+    [1, 0, 0, 0, 1]
   ],
   E: [
     [1, 1, 1, 1, 1],
@@ -29,21 +29,21 @@ const LETTER_MAP = {
     [1, 0, 0, 0, 0],
     [1, 1, 1, 1, 1]
   ],
-  L: [
-    [1, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0],
-    [1, 1, 1, 1, 1]
+  T: [
+    [1, 1, 1, 1, 1],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0]
   ],
-  C: [
-    [0, 1, 1, 1, 1],
-    [1, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0],
-    [0, 1, 1, 1, 1]
+  R: [
+    [1, 1, 1, 1, 0],
+    [1, 0, 0, 0, 1],
+    [1, 1, 1, 1, 0],
+    [1, 1, 0, 0, 0],
+    [1, 0, 1, 0, 0],
+    [1, 0, 0, 1, 0]
   ],
   O: [
     [0, 1, 1, 1, 0],
@@ -53,17 +53,49 @@ const LETTER_MAP = {
     [1, 0, 0, 0, 1],
     [0, 1, 1, 1, 0]
   ],
-  M: [
+  S: [
+    [0, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0],
+    [0, 1, 1, 1, 0],
+    [0, 0, 0, 0, 1],
+    [0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 0]
+  ],
+  U: [
     [1, 0, 0, 0, 1],
-    [1, 1, 0, 1, 1],
-    [1, 0, 1, 0, 1],
     [1, 0, 0, 0, 1],
     [1, 0, 0, 0, 1],
-    [1, 0, 0, 0, 1]
+    [1, 0, 0, 0, 1],
+    [1, 0, 0, 0, 1],
+    [0, 1, 1, 1, 0]
+  ],
+  D: [
+    [1, 1, 1, 1, 0],
+    [1, 0, 0, 0, 1],
+    [1, 0, 0, 0, 1],
+    [1, 0, 0, 0, 1],
+    [1, 0, 0, 0, 1],
+    [1, 1, 1, 1, 0]
+  ],
+  I: [
+    [1, 1, 1, 1, 1],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [1, 1, 1, 1, 1]
+  ],
+  ' ': [
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0]
   ]
 }
 
-const LETTER_ORDER = ['W', 'E', 'L', 'C', 'O', 'M', 'E']
+const LETTER_ORDER = ['M', 'E', 'T', 'R', 'O', ' ', 'S', 'T', 'U', 'D', 'I', 'O']
 
 class MetroAgent {
   constructor(targetPoints, color, speed = 2) {
@@ -423,7 +455,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="welcome" aria-label="欢迎页">
-    <!-- 主 Canvas：绘制 WELCOME -->
+    <!-- 主 Canvas：绘制 METRO STUDIO -->
     <canvas ref="canvasRef" class="welcome__canvas" aria-hidden="true"></canvas>
     
     <!-- 装饰性 UI 元素 -->
@@ -456,7 +488,7 @@ onBeforeUnmount(() => {
           <span class="welcome__subtitle-id">#{{ Math.random().toString(16).slice(2, 8).toUpperCase() }}</span>
         </div>
         <!-- 隐形标题，用于 SEO 和占位，实际视觉由 Canvas 提供 -->
-        <h1 class="welcome__title-ghost" aria-label="WELCOME">WELCOME</h1>
+        <h1 class="welcome__title-ghost" aria-label="METRO STUDIO">METRO STUDIO</h1>
       </header>
 
       <div class="welcome__actions-wrap">
@@ -915,6 +947,10 @@ onBeforeUnmount(() => {
   /* 移动端需要调整 Canvas 字母的大小，可能比较难适配，这里简单处理 */
   .welcome__title-ghost {
       display: none; /* 移动端暂时隐藏大标题 */
+  }
+
+  .welcome__subtitle {
+      font-size: 10px; /* 减小移动端副标题字号以适应更长的标题 */
   }
   .welcome__header {
       height: auto;
