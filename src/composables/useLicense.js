@@ -26,3 +26,6 @@ export const TRIAL_LIMITS = {
   maxProjects: 2,
   maxLines: 3,
 }
+
+// 浏览器控制台: __forceTrial(true) 开启, __forceTrial(false) 关闭
+window.__forceTrial = (v) => { forceTrialOnLocalhost.value = !!v }

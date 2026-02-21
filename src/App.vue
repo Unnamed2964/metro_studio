@@ -21,6 +21,7 @@ import AiConfigDialog from './components/AiConfigDialog.vue'
 import ShortcutSettingsDialog from './components/ShortcutSettingsDialog.vue'
 import StatisticsDialog from './components/StatisticsDialog.vue'
 import AboutDialog from './components/AboutDialog.vue'
+import UpgradeDialog from './components/UpgradeDialog.vue'
 import BatchNameEditDialog from './components/BatchNameEditDialog.vue'
 import StationTTSDialog from './components/StationTTSDialog.vue'
 import MapSearchDialog from './components/MapSearchDialog.vue'
@@ -32,6 +33,7 @@ import { useDialog } from './composables/useDialog.js'
 import { useAnimationSettings } from './composables/useAnimationSettings.js'
 import { useShortcuts } from './composables/useShortcuts.js'
 import { useMapSearch } from './composables/useMapSearch.js'
+import { isTrial, TRIAL_LIMITS } from './composables/useLicense'
 
 const store = useProjectStore()
 const { searchVisible, mapViewbox, targetProvince, openSearchDialogWithProvince, closeSearchDialog, onSearchResultSelect } = useMapSearch()
@@ -45,6 +47,12 @@ provide('autoSaveSaveNow', saveNow)
 
 const stationRenameTrigger = ref(0)
 provide('stationRenameTrigger', stationRenameTrigger)
+
+function showUpgradeDialog(msg) {
+  upgradeMessage.value = msg
+  upgradeVisible.value = true
+}
+provide('showUpgradeDialog', showUpgradeDialog)
 
 // ── Escape callback registry ──
 // MapEditor (and other components) can register callbacks to handle Escape
@@ -63,6 +71,8 @@ const statisticsVisible = ref(false)
 const aboutVisible = ref(false)
 const batchNameEditVisible = ref(false)
 const ttsDialogVisible = ref(false)
+const upgradeVisible = ref(false)
+const upgradeMessage = ref('')
 const helpVisible = ref(false)
 const helpInitCategory = ref('guide')
 const ttsDialogRef = ref(null)
@@ -390,6 +400,7 @@ onBeforeUnmount(() => {
   />
   <StatisticsDialog :visible="statisticsVisible" @close="statisticsVisible = false" @show-reachability="onShowReachability" />
   <AboutDialog :visible="aboutVisible" @close="aboutVisible = false" />
+  <UpgradeDialog :visible="upgradeVisible" :message="upgradeMessage" @close="upgradeVisible = false" />
   <BatchNameEditDialog :visible="batchNameEditVisible" @close="batchNameEditVisible = false" />
   <StationTTSDialog ref="ttsDialogRef" :project="store.project" :visible="ttsDialogVisible" @close="ttsDialogVisible = false" />
   <MapSearchDialog :visible="searchVisible" :viewbox="mapViewbox" :target-province="targetProvince" @close="closeSearchDialog" @select="onSearchResultSelect" />
