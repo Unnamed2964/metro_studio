@@ -89,6 +89,7 @@ const ENGLISH_NAME_RESPONSE_SCHEMA = {
   required: ['nameEn'],
 }
 
+/** @param {{nameZh: string, model: string, signal?: AbortSignal}} options @returns {Promise<string>} */
 export async function translateToEnglish({ nameZh, model, signal }) {
   console.log('[stationNaming] translateToEnglish start', { nameZh, model })
   const payload = {
@@ -116,6 +117,7 @@ export async function translateToEnglish({ nameZh, model, signal }) {
   return nameEn
 }
 
+/** @param {{stations: Array<{stationId: string, nameZh: string}>, model: string, signal?: AbortSignal}} options @returns {Promise<Map<string, string>>} */
 export async function translateToEnglishBatch({ stations, model, signal }) {
   if (!stations || !stations.length) return new Map()
   console.log('[stationNaming] translateToEnglishBatch start', { count: stations.length, model })
@@ -153,6 +155,7 @@ export async function translateToEnglishBatch({ stations, model, signal }) {
   return enMap
 }
 
+/** @param {string} [model] @returns {string} */
 export function resolveTranslationModel(model) {
   return model || getAiConfig().model || ''
 }

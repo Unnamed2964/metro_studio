@@ -158,6 +158,7 @@ function toSerializableProject(project) {
   }
 }
 
+/** @param {import('../projectModel').RailProject} project @returns {Promise<object>} */
 export async function saveProjectToDb(project) {
   const db = await getDb()
   const serializable = toSerializableProject(project)
@@ -166,12 +167,14 @@ export async function saveProjectToDb(project) {
   return serializable
 }
 
+/** @param {string} projectId @returns {Promise<import('../projectModel').RailProject|null>} */
 export async function loadProjectFromDb(projectId) {
   const db = await getDb()
   const result = await db.get(PROJECT_STORE, projectId)
   return result ? normalizeProject(result) : null
 }
 
+/** @returns {Promise<import('../projectModel').RailProject[]>} */
 export async function listProjectsFromDb() {
   const db = await getDb()
   const projects = await db.getAll(PROJECT_STORE)
@@ -180,6 +183,7 @@ export async function listProjectsFromDb() {
     .sort((a, b) => (a.meta.updatedAt < b.meta.updatedAt ? 1 : -1))
 }
 
+/** @returns {Promise<import('../projectModel').RailProject|null>} */
 export async function loadLatestProjectFromDb() {
   const db = await getDb()
   const latest = await db.get(META_STORE, LATEST_PROJECT_KEY)
@@ -189,16 +193,19 @@ export async function loadLatestProjectFromDb() {
   return loadProjectFromDb(latest.value)
 }
 
+/** @param {string} projectId @returns {Promise<void>} */
 export async function setLatestProject(projectId) {
   const db = await getDb()
   await db.put(META_STORE, { key: LATEST_PROJECT_KEY, value: projectId })
 }
 
+/** @returns {Promise<void>} */
 export async function clearLatestProject() {
   const db = await getDb()
   await db.delete(META_STORE, LATEST_PROJECT_KEY)
 }
 
+/** @param {string} projectId @returns {Promise<void>} */
 export async function deleteProjectFromDb(projectId) {
   const db = await getDb()
   await db.delete(PROJECT_STORE, projectId)

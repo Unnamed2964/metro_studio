@@ -3,6 +3,7 @@ function toStationId(value) {
   return String(value)
 }
 
+/** @param {string} stationAId @param {string} stationBId @returns {string} */
 export function createTransferPairKey(stationAId, stationBId) {
   const a = toStationId(stationAId)
   const b = toStationId(stationBId)
@@ -10,6 +11,7 @@ export function createTransferPairKey(stationAId, stationBId) {
   return a < b ? `${a}__${b}` : `${b}__${a}`
 }
 
+/** @param {Array<{stationAId: string, stationBId: string}>} manualTransfers @param {string} stationAId @param {string} stationBId @returns {boolean} */
 export function hasManualTransferBetween(manualTransfers, stationAId, stationBId) {
   const pairKey = createTransferPairKey(stationAId, stationBId)
   if (!pairKey) return false
@@ -21,6 +23,7 @@ export function hasManualTransferBetween(manualTransfers, stationAId, stationBId
   return false
 }
 
+/** @param {Array<{id?: string, stationAId: string, stationBId: string}>} manualTransfers @param {Set<string>|string[]} validStationIdSet @returns {Array<{id: string, stationAId: string, stationBId: string}>} */
 export function normalizeManualTransfers(manualTransfers, validStationIdSet) {
   const validSet =
     validStationIdSet instanceof Set
@@ -48,6 +51,7 @@ export function normalizeManualTransfers(manualTransfers, validStationIdSet) {
   return result
 }
 
+/** @param {string[]} stationIds @param {Array<{stationAId: string, stationBId: string}>} manualTransfers @param {Map<string, string[]>} stationLineSet @returns {{normalizedTransfers: Array<{id: string, stationAId: string, stationBId: string}>, effectiveLineIdsByStationId: Map<string, string[]>}} */
 export function buildTransferEffectiveLineIds(stationIds, manualTransfers, stationLineSet) {
   const ids = Array.isArray(stationIds) ? stationIds.map((id) => String(id)) : []
   const parent = new Map(ids.map((id) => [id, id]))

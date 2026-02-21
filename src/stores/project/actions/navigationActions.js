@@ -1,4 +1,5 @@
 import { computeShortestRoute } from '../../../lib/navigation/dijkstra'
+import { NAV_CANDIDATE_RADIUS, NAV_MAX_CANDIDATES, NAV_WALK_WEIGHT } from '../../../lib/constants'
 
 const navigationActions = {
   enterNavigation() {
@@ -43,9 +44,9 @@ const navigationActions = {
       lines: this.project.lines || [],
       originLngLat,
       destLngLat: destinationLngLat,
-      candidateRadius: 3000,
-      maxCandidates: 5,
-      walkWeight: 5,
+      candidateRadius: NAV_CANDIDATE_RADIUS,
+      maxCandidates: NAV_MAX_CANDIDATES,
+      walkWeight: NAV_WALK_WEIGHT,
     })
 
     this.navigation.result = result

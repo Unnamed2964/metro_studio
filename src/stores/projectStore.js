@@ -1,4 +1,5 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
+import { DEFAULT_EDIT_YEAR } from '../lib/constants'
 import { exportPersistenceActions } from './project/actions/exportPersistence'
 import { historyActions } from './project/actions/history'
 import { importLayoutActions } from './project/actions/importLayout'
@@ -19,6 +20,8 @@ function getInitialProtomapsApiKey() {
     return ''
   }
 }
+
+/** @typedef {import('../lib/projectModel').RailProject} RailProject */
 
 export const useProjectStore = defineStore('project', {
   state: () => ({
@@ -57,7 +60,7 @@ export const useProjectStore = defineStore('project', {
     showMapCoordinates: false,
     protomapsApiKey: getInitialProtomapsApiKey(),
     mapTileType: 'dark',
-    currentEditYear: 2010,
+    currentEditYear: DEFAULT_EDIT_YEAR,
     timelineFilterYear: null,
     timelinePlayback: {
       state: 'idle',
@@ -98,6 +101,7 @@ export const useProjectStore = defineStore('project', {
     },
   }),
   getters: {
+    /** @returns {Map<string, import('../lib/projectModel').RailLine>} */
     lineById(state) {
       const map = new Map()
       for (const line of state.project?.lines || []) {
@@ -105,6 +109,7 @@ export const useProjectStore = defineStore('project', {
       }
       return map
     },
+    /** @returns {Map<string, import('../lib/projectModel').RailStation>} */
     stationById(state) {
       const map = new Map()
       for (const station of state.project?.stations || []) {
@@ -112,6 +117,7 @@ export const useProjectStore = defineStore('project', {
       }
       return map
     },
+    /** @returns {Map<string, import('../lib/projectModel').RailEdge>} */
     edgeById(state) {
       const map = new Map()
       for (const edge of state.project?.edges || []) {
@@ -119,22 +125,27 @@ export const useProjectStore = defineStore('project', {
       }
       return map
     },
+    /** @returns {import('../lib/projectModel').RailStation[]} */
     selectedStations(state) {
       if (!state.project) return []
       const selectedSet = new Set(state.selectedStationIds || [])
       return state.project.stations.filter((station) => selectedSet.has(station.id))
     },
+    /** @returns {import('../lib/projectModel').RailEdge[]} */
     selectedEdges(state) {
       if (!state.project) return []
       const selectedSet = new Set(state.selectedEdgeIds || [])
       return state.project.edges.filter((edge) => selectedSet.has(edge.id))
     },
+    /** @returns {boolean} */
     canUndo(state) {
       return (state.history?.past?.length || 0) > 0
     },
+    /** @returns {boolean} */
     canRedo(state) {
       return (state.history?.future?.length || 0) > 0
     },
+    /** @returns {number[]} */
     timelineYears(state) {
       if (!state.project) return []
       const years = new Set()
@@ -143,14 +154,17 @@ export const useProjectStore = defineStore('project', {
       }
       return [...years].sort((a, b) => a - b)
     },
+    /** @returns {{min: number, max: number}|null} */
     timelineYearRange(state) {
       const years = this.timelineYears
       if (!years.length) return null
       return { min: years[0], max: years[years.length - 1] }
     },
+    /** @returns {boolean} */
     timelineHasData(state) {
       return this.timelineYears.length > 0
     },
+    /** @returns {{lines: number, stations: number, km: number}|null} */
     timelineStatsAtYear(state) {
       const filterYear = state.timelineFilterYear
       if (filterYear == null || !state.project) return null

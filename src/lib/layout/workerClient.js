@@ -28,6 +28,7 @@ function getWorker() {
   return worker
 }
 
+/** @param {object} payload @returns {Promise<object>} */
 export function optimizeLayoutInWorker(payload) {
   const instance = getWorker()
   const requestId = `layout_${Date.now()}_${requestCounter++}`

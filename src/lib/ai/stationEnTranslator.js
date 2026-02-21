@@ -232,6 +232,7 @@ async function translateStationChunk(chunk, model, signal) {
   return [...modelItems, ...fallbackItems];
 }
 
+/** @param {{stations?: Array<{id?: string, stationId?: string, nameZh: string, nameEn?: string}>, model?: string, signal?: AbortSignal, onProgress?: function}} options @returns {Promise<{updates: Array<{stationId: string, nameEn: string}>, failed: Array<{stationId: string, reason: string}>}>} */
 export async function retranslateStationEnglishNames({
   stations,
   model,

@@ -70,6 +70,7 @@ function buildErrorMessage(status, body) {
   return `AI 请求失败（HTTP ${status}）`
 }
 
+/** @param {object} payload @param {AbortSignal} [signal] @param {number} [timeoutMs] @returns {Promise<object>} */
 export async function postLLMChat(payload, signal, timeoutMs = DEFAULT_API_TIMEOUT_MS) {
   if (signal?.aborted) {
     throw new Error('AI 请求已取消')

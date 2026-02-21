@@ -8,6 +8,7 @@ const STATUS_STYLE = {
   proposed: { opacity: 0.58, width: 6.8 },
 }
 
+/** @param {import('../projectModel').RailProject} project @param {{filterYear?: number|null, leftPadding?: number, rightPadding?: number, topPadding?: number, bottomPadding?: number, mirrorVertical?: boolean, laneGap?: number, cornerRadius?: number}} [options={}] @returns {object} */
 export function buildSchematicRenderModel(project, options = {}) {
   const filterYear = options.filterYear ?? null
   const allEdges = project?.edges || []

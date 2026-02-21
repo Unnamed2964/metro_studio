@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { ANIMATION_CONFIG } from '../lib/animation/config.js'
 
+/** @returns {{enabled: import('vue').Ref<boolean>, toggleAnimation: (value?: boolean) => void, getAutoAnimateConfig: () => {duration: number, easing?: string}}} */
 export function useAnimationSettings() {
   const enabled = ref(true)
 

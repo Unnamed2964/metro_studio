@@ -13,7 +13,9 @@ const cache = new Map()
 let _locationIqKey = ''
 try { _locationIqKey = window.localStorage.getItem('locationIqApiKey') || '' } catch { /* noop */ }
 
+/** @returns {string} */
 export function getLocationIqApiKey() { return _locationIqKey }
+/** @param {string} key @returns {void} */
 export function setLocationIqApiKey(key) {
   _locationIqKey = key || ''
   try { window.localStorage.setItem('locationIqApiKey', _locationIqKey) } catch { /* noop */ }
@@ -50,6 +52,7 @@ async function throttle(signal) {
   lastRequestAt = Date.now()
 }
 
+/** @param {number} lat @param {number} lon @param {{zoom?: number, signal?: AbortSignal}} [options={}] @returns {Promise<object>} */
 export async function reverseGeocode(lat, lon, options = {}) {
   const zoom = options.zoom ?? 18
   const signal = options.signal

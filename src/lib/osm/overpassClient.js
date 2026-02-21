@@ -224,6 +224,7 @@ function createAbortSignalWithTimeout(parentSignal, timeoutMs) {
   }
 }
 
+/** @param {string} query @param {AbortSignal} [signal] @returns {Promise<{elements: object[]}>} */
 export async function postOverpassQuery(query, signal) {
   const normalizedQuery = String(query || '').trim()
   if (!normalizedQuery) {

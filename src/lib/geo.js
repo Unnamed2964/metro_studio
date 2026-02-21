@@ -2,6 +2,7 @@ const EARTH_RADIUS = 6378137
 const DEG_TO_RAD = Math.PI / 180
 const RAD_TO_DEG = 180 / Math.PI
 
+/** @param {[number, number]} lngLat @returns {[number, number]} */
 export function projectLngLat(lngLat) {
   const [lng, lat] = lngLat
   const x = EARTH_RADIUS * lng * DEG_TO_RAD
@@ -10,6 +11,7 @@ export function projectLngLat(lngLat) {
   return [x, y]
 }
 
+/** @param {[number, number]} xy @returns {[number, number]} */
 export function unprojectXY(xy) {
   const [x, y] = xy
   const lng = (x / EARTH_RADIUS) * RAD_TO_DEG
@@ -17,6 +19,7 @@ export function unprojectXY(xy) {
   return [lng, lat]
 }
 
+/** @param {[number, number]} a @param {[number, number]} b @returns {number} */
 export function haversineDistanceMeters(a, b) {
   const [lng1, lat1] = a
   const [lng2, lat2] = b
@@ -30,6 +33,7 @@ export function haversineDistanceMeters(a, b) {
   return 2 * EARTH_RADIUS * Math.asin(Math.sqrt(q))
 }
 
+/** @param {[number, number]} a @param {[number, number]} b @param {[number, number]} c @param {[number, number]} d @returns {boolean} */
 export function segmentIntersects(a, b, c, d) {
   const o1 = orientation(a, b, c)
   const o2 = orientation(a, b, d)
@@ -63,6 +67,7 @@ function onSegment(p, q, r) {
   )
 }
 
+/** @param {[number, number][]} points @returns {{minX: number, minY: number, maxX: number, maxY: number}} */
 export function bboxFromXY(points) {
   if (!points.length) {
     return { minX: 0, minY: 0, maxX: 1, maxY: 1 }
@@ -96,6 +101,7 @@ function dedupeSequentialPoints(points, epsilon = 1e-6) {
   return result
 }
 
+/** @param {[number, number]} from @param {[number, number]} to @param {number} [epsilon=1e-6] @returns {[number, number][]} */
 export function buildOctilinearPolyline(from, to, epsilon = 1e-6) {
   const [x1, y1] = from
   const [x2, y2] = to
@@ -126,6 +132,7 @@ export function buildOctilinearPolyline(from, to, epsilon = 1e-6) {
   return dedupeSequentialPoints([from, bend, to], epsilon)
 }
 
+/** @param {import('./projectModel').RailProject} project @returns {{minLng: number, minLat: number, maxLng: number, maxLat: number}|null} */
 export function boundsFromProject(project) {
   let minLng = Infinity
   let minLat = Infinity
@@ -161,6 +168,7 @@ export function boundsFromProject(project) {
   return { minLng, minLat, maxLng, maxLat }
 }
 
+/** @param {{minLng: number, minLat: number, maxLng: number, maxLat: number}|null} bounds @returns {object|null} GeoJSON Polygon */
 export function boundsToGeoJsonPolygon(bounds) {
   if (!bounds) return null
   const { minLng, minLat, maxLng, maxLat } = bounds

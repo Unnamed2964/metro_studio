@@ -1,0 +1,6 @@
+export const HISTORY_MERGE_THRESHOLD_MS = 900
+export const NAV_CANDIDATE_RADIUS = 3000
+export const NAV_MAX_CANDIDATES = 5
+export const NAV_WALK_WEIGHT = 5
+export const DEFAULT_EDIT_YEAR = 2010
+export const DEFAULT_MAP_CENTER = [116.40, 39.90]

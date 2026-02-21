@@ -14,6 +14,7 @@ const HUD_DOUBLE_ROW_HEIGHT = 1750
 const HUD_FOLD_THRESHOLD = 30
 const HUD_STATION_LABEL_LIFT_PX = 6
 
+/** @param {import('../projectModel').RailProject} project @param {string} lineId @returns {object} */
 export function buildHudLineRoute(project, lineId) {
   const lines = project?.lines || []
   const edges = project?.edges || []
@@ -191,10 +192,12 @@ export function buildHudLineRoute(project, lineId) {
   }
 }
 
+/** @param {import('../projectModel').RailProject} project @param {string} lineId @returns {Array<{key: string, labelZh: string, labelEn: string, stationIds: string[], toStationId: string}>} */
 export function getHudDirectionOptions(project, lineId) {
   return buildHudLineRoute(project, lineId).directionOptions
 }
 
+/** @param {import('../projectModel').RailProject} project @param {{lineId?: string, route?: object, directionKey?: string}} [options={}] @returns {object} */
 export function buildVehicleHudRenderModel(project, options = {}) {
   const lineId = options.lineId || ''
   const route = options.route || buildHudLineRoute(project, lineId)

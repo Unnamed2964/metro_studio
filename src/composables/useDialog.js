@@ -4,6 +4,7 @@ import { NInput } from 'naive-ui'
 // Naive UI dialog instance, set by App.vue via setDialogApi()
 let dialogApi = null
 
+/** @param {object} api - Naive UI dialog API instance */
 export function setDialogApi(api) {
   dialogApi = api
 }
@@ -63,6 +64,7 @@ function prompt({
   })
 }
 
+/** @returns {{confirm: (options?: {title?: string, message?: string, confirmText?: string, cancelText?: string, danger?: boolean}) => Promise<boolean>, prompt: (options?: {title?: string, message?: string, placeholder?: string, defaultValue?: string, confirmText?: string, cancelText?: string}) => Promise<string|null>}} */
 export function useDialog() {
   return { confirm, prompt }
 }

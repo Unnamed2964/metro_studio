@@ -7,6 +7,7 @@
 
 import { ref, reactive } from 'vue'
 
+/** @returns {{animatingEdgeIds: import('vue').Ref<Set<string>>, animatingStationIds: import('vue').Ref<Set<string>>, edgeProgress: Object<string, number>, stationProgress: Object<string, number>, animateNewEdges: (newEdges: Array<{id: string}>, newStationIds: string[], durationMs?: number) => Promise<void>, cancelAll: () => void, getEdgeDashOffset: (edgeId: string, totalLength: number) => number, getStationScale: (stationId: string) => number, isAnimating: () => boolean}} */
 export function useTimelineAnimator() {
   const animatingEdgeIds = ref(new Set())
   const animatingStationIds = ref(new Set())

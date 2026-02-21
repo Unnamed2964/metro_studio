@@ -1,4 +1,5 @@
 import { normalizeProject } from '../../../lib/projectModel'
+import { HISTORY_MERGE_THRESHOLD_MS } from '../../../lib/constants'
 
 function cloneHistorySnapshot(store) {
   return {
@@ -64,7 +65,7 @@ const historyActions = {
       normalizedLabel === '连续编辑' &&
       lastEntry?.label === '连续编辑' &&
       Number.isFinite(lastEntry?.timestamp) &&
-      now - lastEntry.timestamp < 900
+      now - lastEntry.timestamp < HISTORY_MERGE_THRESHOLD_MS
 
     if (canMergeContinuous) {
       lastEntry.after = current

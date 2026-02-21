@@ -30,6 +30,7 @@ import { useRouteDrawPreview } from '../composables/useRouteDrawPreview.js'
 import { useMapTimelinePlayer } from '../composables/useMapTimelinePlayer.js'
 import { useMapNavigation } from '../composables/useMapNavigation.js'
 import { useAnimationSettings } from '../composables/useAnimationSettings.js'
+import { DEFAULT_MAP_CENTER } from '../lib/constants'
 import { setMapGetter, setStoreGetter } from '../composables/useMapSearch.js'
 import IconBase from './IconBase.vue'
 import TimelineSlider from './TimelineSlider.vue'
@@ -462,7 +463,7 @@ onMounted(() => {
   map = new maplibregl.Map({
     container: mapContainer.value,
     style: buildMapStyle(store.mapTileType),
-    center: [116.40, 39.90],
+    center: DEFAULT_MAP_CENTER,
     zoom: 4,
     bearing: 0,
     pitch: 0,

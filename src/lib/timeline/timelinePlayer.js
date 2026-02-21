@@ -12,6 +12,10 @@ export const PLAYBACK_SPEEDS = [0.5, 1, 2, 3]
 const DEFAULT_YEAR_HOLD_MS = 2400
 const DEFAULT_TRANSITION_MS = 1800
 
+/**
+ * @param {{onYearChange?: function, onTransitionStart?: function, onTransitionProgress?: function, onTransitionEnd?: function, onPlaybackEnd?: function, onStateChange?: function}} callbacks
+ * @returns {{state: string, speed: number, years: number[], currentIndex: number, getCurrentYear: () => number|null, setYears: (years: number[]) => void, setSpeed: (s: number) => void, play: (startFromBeginning?: boolean) => void, pause: () => void, stop: () => void, seekTo: (year: number) => void, destroy: () => void}}
+ */
 export function createTimelinePlayer({
   onYearChange,
   onTransitionStart,

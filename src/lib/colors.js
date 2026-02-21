@@ -79,6 +79,7 @@ function colorDistanceSquared(a, b) {
   return dr * dr + dg * dg + db * db
 }
 
+/** @param {string} value @param {string} [fallback='#005BBB'] @returns {string} */
 export function normalizeHexColor(value, fallback = '#005BBB') {
   if (!value || typeof value !== 'string') {
     return fallback
@@ -100,10 +101,12 @@ export function normalizeHexColor(value, fallback = '#005BBB') {
   return hex.toUpperCase()
 }
 
+/** @param {number} [index=0] @returns {string} */
 export function pickLineColor(index = 0) {
   return DEFAULT_COLORS[index % DEFAULT_COLORS.length]
 }
 
+/** @param {string[]} [existingColors=[]] @param {number} [seedIndex=0] @returns {string} */
 export function pickDistinctLineColor(existingColors = [], seedIndex = 0) {
   const normalizedExisting = [...new Set((existingColors || [])
     .map((color) => normalizeHexColor(color, ''))

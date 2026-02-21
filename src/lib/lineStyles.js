@@ -1,5 +1,9 @@
+/** @typedef {'solid'|'dashed'|'dotted'|'double-solid'|'double-dashed'|'double-dotted-square'} LineStyleId */
+
+/** @type {LineStyleId} */
 export const DEFAULT_LINE_STYLE = 'solid'
 
+/** @type {{id: LineStyleId, label: string}[]} */
 export const LINE_STYLE_OPTIONS = [
   { id: 'solid', label: '实线' },
   { id: 'dashed', label: '虚线' },
@@ -11,15 +15,18 @@ export const LINE_STYLE_OPTIONS = [
 
 const lineStyleById = new Map(LINE_STYLE_OPTIONS.map((item) => [item.id, item]))
 
+/** @param {string} value @returns {boolean} */
 export function isLineStyle(value) {
   return lineStyleById.has(String(value || ''))
 }
 
+/** @param {string} value @returns {LineStyleId} */
 export function normalizeLineStyle(value) {
   const normalized = String(value || '')
   return isLineStyle(normalized) ? normalized : DEFAULT_LINE_STYLE
 }
 
+/** @param {string} styleId @returns {{dasharray: string, lineCap: string, trackOffsets: number[], trackWidthScale: number}} */
 export function getLineStyleSchematic(styleId) {
   switch (normalizeLineStyle(styleId)) {
     case 'dashed':
@@ -68,6 +75,7 @@ export function getLineStyleSchematic(styleId) {
   }
 }
 
+/** @param {string} styleId @returns {{dasharray: number[], lineCap: string, lineWidth: number, lineGapWidth: number}} */
 export function getLineStyleMap(styleId) {
   switch (normalizeLineStyle(styleId)) {
     case 'dashed':

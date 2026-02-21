@@ -3,11 +3,13 @@ import JSZip from 'jszip'
 
 const FILE_EXTENSION = '.metro-studio.json'
 
+/** @param {string} projectName @returns {string} */
 export function buildProjectFileName(projectName) {
   const safeName = (projectName || 'metro-studio-project').replace(/[<>:"/\\|?*]+/g, '_').trim()
   return `${safeName || 'metro-studio-project'}${FILE_EXTENSION}`
 }
 
+/** @param {import('../projectModel').RailProject} project @returns {string} */
 export function serializeProject(project) {
   const normalized = normalizeProject(project)
   return JSON.stringify(
@@ -21,12 +23,14 @@ export function serializeProject(project) {
   )
 }
 
+/** @param {import('../projectModel').RailProject} project @returns {void} */
 export function downloadProjectFile(project) {
   const payload = serializeProject(project)
   const blob = new Blob([payload], { type: 'application/json' })
   downloadBlob(blob, buildProjectFileName(project.name))
 }
 
+/** @param {import('../projectModel').RailProject[]} [projects=[]] @param {string} [zipName='metro-studio-projects.zip'] @returns {Promise<void>} */
 export async function downloadProjectsZip(projects = [], zipName = 'metro-studio-projects.zip') {
   const list = Array.isArray(projects) ? projects.filter(Boolean) : []
   if (!list.length) {
@@ -53,6 +57,7 @@ export async function downloadProjectsZip(projects = [], zipName = 'metro-studio
   downloadBlob(zipBlob, zipName)
 }
 
+/** @param {File} file @returns {Promise<import('../projectModel').RailProject>} */
 export async function parseProjectFile(file) {
   const text = await file.text()
   const raw = JSON.parse(text)
