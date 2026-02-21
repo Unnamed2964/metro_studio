@@ -1,7 +1,6 @@
 import { normalizeHexColor, pickDistinctLineColor, pickLineColor } from '../../../lib/colors'
 import { createId } from '../../../lib/ids'
 import { normalizeLineStyle } from '../../../lib/lineStyles'
-import { isTrial, TRIAL_LIMITS } from '../../../composables/useLicense'
 
 function getNextLineNumber(lines) {
   let maxNum = 0
@@ -20,10 +19,6 @@ function getNextLineNumber(lines) {
 export const lineActions = {
   addLine({ nameZh, nameEn, color, status = 'open', style = 'solid' }) {
     if (!this.project) return null
-    if (isTrial.value && this.project.lines.length >= TRIAL_LIMITS.maxLines) {
-      this.statusText = `试用版最多创建 ${TRIAL_LIMITS.maxLines} 条线路，请激活正式版`
-      return null
-    }
     const nextLineNum = getNextLineNumber(this.project.lines)
     const existingLineColors = (this.project.lines || []).map((line) => line?.color).filter(Boolean)
     const autoColor = pickDistinctLineColor(existingLineColors, nextLineNum - 1)

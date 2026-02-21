@@ -6,9 +6,6 @@ import { saveProjectToDb, setLatestProject } from '../../../lib/storage/db'
 import { downloadProjectFile, parseProjectFile } from '../../../lib/storage/projectFile'
 import { validateProject } from '../../../lib/validation'
 import { exportTimelineVideo, getResolutionPresets } from '../../../lib/timeline/timelineExporter'
-import { isTrial } from '../../../composables/useLicense'
-
-const TRIAL_EXPORT_MSG = '导出功能仅限正式版使用，请激活 License Key'
 
 let persistTimer = null
 let actualRoutePngExporter = null
@@ -16,7 +13,6 @@ let actualRoutePngExporter = null
 const exportPersistenceActions = {
   async exportProjectFile() {
     if (!this.project) return
-    if (isTrial.value) { this.statusText = TRIAL_EXPORT_MSG; return }
     downloadProjectFile(this.project)
     this.statusText = '工程文件已导出'
   },
@@ -64,7 +60,6 @@ const exportPersistenceActions = {
 
   async exportActualRoutePng() {
     if (!this.project) return
-    if (isTrial.value) { this.statusText = TRIAL_EXPORT_MSG; return }
     try {
       if (typeof actualRoutePngExporter !== 'function') {
         throw new Error('真实地图未就绪，无法导出实际走向图')
@@ -82,14 +77,12 @@ const exportPersistenceActions = {
 
   async exportOfficialSchematicPng() {
     if (!this.project) return
-    if (isTrial.value) { this.statusText = TRIAL_EXPORT_MSG; return }
     await downloadOfficialSchematicPng(this.project)
     this.statusText = '官方风格图 PNG 已导出'
   },
 
   async exportAllLineHudZip(lineId) {
     if (!this.project) return
-    if (isTrial.value) { this.statusText = TRIAL_EXPORT_MSG; return }
     const result = await downloadAllLineHudZip(this.project, lineId ? { lineId } : {})
     this.statusText = `车辆 HUD 打包已导出（${result.exportedCount} 张）`
   },
@@ -159,7 +152,6 @@ const exportPersistenceActions = {
 
   async exportTimelineVideo(options = {}) {
     if (!this.project) return
-    if (isTrial.value) { this.statusText = TRIAL_EXPORT_MSG; return }
     if (!this.timelineHasData) {
       this.statusText = '没有标记年份的线段，无法导出时间轴动画'
       return

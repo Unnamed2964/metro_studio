@@ -8,7 +8,6 @@ import {
 } from '../../../lib/storage/db'
 import { validateProject } from '../../../lib/validation'
 import { boundsFromProject, boundsToGeoJsonPolygon } from '../../../lib/geo'
-import { isTrial, TRIAL_LIMITS } from '../../../composables/useLicense'
 
 function resetStationEnglishRetranslateState(store) {
   store.isStationEnglishRetranslating = false
@@ -93,13 +92,6 @@ const lifecycleActions = {
   },
 
   async createNewProject(name = '新建工程') {
-    if (isTrial.value) {
-      const projects = await listProjectsFromDb()
-      if (projects.length >= TRIAL_LIMITS.maxProjects) {
-        this.statusText = `试用版最多创建 ${TRIAL_LIMITS.maxProjects} 个项目，请激活正式版`
-        return
-      }
-    }
     this.project = createEmptyProject(name)
     this.activeLineId = this.project.lines[0]?.id || null
     this.mode = 'select'
@@ -129,13 +121,6 @@ const lifecycleActions = {
 
   async duplicateCurrentProject(name) {
     if (!this.project) return null
-    if (isTrial.value) {
-      const projects = await listProjectsFromDb()
-      if (projects.length >= TRIAL_LIMITS.maxProjects) {
-        this.statusText = `试用版最多创建 ${TRIAL_LIMITS.maxProjects} 个项目，请激活正式版`
-        return null
-      }
-    }
     const normalizedName = String(name || '').trim()
     const now = new Date().toISOString()
     const duplicated = normalizeProject({
