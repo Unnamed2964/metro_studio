@@ -128,6 +128,7 @@ export function useMenuBarActions(store, emit, refs) {
   ])
 
   const viewMenuItems = computed(() => [
+    { type: 'toggle', label: '显示站点标识', checked: store.showStationMarkers, action: 'toggleStationMarkers', icon: 'map-pin' },
     { type: 'toggle', label: '显示站点名', checked: store.showStationLabels, action: 'toggleStationLabels', icon: 'eye' },
     { type: 'toggle', label: '显示换乘标记', checked: store.showInterchangeMarkers, action: 'toggleInterchangeMarkers', icon: 'target' },
     { type: 'toggle', label: '显示区域覆盖', checked: store.showLanduseOverlay, action: 'toggleLanduseOverlay', icon: 'map' },
@@ -276,6 +277,7 @@ export function useMenuBarActions(store, emit, refs) {
     if (action === 'ttsGeneration') { emit('show-tts-dialog'); return }
     if (action === 'shortcutSettings') { emit('show-shortcut-settings'); return }
     if (action === 'toggleAnimations') { toggleAnimation(); return }
+    if (action === 'toggleStationMarkers') { store.toggleStationMarkers(); return }
     if (action === 'toggleStationLabels') { store.toggleStationLabels(); return }
     if (action === 'toggleLineLabels') { store.toggleLineLabels(); return }
     if (action === 'toggleInterchangeMarkers') { store.toggleInterchangeMarkers(); return }

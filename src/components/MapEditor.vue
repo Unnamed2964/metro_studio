@@ -39,6 +39,8 @@ import MapLineSelectionMenu from './map-editor/MapLineSelectionMenu.vue'
 import MapMeasureOverlay from './map-editor/MapMeasureOverlay.vue'
 import MapAnnotationMarkers from './map-editor/MapAnnotationMarkers.vue'
 import MapNavigationOverlay from './map-editor/MapNavigationOverlay.vue'
+import MapInterchangeMarkers from './map-editor/MapInterchangeMarkers.vue'
+import MapLineLegend from './map-editor/MapLineLegend.vue'
 
 const store = useProjectStore()
 const mapContainer = ref(null)
@@ -49,6 +51,7 @@ const lineSelectionMenuRef = computed(() => lineSelectionMenuCompRef.value?.menu
 const showHint = ref(false)
 const mapCenterText = ref('--, --')
 const mapZoomText = ref('--')
+const mapZoomLevel = ref(4)
 let map = null
 let scaleControl = null
 const GRID_SOURCE_ID = 'railmap-grid-source'
@@ -220,6 +223,16 @@ function formatNavDistance(meters) {
 
 const measureMarkersKey = ref(0)
 const annotationMarkersKey = ref(0)
+const interchangeMarkersKey = ref(0)
+
+function getInterchangeMarkerStyle(lngLat) {
+  if (!map || !lngLat) return { display: 'none' }
+  const point = map.project(lngLat)
+  return {
+    left: `${point.x}px`,
+    top: `${point.y}px`,
+  }
+}
 
 function getMeasureMarkerStyle(lngLat) {
   if (!map || !lngLat) return { display: 'none' }
@@ -257,16 +270,42 @@ const measureLines = computed(() => {
   return lines
 })
 
+const mapLegendLines = computed(() => {
+  const lineById = new Map((store.project?.lines || []).map((line) => [line.id, line]))
+  const visibleLineIds = new Set()
+
+  for (const edge of store.project?.edges || []) {
+    if (store.timelineFilterYear != null && edge.openingYear != null && edge.openingYear > store.timelineFilterYear) {
+      continue
+    }
+    for (const lineId of edge.sharedByLineIds || []) {
+      if (lineById.has(lineId)) visibleLineIds.add(lineId)
+    }
+  }
+
+  return [...visibleLineIds].map((lineId) => {
+    const line = lineById.get(lineId)
+    return {
+      id: line?.id || lineId,
+      name: line?.nameZh || line?.nameEn || line?.id || lineId,
+      color: line?.color || '#2563EB',
+    }
+  })
+})
+
 function updateMeasureAndAnnotationPositions() {
   measureMarkersKey.value++
   annotationMarkersKey.value++
+  interchangeMarkersKey.value++
 }
 
 function refreshViewportMeta() {
   if (!map) return
   const center = map.getCenter()
+  const zoom = map.getZoom()
   mapCenterText.value = `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`
-  mapZoomText.value = map.getZoom().toFixed(2)
+  mapZoomText.value = zoom.toFixed(2)
+  mapZoomLevel.value = zoom
 }
 
 function normalizeLng(lng) {
@@ -602,6 +641,7 @@ watch(
 
   watch(
     () => ({
+      showStationMarkers: store.showStationMarkers,
       showStationLabels: store.showStationLabels,
       showLineLabels: store.showLineLabels,
       showInterchangeMarkers: store.showInterchangeMarkers,
@@ -766,6 +806,21 @@ watch(
         :annotation-markers-key="annotationMarkersKey"
         :selected-annotation-id="store.selectedAnnotationId"
         :get-marker-style="getAnnotationMarkerStyle"
+      />
+
+      <MapInterchangeMarkers
+        :stations="store.project?.stations || []"
+        :line-by-id="store.lineById"
+        :markers-key="interchangeMarkersKey"
+        :get-marker-style="getInterchangeMarkerStyle"
+        :style="store.interchangeMarkerStyle"
+        :visible="store.showInterchangeMarkers"
+        :zoom="mapZoomLevel"
+      />
+
+      <MapLineLegend
+        :lines="mapLegendLines"
+        :visible="store.showLineLabels"
       />
 
       <MapNavigationOverlay
@@ -935,7 +990,7 @@ watch(
 .map-editor__hint-toggle {
   position: absolute;
   left: 12px;
-  bottom: 10px;
+  bottom: clamp(56px, 28vh, 244px);
   width: 32px;
   height: 32px;
   display: flex;
@@ -965,7 +1020,7 @@ watch(
 .map-editor__hint {
   position: absolute;
   left: 52px;
-  bottom: 10px;
+  bottom: clamp(56px, 28vh, 244px);
   margin: 0;
   padding: 5px 8px;
   background: var(--toolbar-card-bg);

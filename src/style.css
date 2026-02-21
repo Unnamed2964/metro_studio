@@ -727,6 +727,7 @@ button {
   color: var(--ark-text) !important;
 }
 
+
 .n-dropdown-option:hover {
   background: rgba(249, 0, 191, 0.16) !important;
 }

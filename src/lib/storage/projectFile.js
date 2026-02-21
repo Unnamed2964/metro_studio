@@ -1,4 +1,5 @@
 import { normalizeProject, PROJECT_SCHEMA_VERSION } from '../projectModel'
+import JSZip from 'jszip'
 
 const FILE_EXTENSION = '.metro-studio.json'
 
@@ -23,12 +24,33 @@ export function serializeProject(project) {
 export function downloadProjectFile(project) {
   const payload = serializeProject(project)
   const blob = new Blob([payload], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = buildProjectFileName(project.name)
-  link.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, buildProjectFileName(project.name))
+}
+
+export async function downloadProjectsZip(projects = [], zipName = 'metro-studio-projects.zip') {
+  const list = Array.isArray(projects) ? projects.filter(Boolean) : []
+  if (!list.length) {
+    throw new Error('没有可导出的工程')
+  }
+
+  const zip = new JSZip()
+  const usedNames = new Set()
+
+  for (const project of list) {
+    const payload = serializeProject(project)
+    const baseName = buildProjectFileName(project?.name)
+    let fileName = baseName
+    let suffix = 2
+    while (usedNames.has(fileName)) {
+      fileName = baseName.replace(FILE_EXTENSION, ` (${suffix})${FILE_EXTENSION}`)
+      suffix += 1
+    }
+    usedNames.add(fileName)
+    zip.file(fileName, payload)
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+  downloadBlob(zipBlob, zipName)
 }
 
 export async function parseProjectFile(file) {
@@ -43,3 +65,11 @@ export async function parseProjectFile(file) {
   return normalizeProject(raw)
 }
 
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}

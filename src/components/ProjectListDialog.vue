@@ -4,6 +4,7 @@ import IconBase from './IconBase.vue'
 import { NTooltip, NModal } from 'naive-ui'
 import { useProjectStore } from '../stores/projectStore'
 import { useDialog } from '../composables/useDialog.js'
+import { downloadProjectsZip } from '../lib/storage/projectFile'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -15,11 +16,14 @@ const store = useProjectStore()
 const { confirm } = useDialog()
 const projectOptions = ref([])
 const projectFilter = ref('')
+const selectedProjectIds = ref([])
+const isBulkWorking = ref(false)
 
 const currentProjectId = computed(() => store.project?.id || '')
+const searchKeyword = computed(() => String(projectFilter.value || '').trim().toLowerCase())
 
 const filteredProjectOptions = computed(() => {
-  const keyword = String(projectFilter.value || '').trim().toLowerCase()
+  const keyword = searchKeyword.value
   if (!keyword) return projectOptions.value
   return projectOptions.value.filter((project) => {
     const name = String(project.name || '').toLowerCase()
@@ -28,8 +32,57 @@ const filteredProjectOptions = computed(() => {
   })
 })
 
+const selectedProjects = computed(() => {
+  const selectedSet = new Set(selectedProjectIds.value)
+  return projectOptions.value.filter((project) => selectedSet.has(project.id))
+})
+
+const hasSelection = computed(() => selectedProjectIds.value.length > 0)
+const allVisibleSelected = computed(() => {
+  if (!filteredProjectOptions.value.length) return false
+  const selectedSet = new Set(selectedProjectIds.value)
+  return filteredProjectOptions.value.every((project) => selectedSet.has(project.id))
+})
+
+const resultSummary = computed(() => {
+  return `显示 ${filteredProjectOptions.value.length} / ${projectOptions.value.length}，已选 ${selectedProjectIds.value.length}`
+})
+
 async function refreshList() {
   projectOptions.value = await store.listProjects()
+  const validIds = new Set(projectOptions.value.map((project) => project.id))
+  selectedProjectIds.value = selectedProjectIds.value.filter((id) => validIds.has(id))
+}
+
+function isSelected(projectId) {
+  return selectedProjectIds.value.includes(projectId)
+}
+
+function toggleProjectSelection(projectId) {
+  if (!projectId) return
+  if (isSelected(projectId)) {
+    selectedProjectIds.value = selectedProjectIds.value.filter((id) => id !== projectId)
+    return
+  }
+  selectedProjectIds.value = [...selectedProjectIds.value, projectId]
+}
+
+function toggleSelectAllVisible() {
+  const visibleIds = filteredProjectOptions.value.map((project) => project.id)
+  if (!visibleIds.length) return
+
+  if (allVisibleSelected.value) {
+    const visibleSet = new Set(visibleIds)
+    selectedProjectIds.value = selectedProjectIds.value.filter((id) => !visibleSet.has(id))
+    return
+  }
+
+  const merged = new Set([...selectedProjectIds.value, ...visibleIds])
+  selectedProjectIds.value = [...merged]
+}
+
+function clearSelection() {
+  selectedProjectIds.value = []
 }
 
 async function loadProject(projectId) {
@@ -44,14 +97,86 @@ async function deleteProject(projectId) {
   const ok = await confirm({ title: '删除工程', message: `确认删除工程「${targetName}」吗？此操作不可撤销。`, confirmText: '删除', danger: true })
   if (!ok) return
   await store.deleteProjectById(projectId)
+  selectedProjectIds.value = selectedProjectIds.value.filter((id) => id !== projectId)
   await refreshList()
+}
+
+async function deleteSelectedProjects() {
+  if (!selectedProjects.value.length || isBulkWorking.value) return
+  const count = selectedProjects.value.length
+  const ok = await confirm({
+    title: '批量删除工程',
+    message: `确认删除选中的 ${count} 个工程吗？此操作不可撤销。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
+
+  isBulkWorking.value = true
+  try {
+    const projectIds = [...selectedProjectIds.value]
+    for (const projectId of projectIds) {
+      await store.deleteProjectById(projectId)
+    }
+    selectedProjectIds.value = []
+    await refreshList()
+    store.statusText = `已批量删除 ${count} 个工程`
+  } finally {
+    isBulkWorking.value = false
+  }
+}
+
+async function exportSelectedProjectsZip() {
+  if (!selectedProjects.value.length || isBulkWorking.value) return
+  isBulkWorking.value = true
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    await downloadProjectsZip(selectedProjects.value, `metro-studio-projects_${timestamp}.zip`)
+    store.statusText = `已导出 ${selectedProjects.value.length} 个工程（ZIP）`
+  } catch (error) {
+    store.statusText = `批量导出失败: ${error.message || '未知错误'}`
+  } finally {
+    isBulkWorking.value = false
+  }
 }
 
 function isCurrentProject(projectId) {
   return currentProjectId.value === projectId
 }
 
-watch(() => props.visible, (v) => { if (v) refreshList() })
+function highlightedParts(text) {
+  const source = String(text || '')
+  const keyword = searchKeyword.value
+  if (!keyword) return [{ text: source, matched: false }]
+
+  const lower = source.toLowerCase()
+  const parts = []
+  let cursor = 0
+
+  while (cursor < source.length) {
+    const hit = lower.indexOf(keyword, cursor)
+    if (hit < 0) {
+      parts.push({ text: source.slice(cursor), matched: false })
+      break
+    }
+    if (hit > cursor) {
+      parts.push({ text: source.slice(cursor, hit), matched: false })
+    }
+    parts.push({ text: source.slice(hit, hit + keyword.length), matched: true })
+    cursor = hit + keyword.length
+  }
+
+  return parts.length ? parts : [{ text: source, matched: false }]
+}
+
+watch(() => props.visible, async (visible) => {
+  if (visible) {
+    await refreshList()
+    return
+  }
+  projectFilter.value = ''
+  clearSelection()
+})
 
 onMounted(() => {
   refreshList()
@@ -59,150 +184,130 @@ onMounted(() => {
 </script>
 
 <template>
-  <NModal :show="visible" preset="card" title="本地库" style="width:520px;max-width:calc(100vw - 32px)" @close="emit('close')" @mask-click="emit('close')">
-        <div class="dialog__body">
-          <div class="dialog__search-row">
-            <div class="dialog__search-wrap">
-              <IconBase name="search" :size="14" class="dialog__search-icon" />
-              <input
-                v-model="projectFilter"
-                class="dialog__search"
-                placeholder="搜索工程名或 ID..."
-              />
-              <NTooltip v-if="projectFilter" placement="bottom">
-                <template #trigger>
-                  <button class="dialog__search-clear" type="button" @click="projectFilter = ''">
-                    <IconBase name="x" :size="12" />
-                  </button>
+  <NModal
+    :show="visible"
+    preset="card"
+    title="本地库"
+    style="width:min(760px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100vh - 24px)"
+    @close="emit('close')"
+    @mask-click="emit('close')"
+  >
+    <div class="dialog__body">
+      <div class="dialog__search-row">
+        <div class="dialog__search-wrap">
+          <IconBase name="search" :size="14" class="dialog__search-icon" />
+          <input
+            v-model="projectFilter"
+            class="dialog__search"
+            placeholder="搜索工程名或 ID..."
+          />
+          <NTooltip v-if="projectFilter" placement="bottom">
+            <template #trigger>
+              <button class="dialog__search-clear" type="button" @click="projectFilter = ''">
+                <IconBase name="x" :size="12" />
+              </button>
+            </template>
+            清除搜索
+          </NTooltip>
+        </div>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <button class="dialog__refresh-btn" type="button" :disabled="isBulkWorking" @click="refreshList">刷新</button>
+          </template>
+          刷新本地库
+        </NTooltip>
+      </div>
+
+      <div class="dialog__bulk-row">
+        <button
+          class="dialog__select-all"
+          type="button"
+          :disabled="!filteredProjectOptions.length || isBulkWorking"
+          @click="toggleSelectAllVisible"
+        >
+          <IconBase :name="allVisibleSelected ? 'check' : 'square'" :size="13" />
+          <span>全选当前结果</span>
+        </button>
+        <div class="dialog__bulk-actions">
+          <button class="dialog__action-btn" :disabled="!hasSelection || isBulkWorking" @click="exportSelectedProjectsZip">
+            导出选中 ZIP
+          </button>
+          <button class="dialog__action-btn dialog__action-btn--danger" :disabled="!hasSelection || isBulkWorking" @click="deleteSelectedProjects">
+            批量删除
+          </button>
+        </div>
+      </div>
+
+      <div class="dialog__summary">{{ resultSummary }}</div>
+
+      <ul class="dialog__list">
+        <li v-for="project in filteredProjectOptions" :key="project.id">
+          <div class="dialog__item" :class="{ 'dialog__item--active': isCurrentProject(project.id) }">
+            <button
+              class="dialog__checkbox-wrap"
+              :class="{ 'dialog__checkbox-wrap--selected': isSelected(project.id) }"
+              type="button"
+              :disabled="isBulkWorking"
+              @click="toggleProjectSelection(project.id)"
+            >
+              <IconBase :name="isSelected(project.id) ? 'check' : 'square'" :size="13" />
+            </button>
+            <div class="dialog__item-main">
+              <span class="dialog__item-name">
+                <template v-for="(part, index) in highlightedParts(project.name)" :key="`${project.id}-name-${index}`">
+                  <mark v-if="part.matched" class="dialog__mark">{{ part.text }}</mark>
+                  <span v-else>{{ part.text }}</span>
                 </template>
-                清除搜索
+              </span>
+              <small class="dialog__item-meta">
+                <span class="dialog__item-id">
+                  ID:
+                  <template v-for="(part, index) in highlightedParts(project.id)" :key="`${project.id}-id-${index}`">
+                    <mark v-if="part.matched" class="dialog__mark">{{ part.text }}</mark>
+                    <span v-else>{{ part.text }}</span>
+                  </template>
+                </span>
+                <span>{{ new Date(project.meta.updatedAt).toLocaleString() }}</span>
+              </small>
+            </div>
+            <div class="dialog__item-actions">
+              <NTooltip placement="bottom">
+                <template #trigger>
+                  <button class="dialog__action-btn" :disabled="isBulkWorking" @click="loadProject(project.id)">加载</button>
+                </template>
+                加载此工程
+              </NTooltip>
+              <NTooltip placement="bottom">
+                <template #trigger>
+                  <button class="dialog__action-btn dialog__action-btn--danger" :disabled="isBulkWorking" @click="deleteProject(project.id)">删除</button>
+                </template>
+                删除此工程
               </NTooltip>
             </div>
-            <NTooltip placement="bottom">
-              <template #trigger>
-                <button class="dialog__refresh-btn" type="button" @click="refreshList">刷新</button>
-              </template>
-              刷新本地库
-            </NTooltip>
           </div>
-          <ul class="dialog__list">
-            <li v-for="project in filteredProjectOptions" :key="project.id">
-              <div class="dialog__item" :class="{ 'dialog__item--active': isCurrentProject(project.id) }">
-                <div class="dialog__item-main">
-                  <span class="dialog__item-name">{{ project.name }}</span>
-                  <small class="dialog__item-meta">{{ new Date(project.meta.updatedAt).toLocaleString() }}</small>
-                </div>
-                <div class="dialog__item-actions">
-                  <NTooltip placement="bottom">
-                    <template #trigger>
-                      <button class="dialog__action-btn" @click="loadProject(project.id)">加载</button>
-                    </template>
-                    加载此工程
-                  </NTooltip>
-                  <NTooltip placement="bottom">
-                    <template #trigger>
-                      <button class="dialog__action-btn dialog__action-btn--danger" @click="deleteProject(project.id)">删除</button>
-                    </template>
-                    删除此工程
-                  </NTooltip>
-                </div>
-              </div>
-            </li>
-            <li v-if="!filteredProjectOptions.length" class="dialog__empty">
-              <IconBase name="layers" :size="32" class="dialog__empty-icon" />
-              <span>无匹配工程</span>
-            </li>
-          </ul>
-        </div>
+        </li>
+        <li v-if="!filteredProjectOptions.length" class="dialog__empty">
+          <IconBase name="layers" :size="32" class="dialog__empty-icon" />
+          <span>{{ projectFilter ? '无匹配工程' : '本地库暂无工程' }}</span>
+        </li>
+      </ul>
+    </div>
   </NModal>
 </template>
 
 <style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 8000;
-  background: rgba(0, 0, 0, 0);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: backdrop-fade-in var(--transition-normal) forwards;
-}
-
-@keyframes backdrop-fade-in {
-  to {
-    background: rgba(0, 0, 0, 0.45);
-  }
-}
-
-.dialog {
-  width: 520px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 64px);
-  background: var(--toolbar-card-bg);
-  border: 1px solid var(--toolbar-border);
-  border-radius: 12px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+.dialog__body {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  min-height: 260px;
+  max-height: calc(100vh - 180px);
   overflow: hidden;
-  animation: dialog-enter var(--transition-normal);
-}
-
-@keyframes dialog-enter {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.dialog__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--toolbar-border);
-}
-
-.dialog__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--toolbar-text);
-}
-
-.dialog__close {
-  border: none;
-  background: transparent;
-  color: var(--toolbar-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  transition: color var(--transition-fast, 0.1s ease), background var(--transition-fast, 0.1s ease);
-}
-
-.dialog__close:hover {
-  background: var(--toolbar-button-bg);
-  color: var(--toolbar-text);
-}
-
-.dialog__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px 16px;
 }
 
 .dialog__search-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
 .dialog__search-wrap {
@@ -228,12 +333,13 @@ onMounted(() => {
   color: var(--toolbar-text);
   font-size: 12px;
   outline: none;
-  transition: box-shadow var(--transition-normal, 0.15s ease), border-color var(--transition-normal, 0.15s ease);
+  transition: box-shadow var(--transition-normal, 0.15s ease), border-color var(--transition-normal, 0.15s ease), background var(--transition-normal, 0.15s ease);
 }
 
 .dialog__search:focus {
-  border-color: var(--toolbar-tab-active-border);
-  box-shadow: var(--focus-ring, 0 0 0 2px rgba(29, 78, 216, 0.2));
+  border-color: var(--ark-pink);
+  box-shadow: 0 0 0 1px rgba(249, 0, 191, 0.24), 0 0 10px rgba(249, 0, 191, 0.12);
+  background: var(--toolbar-item-bg);
 }
 
 .dialog__search-clear {
@@ -262,11 +368,61 @@ onMounted(() => {
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color var(--transition-fast, 0.1s ease);
+  transition: all var(--transition-fast, 0.1s ease);
 }
 
-.dialog__refresh-btn:hover {
-  border-color: var(--toolbar-button-hover-border);
+.dialog__refresh-btn:hover:not(:disabled) {
+  border-color: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
+}
+
+.dialog__refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dialog__bulk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dialog__select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--toolbar-text);
+  font-size: 12px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 5px;
+  background: var(--toolbar-input-bg);
+  padding: 4px 9px;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.1s ease);
+}
+
+.dialog__select-all:hover:not(:disabled) {
+  border-color: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
+}
+
+.dialog__select-all:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dialog__bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dialog__summary {
+  font-size: 11px;
+  color: var(--toolbar-muted);
 }
 
 .dialog__list {
@@ -276,15 +432,28 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.dialog__list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.dialog__list::-webkit-scrollbar-thumb {
+  background: var(--toolbar-scrollbar-thumb);
+  border: 1px solid rgba(188, 31, 255, 0.3);
+  border-radius: 10px;
 }
 
 .dialog__item {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  padding: 8px 10px 8px 14px;
+  padding: 8px 10px 8px 10px;
   border: 1px solid var(--toolbar-input-border);
   border-radius: 8px;
   background: var(--toolbar-input-bg);
@@ -292,7 +461,8 @@ onMounted(() => {
 }
 
 .dialog__item:hover {
-  border-color: var(--toolbar-button-hover-border);
+  border-color: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
 }
 
 .dialog__item:hover::before {
@@ -308,7 +478,9 @@ onMounted(() => {
 }
 
 .dialog__item--active {
-  border-color: var(--toolbar-tab-active-border);
+  border-color: var(--toolbar-active-border, var(--ark-pink));
+  border-width: 2px;
+  padding: 7px 9px 7px 9px;
   background: var(--toolbar-tab-active-bg);
 }
 
@@ -322,6 +494,36 @@ onMounted(() => {
   height: 20px;
   background: var(--indicator-color, var(--toolbar-primary-bg));
   border-radius: 0 1px 1px 0;
+}
+
+.dialog__checkbox-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--toolbar-input-border);
+  border-radius: 5px;
+  background: var(--toolbar-input-bg);
+  color: var(--toolbar-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.1s ease);
+}
+
+.dialog__checkbox-wrap:hover:not(:disabled) {
+  border-color: var(--ark-pink);
+  color: var(--toolbar-text);
+}
+
+.dialog__checkbox-wrap--selected {
+  border-color: var(--ark-pink);
+  color: var(--ark-pink);
+  box-shadow: inset 0 0 0 1px rgba(249, 0, 191, 0.2);
+}
+
+.dialog__checkbox-wrap:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .dialog__item-main {
@@ -343,19 +545,31 @@ onMounted(() => {
 .dialog__item-meta {
   font-size: 11px;
   color: var(--toolbar-muted);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dialog__item-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
+}
+
+.dialog__mark {
+  background: rgba(249, 0, 191, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(249, 0, 191, 0.18);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
 }
 
 .dialog__item-actions {
   display: flex;
   gap: 6px;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity var(--transition-fast, 0.1s ease);
-}
-
-.dialog__item:hover .dialog__item-actions,
-.dialog__item--active .dialog__item-actions {
-  opacity: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .dialog__action-btn {
@@ -367,18 +581,24 @@ onMounted(() => {
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color var(--transition-fast, 0.1s ease);
+  transition: all var(--transition-fast, 0.1s ease);
 }
 
-.dialog__action-btn:hover {
-  border-color: var(--toolbar-button-hover-border);
+.dialog__action-btn:hover:not(:disabled) {
+  border-color: var(--ark-pink);
+  box-shadow: 0 0 6px var(--ark-pink-glow);
+}
+
+.dialog__action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .dialog__action-btn--danger {
   color: var(--toolbar-danger, #e74c3c);
 }
 
-.dialog__action-btn--danger:hover {
+.dialog__action-btn--danger:hover:not(:disabled) {
   border-color: var(--toolbar-danger, #e74c3c);
 }
 
@@ -395,5 +615,26 @@ onMounted(() => {
 
 .dialog__empty-icon {
   opacity: 0.4;
+}
+
+@media (max-width: 640px) {
+  .dialog__body {
+    max-height: calc(100vh - 132px);
+  }
+
+  .dialog__item {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .dialog__item-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-left: 30px;
+  }
+
+  .dialog__item-id {
+    max-width: 100%;
+  }
 }
 </style>

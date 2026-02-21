@@ -27,7 +27,7 @@ const { menus, handleAction, uiTheme, toggleTheme } = useMenuBarActions(store, e
 function convertMenuItems(items) {
   return items.map((item, i) => {
     if (item.type === 'separator') return { type: 'divider', key: `sep_${i}` }
-    const opt = { key: item.action || `item_${i}`, label: item.label, disabled: item.disabled }
+    const opt = { key: item.action || `submenu_${item.label}`, label: item.label, disabled: item.disabled }
     if (item.type === 'toggle' && item.checked) opt.label = `✓ ${item.label}`
     if (item.shortcut) opt.label = `${item.label}    ${item.shortcut}`
     if (item.icon) opt.icon = () => h(IconBase, { name: item.icon, size: 16 })

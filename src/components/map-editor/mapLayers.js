@@ -3,15 +3,15 @@ import {
   LAYER_EDGE_ANCHORS_HIT,
   LAYER_EDGES,
   LAYER_EDGES_SQUARE,
-  LAYER_EDGES_OUTLINE,
-  LAYER_EDGES_SQUARE_OUTLINE,
   LAYER_EDGES_HIT,
   LAYER_EDGES_SELECTED,
   LAYER_STATIONS,
   LAYER_STATIONS_HIGHLIGHT,
+  LAYER_PULSES,
   SOURCE_EDGE_ANCHORS,
   SOURCE_EDGES,
   SOURCE_STATIONS,
+  SOURCE_PULSES,
 } from './constants'
 import {
   buildBoundaryGeoJson,
@@ -23,7 +23,6 @@ import { LINE_STYLE_OPTIONS, getLineStyleMap } from '../../lib/lineStyles'
 
 const LAYER_LANDUSE = 'landuse-overlay'
 const LAYER_STATIONS_LABEL = 'railmap-stations-label'
-const LAYER_LINES_LABEL = 'railmap-lines-label'
 const LAYER_STATIONS_INTERCHANGE = 'railmap-stations-interchange'
 
 const COMMON_LANDUSE_TYPES = [
@@ -174,6 +173,17 @@ export function updateMapData(map, store) {
   if (anchorSource) {
     anchorSource.setData(buildEdgeAnchorsGeoJson(store.project, store.selectedEdgeId, store.selectedEdgeAnchor))
   }
+
+  const pulseSource = map.getSource(SOURCE_PULSES)
+  if (!pulseSource && store.mapPulsesGeoJson) {
+    map.addSource(SOURCE_PULSES, {
+      type: 'geojson',
+      data: store.mapPulsesGeoJson,
+    })
+  } else if (pulseSource && store.mapPulsesGeoJson) {
+    pulseSource.setData(store.mapPulsesGeoJson)
+  }
+
   updateSelectedEdgeFilter(map, store)
   updateStationVisibilityFilter(map, store)
   updateMapDisplayVisibility(map, store)
@@ -231,45 +241,6 @@ export function ensureMapLayers(map, store) {
       map.addLayer(selectedLayerConfig, LAYER_EDGES)
     } else {
       map.addLayer(selectedLayerConfig)
-    }
-  }
-
-  const outlinePaintBase = {
-    'line-color': '#ffffff',
-    'line-width': 3,
-    'line-gap-width': buildLineStyleNumericExpression('lineWidth'),
-    'line-opacity': 1,
-  }
-
-  if (!map.getLayer(LAYER_EDGES_OUTLINE)) {
-    const config = {
-      id: LAYER_EDGES_OUTLINE,
-      type: 'line',
-      source: SOURCE_EDGES,
-      filter: ['!=', ['get', 'lineStyle'], 'double-dotted-square'],
-      paint: outlinePaintBase,
-      layout: { 'line-cap': edgeLayerCaps.nonSquare, 'line-join': 'round' },
-    }
-    if (map.getLayer(LAYER_EDGES)) {
-      map.addLayer(config, LAYER_EDGES)
-    } else {
-      map.addLayer(config)
-    }
-  }
-
-  if (!map.getLayer(LAYER_EDGES_SQUARE_OUTLINE)) {
-    const config = {
-      id: LAYER_EDGES_SQUARE_OUTLINE,
-      type: 'line',
-      source: SOURCE_EDGES,
-      filter: ['==', ['get', 'lineStyle'], 'double-dotted-square'],
-      paint: outlinePaintBase,
-      layout: { 'line-cap': edgeLayerCaps.square, 'line-join': 'round' },
-    }
-    if (map.getLayer(LAYER_EDGES_SQUARE)) {
-      map.addLayer(config, LAYER_EDGES_SQUARE)
-    } else {
-      map.addLayer(config)
     }
   }
 
@@ -363,19 +334,32 @@ export function ensureMapLayers(map, store) {
         'circle-radius': [
           'case',
           ['==', ['get', 'isSelected'], true],
-          7,
-          4.8,
+          ['interpolate', ['linear'], ['zoom'], 10, 8, 14, 10],
+          ['interpolate', ['linear'], ['zoom'], 10, 4.2, 14, 5.8],
         ],
         'circle-color': [
           'case',
           ['==', ['get', 'proposed'], true],
-          '#9CA3AF',
+          '#1a1a1f',
           ['==', ['get', 'underConstruction'], true],
-          '#F59E0B',
-          '#FFFFFF',
+          '#1a1a1f',
+          '#ffffff',
         ],
-        'circle-stroke-width': ['case', ['==', ['get', 'isSelected'], true], 3, 2],
-        'circle-stroke-color': '#0F172A',
+        'circle-stroke-width': [
+          'case',
+          ['==', ['get', 'isSelected'], true],
+          3,
+          2.5,
+        ],
+        'circle-stroke-color': [
+          'case',
+          ['==', ['get', 'proposed'], true],
+          '#475a74',
+          ['==', ['get', 'underConstruction'], true],
+          '#ff4d88',
+          '#bc1fff',
+        ],
+        'circle-stroke-opacity': 0.9,
       },
     })
     updateStationVisibilityFilter(map, store)
@@ -388,10 +372,25 @@ export function ensureMapLayers(map, store) {
       source: SOURCE_STATIONS,
       filter: ['==', ['get', 'isInterchange'], true],
       paint: {
-        'circle-radius': 6.2,
-        'circle-color': 'rgba(255,255,255,0)',
-        'circle-stroke-width': 2.1,
-        'circle-stroke-color': '#0F172A',
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 7.5, 14, 10.5],
+        'circle-color': 'rgba(0,0,0,0)',
+        'circle-stroke-width': 2.5,
+        'circle-stroke-color': '#f900bf',
+        'circle-stroke-opacity': 0, // 默认隐藏，由 HTML Marker 代替
+      },
+    })
+  }
+
+  if (!map.getLayer(LAYER_PULSES)) {
+    map.addLayer({
+      id: LAYER_PULSES,
+      type: 'circle',
+      source: SOURCE_PULSES,
+      paint: {
+        'circle-radius': ['get', 'radius'],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+        'circle-blur': 0.4,
       },
     })
   }
@@ -429,27 +428,6 @@ export function ensureMapLayers(map, store) {
     })
   }
 
-  if (!map.getLayer(LAYER_LINES_LABEL)) {
-    map.addLayer({
-      id: LAYER_LINES_LABEL,
-      type: 'symbol',
-      source: SOURCE_EDGES,
-      layout: {
-        'symbol-placement': 'line-center',
-        'text-field': ['coalesce', ['get', 'lineNameZh'], ''],
-        'text-font': ['Noto Sans CJK SC Regular', 'Noto Sans Regular'],
-        'text-size': 11,
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-      },
-      paint: {
-        'text-color': '#111827',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.2,
-      },
-    })
-  }
-
   updateMapDisplayVisibility(map, store)
 }
 
@@ -460,14 +438,18 @@ export function setStationHighlightVisibility(map, visible) {
 
 export function updateMapDisplayVisibility(map, store) {
   if (!map) return
+  if (map.getLayer(LAYER_STATIONS)) {
+    map.setLayoutProperty(LAYER_STATIONS, 'visibility', store.showStationMarkers ? 'visible' : 'none')
+  }
   if (map.getLayer(LAYER_STATIONS_LABEL)) {
     map.setLayoutProperty(LAYER_STATIONS_LABEL, 'visibility', store.showStationLabels ? 'visible' : 'none')
-  }
-  if (map.getLayer(LAYER_LINES_LABEL)) {
-    map.setLayoutProperty(LAYER_LINES_LABEL, 'visibility', store.showLineLabels ? 'visible' : 'none')
+    map.setPaintProperty(LAYER_STATIONS_LABEL, 'text-color', '#eef3ff')
+    map.setPaintProperty(LAYER_STATIONS_LABEL, 'text-halo-color', 'rgba(5, 5, 5, 0.85)')
+    map.setPaintProperty(LAYER_STATIONS_LABEL, 'text-halo-width', 2)
   }
   if (map.getLayer(LAYER_STATIONS_INTERCHANGE)) {
-    map.setLayoutProperty(LAYER_STATIONS_INTERCHANGE, 'visibility', store.showInterchangeMarkers ? 'visible' : 'none')
+    // 始终隐藏静态换乘标识，改用动态 HTML Marker
+    map.setPaintProperty(LAYER_STATIONS_INTERCHANGE, 'circle-stroke-opacity', 0)
   }
 }
 

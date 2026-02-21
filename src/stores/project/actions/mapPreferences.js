@@ -3,6 +3,10 @@
  * Handles map overlay settings like landuse visualization.
  */
 const mapPreferencesActions = {
+  toggleStationMarkers() {
+    this.showStationMarkers = !this.showStationMarkers
+  },
+
   toggleStationLabels() {
     this.showStationLabels = !this.showStationLabels
   },
@@ -40,7 +44,7 @@ const mapPreferencesActions = {
   },
 
   setMapTileType(tileType) {
-    this.mapTileType = tileType || 'osm'
+    this.mapTileType = tileType || 'dark'
   },
 }
 

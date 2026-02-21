@@ -125,8 +125,8 @@ const TILE_SOURCES = {
   },
 }
 
-function buildMapStyle(tileType = 'osm') {
-  const source = TILE_SOURCES[tileType] || TILE_SOURCES.osm
+function buildMapStyle(tileType = 'dark') {
+  const source = TILE_SOURCES[tileType] || TILE_SOURCES.dark
   return {
     version: 8,
     sources: {
@@ -137,6 +137,10 @@ function buildMapStyle(tileType = 'osm') {
         id: 'base-layer',
         type: 'raster',
         source: 'base-tiles',
+        paint: {
+          'raster-brightness-min': 0.2,
+          'raster-brightness-max': 1,
+        },
       },
     ],
   }

@@ -48,13 +48,15 @@ export const useProjectStore = defineStore('project', {
     exportStationVisibilityMode: 'all',
     showLanduseOverlay: false,
     highlightStationLocations: false,
+    showStationMarkers: true,
     showStationLabels: true,
     showLineLabels: true,
     showInterchangeMarkers: true,
+    interchangeMarkerStyle: 'orbit', // 'orbit' | 'radar' | 'gear'
     showMapGrid: false,
     showMapCoordinates: false,
     protomapsApiKey: getInitialProtomapsApiKey(),
-    mapTileType: 'osm',
+    mapTileType: 'dark',
     currentEditYear: 2010,
     timelineFilterYear: null,
     timelinePlayback: {

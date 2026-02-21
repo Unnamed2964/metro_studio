@@ -2,13 +2,13 @@
  * OSM tile rendering for timeline animation.
  *
  * Handles Web Mercator projection, tile math, async tile loading with
- * concurrency control, caching, and canvas rendering with desaturation.
+ * concurrency control, caching, and canvas rendering.
  *
- * Tile source: OpenStreetMap standard raster tiles (256×256).
+ * Tile source: CartoDB Dark raster tiles (256×256).
  */
 
 const TILE_SIZE = 256
-const TILE_URL_TEMPLATE = 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+const TILE_URL_TEMPLATE = 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
 const MAX_CONCURRENT_FETCHES = 12
 const MAX_CACHE_SIZE = 2048
 const DEG_TO_RAD = Math.PI / 180
@@ -372,7 +372,7 @@ export class TileCache {
 // ─── Tile rendering ─────────────────────────────────────────────
 
 /**
- * Render visible OSM tiles onto a canvas context with desaturation/weakening.
+ * Render visible base map tiles onto a canvas context.
  *
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ centerLng: number, centerLat: number, zoom: number }} camera
@@ -406,13 +406,6 @@ export function renderTiles(ctx, camera, width, height, tileCache) {
   const tileTop = Math.max(0, Math.floor(worldTop / tileDisplaySize))
   const tileRight = Math.floor(worldRight / tileDisplaySize)
   const tileBottom = Math.min(n - 1, Math.floor(worldBottom / tileDisplaySize))
-
-  // Apply desaturation filter if supported
-  const supportsFilter = typeof ctx.filter === 'string' || ctx.filter !== undefined
-  if (supportsFilter) {
-    ctx.save()
-    ctx.filter = 'contrast(1.1)'
-  }
 
   // Track whether any tiles are still loading
   let hasMissing = false
@@ -460,14 +453,6 @@ export function renderTiles(ctx, camera, width, height, tileCache) {
       }
     }
   }
-
-  if (supportsFilter) {
-    ctx.restore()
-  }
-
-  // Overlay semi-transparent white to further weaken the map
-  ctx.fillStyle = 'rgba(240, 243, 246, 0.58)'
-  ctx.fillRect(0, 0, width, height)
 
   return hasMissing
 }

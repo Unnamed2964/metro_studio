@@ -12,6 +12,9 @@ const LAYER_STATIONS_HIGHLIGHT = 'metro-studio-stations-highlight'
 const SOURCE_STATIONS = 'metro-studio-stations'
 const SOURCE_EDGES = 'metro-studio-edges'
 const SOURCE_EDGE_ANCHORS = 'metro-studio-edge-anchors'
+const SOURCE_PULSES = 'metro-studio-pulses'
+
+const LAYER_PULSES = 'metro-studio-pulses-layer'
 
 const CURVE_SEGMENTS_PER_SPAN = 14
 
@@ -29,5 +32,7 @@ export {
   SOURCE_STATIONS,
   SOURCE_EDGES,
   SOURCE_EDGE_ANCHORS,
+  SOURCE_PULSES,
+  LAYER_PULSES,
   CURVE_SEGMENTS_PER_SPAN,
 }
